@@ -1,3 +1,9 @@
+
+
+mod csv_reader;
+mod model;
+
+
 fn main() {
-    println!("Hello, world!");
+
 }

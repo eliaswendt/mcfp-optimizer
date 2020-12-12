@@ -1,9 +1,11 @@
 [package]
 name = "praktikum-algorithmik"
 version = "0.1.0"
-authors = ["Elias Wendt <elias.wendt@de-cix.net>"]
+authors = ["Elias Wendt <elias.wendt@stud.tu-darmstadt.de>", "Dorian-Benedikt Arnouts <dorian-benedikt.arnouts@stud.tu-darmstadt.de>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+petgraph = "0.5"
+csv = "1.1"
