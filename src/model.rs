@@ -144,7 +144,7 @@ impl Group {
 enum StationType {
     Departure,
     Arrival,
-    Stay,
+    Transfer,
 }
 
 #[derive(Debug)]
@@ -170,9 +170,9 @@ impl Node {
         }
     }
 
-    pub fn is_stay(&self) -> bool {
+    pub fn is_transfer(&self) -> bool {
         match self.kind {
-            StationType::Stay => true,
+            StationType::Transfer => true,
             _ => false
         }
     }
@@ -185,6 +185,34 @@ pub struct Edge {
     duration: u64 // number of minutes required to get from node to node along this edge
 }
 
+
+
+struct StationHelper {
+    arrivals: HashMap<String, NodeIndex>,
+    departures: HashMap<String, NodeIndex>,
+    transfers: HashMap<u64, NodeIndex>, // key is time!
+
+    transfer_time: u64,
+}
+
+impl StationHelper {
+    pub fn new(transfer_time: u64) -> Self {
+        StationHelper {
+            arrivals: HashMap::new(),
+            departures: HashMap::new(),
+            transfers: HashMap::new(),
+
+            transfer_time
+        }
+    }
+
+    /// connect arrivals with departures, arrivals with transfers, transfers with transfers and transfers with departures
+    pub fn connect(&self) {
+
+    }
+
+
+}
 
 
 /// entire combined data model
@@ -215,24 +243,42 @@ impl Model {
         for (_, trip) in trips_map.iter() {
 
             let departure_node_key = format!("{}_departure_{}", trip.from_station, trip.id);
+            let transfer_node_key = format!("transfer_{}", departure_node_key);
             let arrival_node_key =  format!("{}_arrival_{}", trip.to_station, trip.id);
 
             // add nodes for departure and arrival of this trip
+
+            // DEPARTURE NODE
             let departure_node_index = graph.add_node(Node {
                 id: departure_node_key.clone(),
                 time: trip.departure,
                 kind: StationType::Departure
             });
+
+            // TRANSFER NODE (each departure also induces a corresponding departure node at the station)
+            let transfer_node_index = graph.add_node(Node {
+                id: transfer_node_key.clone(),
+                time: trip.departure,
+                kind: StationType::Transfer
+            });
+
+            // ARRIVAL NODE
             let arrival_node_index = graph.add_node(Node {
                 id: arrival_node_key.clone(),
                 time: trip.arrival,
                 kind: StationType::Arrival
             });
 
-            // add edge between those two nodes
+            // add edge between departure and arrival
             graph.add_edge(departure_node_index, arrival_node_index, Edge {
                 capacity: trip.capacity,
                 duration: (trip.arrival - trip.departure)
+            });
+
+            // add edge between transfer and departure
+            graph.add_edge(transfer_node_index, departure_node_index, Edge {
+                capacity: u64::MAX,
+                duration: 0
             });
 
             departure_node_indices.insert(departure_node_key, departure_node_index);
