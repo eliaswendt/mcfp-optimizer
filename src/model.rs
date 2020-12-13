@@ -60,7 +60,7 @@ struct Trip {
 }
 
 impl Trip {
-    pub fn from_maps_to_map(trip_maps: &Vec<HashMap<String, String>>) -> HashMap<u64, Self> {
+    pub fn from_maps_to_map(trip_maps: &Vec<HashMap<String, String>>) -> HashMap<String, Self> {
 
         println!("parsing {} trips", trip_maps.len());
 
@@ -69,13 +69,17 @@ impl Trip {
         for trip_map in trip_maps.iter() {
 
             let id = trip_map.get("id").unwrap().parse().unwrap();
+            let from_station = trip_map.get("from_station").unwrap().clone();
+            let to_station = trip_map.get("to_station").unwrap().clone();
 
-            trips_map.insert(id, 
+            let key = format!("{}_{}->{}", id, from_station, to_station);
+
+            trips_map.insert(key, 
                 Self {
                 id,
-                from_station: trip_map.get("from_station").unwrap().clone(),
+                from_station: from_station,
                 departure: trip_map.get("departure").unwrap().parse().unwrap(),
-                to_station: trip_map.get("to_station").unwrap().clone(),
+                to_station: to_station,
                 arrival: trip_map.get("arrival").unwrap().parse().unwrap(),
                 capacity: trip_map.get("capacity").unwrap().parse().unwrap()
             });
@@ -136,37 +140,47 @@ impl Group {
     }
 }
 
+#[derive(Debug)]
+enum StationType {
+    Departure,
+    Arrival,
+    Stay,
+}
 
-enum Node {
-    Arrival {
-        time: u64,
-    },
+#[derive(Debug)]
+pub struct Node {
+    id: String,
 
-    Departure {
-        time: u64
-    },
-
-    Transfer {
-        duration: u64 // transfer time at this station
-    }
+    time: u64, // time of arrival/departure
+    kind: StationType // type of this node (departure, arrival or stay)
 }
 
 impl Node {
-    pub fn new_arrival(time: u64) -> Self {
-        Self::Arrival {
-            time
+    pub fn is_arrival(&self) -> bool {
+        match self.kind {
+            StationType::Arrival => true,
+            _ => false
         }
     }
 
-    pub fn new_departure(time: u64) -> Self {
-        Self::Departure {
-            time
+    pub fn is_departure(&self) -> bool {
+        match self.kind {
+            StationType::Departure => true,
+            _ => false
+        }
+    }
+
+    pub fn is_stay(&self) -> bool {
+        match self.kind {
+            StationType::Stay => true,
+            _ => false
         }
     }
 }
 
 /// represents a connection between to stations or a station itself
-struct Edge {
+#[derive(Debug)]
+pub struct Edge {
     capacity: u64, // number of passengers this connection has capacity for
     duration: u64 // number of minutes required to get from node to node along this edge
 }
@@ -175,7 +189,7 @@ struct Edge {
 
 /// entire combined data model
 pub struct Model {
-    graph: DiGraph<Node, Edge>,
+    pub graph: DiGraph<Node, Edge>,
 }
 
 impl Model {
@@ -193,26 +207,66 @@ impl Model {
         let stations_map = Station::from_maps_to_map(&station_maps);
         let trips_map = Trip::from_maps_to_map(&trip_maps);
 
+        // store node indices so that we do not have to search them iin the graph afterwards
+        let mut arrival_node_indices: HashMap<String, NodeIndex> = HashMap::with_capacity(trips_map.len());
+        let mut departure_node_indices: HashMap<String, NodeIndex> = HashMap::with_capacity(trips_map.len());
 
         // parse trips that will connect all the stations
-        for (trip_id, trip) in trips_map.iter() {
+        for (_, trip) in trips_map.iter() {
 
-            // add nodes for start and destination of this trip
-            let node_departure = graph.add_node(Node::new_departure(trip.departure));
-            let node_arrival = graph.add_node(Node::new_arrival(trip.arrival));
+            let departure_node_key = format!("{}_departure_{}", trip.from_station, trip.id);
+            let arrival_node_key =  format!("{}_arrival_{}", trip.to_station, trip.id);
+
+            // add nodes for departure and arrival of this trip
+            let departure_node_index = graph.add_node(Node {
+                id: departure_node_key.clone(),
+                time: trip.departure,
+                kind: StationType::Departure
+            });
+            let arrival_node_index = graph.add_node(Node {
+                id: arrival_node_key.clone(),
+                time: trip.arrival,
+                kind: StationType::Arrival
+            });
 
             // add edge between those two nodes
-            graph.add_edge(node_departure, node_arrival, Edge {
+            graph.add_edge(departure_node_index, arrival_node_index, Edge {
                 capacity: trip.capacity,
                 duration: (trip.arrival - trip.departure)
             });
 
-            let from_station = stations_map.get(&trip.from_station).unwrap();
-            let to_station = stations_map.get(&trip.to_station).unwrap();
-
-
+            departure_node_indices.insert(departure_node_key, departure_node_index);
+            arrival_node_indices.insert(arrival_node_key, arrival_node_index);
         }
 
+        // iterate again, but this time we want to connect the arrivals with their departures
+        for (_, trip) in trips_map.iter() {
+            let station_id = &trip.from_station;
+
+            // we now connect arrival with the departure at this trip's departure station
+            let departure_node_key = format!("{}_departure_{}", station_id, trip.id);
+            let arrival_node_key =  format!("{}_arrival_{}", station_id, trip.id);
+
+
+
+            // now try to find arrival and departure nodes in the HashMaps we filled in the previous loop
+            let arrival_node_index = match arrival_node_indices.get(&arrival_node_key) {
+                Some(arrival_node) => *arrival_node,
+                None => continue // with next trip
+            };
+
+            let departure_node_index = match departure_node_indices.get(&departure_node_key) {
+                Some(departure_node) => *departure_node,
+                None => continue // with next trip
+            };
+
+            println!("connecting {} <-> {}", arrival_node_key, departure_node_key);
+
+            graph.add_edge(arrival_node_index, departure_node_index, Edge {
+                capacity: u64::MAX,
+                duration: 0
+            });
+        }
 
 
 
