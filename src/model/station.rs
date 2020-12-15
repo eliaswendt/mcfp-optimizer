@@ -44,9 +44,23 @@ impl Station {
             match self.arrival_node_indices.get(trip_id) {
                 Some(arrival_node_index) => {
                     // sitzen bleiben im zug
+                    let departure_time = match graph.node_weight(*departure_node_index) {
+                        Some(arrival_node) => {
+                            arrival_node.time
+                        }
+                        None => 0
+                    };
+                    
+                    let arrival_time = match graph.node_weight(*arrival_node_index) {
+                        Some(arrival_node) => {
+                            arrival_node.time
+                        }
+                        None => 0
+                    };
+
                     graph.add_edge(*arrival_node_index, *departure_node_index, super::Edge {
                         capacity: u64::MAX,
-                        duration: 0 // todo: consider stay time
+                        duration: departure_time - arrival_time
                     });
                 }
                 None => {}
