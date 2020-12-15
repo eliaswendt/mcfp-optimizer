@@ -7,7 +7,7 @@ pub struct Station {
 
     pub arrival_node_indices: HashMap<u64, NodeIndex>,
     pub departure_node_indices: HashMap<u64, NodeIndex>,
-    pub transfer_node_indices: HashMap<u64, NodeIndex>, // key is trip.id of corresponding departure
+    pub transfer_node_indices: HashMap<u64, NodeIndex>, // key is trip.id of corresponding departure // todo: replace key with departure time
 }
 
 impl Station {
@@ -38,21 +38,22 @@ impl Station {
     pub fn add_connections(&self, graph: &mut DiGraph<super::Node, super::Edge>) {
 
         // iterate over all departures
-        for (departure_node_key, departure_node_index) in self.departure_node_indices.iter() {
+        for (trip_id, departure_node_index) in self.departure_node_indices.iter() {
 
             // try to connect departure node to corresponding arrival node
-            match self.arrival_node_indices.get(departure_node_key) {
+            match self.arrival_node_indices.get(trip_id) {
                 Some(arrival_node_index) => {
+                    // sitzen bleiben im zug
                     graph.add_edge(*arrival_node_index, *departure_node_index, super::Edge {
                         capacity: u64::MAX,
-                        duration: 0
+                        duration: 0 // todo: consider stay time
                     });
                 }
                 None => {}
             }
 
             // try to connect transfer node to 
-            match self.transfer_node_indices.get(departure_node_key) {
+            match self.transfer_node_indices.get(trip_id) {
                 Some(transfer_node_index) => {
                     graph.add_edge(*transfer_node_index, *departure_node_index, super::Edge {
                         capacity: u64::MAX,
@@ -66,22 +67,22 @@ impl Station {
         let mut transfer_node_indices_list: Vec<(&u64, &NodeIndex)> = self.transfer_node_indices.iter().collect();
         transfer_node_indices_list.sort_unstable_by_key(|(key, _)| **key);
 
+        // connect transfers with each other
+        // todo: do not run in every iteration
+        for transfer_node_indices in transfer_node_indices_list.windows(2) {
+            graph.add_edge(
+                *transfer_node_indices[0].1,
+                *transfer_node_indices[1].1, 
+                super::Edge {
+                    capacity: u64::MAX,
+                    duration: 0
+                }
+            );
+        }
+
         // connect arrival nodes to the station's transfer nodes
         for (arrival_node_key, arrival_node_index) in self.arrival_node_indices.iter() {
             let earliest_transfer_time = graph.node_weight(*arrival_node_index).unwrap().time + self.transfer;
-
-            // connect transfers with each other
-            for transfer_node_indices in transfer_node_indices_list.windows(2) {
-                graph.add_edge(
-                    *transfer_node_indices[0].1,
-                    *transfer_node_indices[1].1, 
-                    super::Edge {
-                        capacity: u64::MAX,
-                        duration: 0
-                    }
-                );
-            }
-
 
             // find next transfer node after earliest_transfer_time
             for (transfer_node_time, transfer_node_index) in transfer_node_indices_list.iter() {

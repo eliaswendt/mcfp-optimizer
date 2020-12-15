@@ -123,6 +123,7 @@ impl Model {
             from_station.departure_node_indices.insert(trip.id, departure_node_index);
             from_station.transfer_node_indices.insert(trip.id,transfer_node_index);
 
+            // todo: consider outsourcing this to connect function
             graph.add_edge(departure_node_index, arrival_node_index, Edge {
                 capacity: trip.capacity,
                 duration: trip.arrival - trip.departure
