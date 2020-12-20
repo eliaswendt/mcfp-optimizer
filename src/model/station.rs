@@ -3,7 +3,7 @@ use petgraph::graph::{DiGraph,NodeIndex};
 pub struct Station {
     id: String,
     pub transfer_time: u64, // transfer time (minutes) at this station
-    name: String, 
+    pub name: String, 
 
     pub arrival_node_indices: HashMap<u64, NodeIndex>,
     pub departure_node_indices: HashMap<u64, NodeIndex>,
