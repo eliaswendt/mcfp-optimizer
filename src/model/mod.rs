@@ -57,11 +57,31 @@ impl Node {
     }
 }
 
-/// represents a connection between to stations or a station itself
+/// Edge Type of the DiGraph
 #[derive(Debug)]
-pub struct Edge {
-    capacity: u64, // number of passengers this connection has capacity for
-    duration: u64 // number of minutes required to get from node to node along this edge
+pub enum Edge {
+    Trip { // edge between departure and arrival
+        duration: u64,
+        capacity: u64
+    },
+
+    Stay { // edge between arrival and departure in the same train (stay in the train)
+        duration: u64
+    },
+    
+    Embark {}, // edge between transfer node and departure
+
+    Alight { // edge between arrival and transfer
+        duration: u64
+    },
+
+    Wait { // edge between two transfer nodes
+        duration: u64
+    },
+
+    Walk { // edge between arrival and next transfer node at other station
+        duration: u64
+    }
 }
 
 
@@ -73,6 +93,7 @@ pub struct Model {
 }
 
 impl Model {
+
     pub fn with_stations_footpaths_and_trips(csv_folder_path: &str) -> Self {
 
         let mut graph = DiGraph::new();
@@ -83,16 +104,24 @@ impl Model {
         let trip_maps = csv_reader::read_to_maps(&format!("{}trips.csv", csv_folder_path));
 
         // convert each list of maps into a single map with multiple entries with id as key
+        let footpaths_vec = footpath::Footpath::from_maps_to_vec(&footpath_maps);
         let groups_map = group::Group::from_maps_to_map(&group_maps);
         let mut stations_map = station::Station::from_maps_to_map(&station_maps);
         let trips_map = trip::Trip::from_maps_to_map(&trip_maps);
 
-
-        // parse trips that will connect all the stations
+        // iterate over all trips
         for (_, trip) in trips_map.iter() {
 
             // add nodes for departure and arrival of this trip
+            let arrival_node_key = format!("{}_arrival_{}", trip.to_station, trip.id);
             let departure_node_key = format!("{}_departure_{}", trip.from_station, trip.id);
+
+            // ARRIVAL NODE
+            let arrival_node_index = graph.add_node(Node {
+                id: arrival_node_key,
+                time: trip.arrival,
+                kind: NodeType::Arrival
+            });
 
             // DEPARTURE NODE
             let departure_node_index = graph.add_node(Node {
@@ -101,39 +130,133 @@ impl Model {
                 kind: NodeType::Departure
             });
 
-            // TRANSFER NODE (each departure also induces a corresponding departure node at the station)
-            let transfer_node_index = graph.add_node(Node {
-                id: format!("{}_transfer", departure_node_key),
-                time: trip.departure,
-                kind: NodeType::Transfer
-            });
-
-            // ARRIVAL NODE
-            let arrival_node_index = graph.add_node(Node {
-                id: format!("{}_arrival_{}", trip.to_station, trip.id),
-                time: trip.arrival,
-                kind: NodeType::Arrival
-            });
-
             // now add these nodes to a station
             let to_station = stations_map.get_mut(&trip.to_station).unwrap();
             to_station.arrival_node_indices.insert(trip.id, arrival_node_index);
 
             let from_station = stations_map.get_mut(&trip.from_station).unwrap();
             from_station.departure_node_indices.insert(trip.id, departure_node_index);
-            from_station.transfer_node_indices.insert(trip.id,transfer_node_index);
 
-            // todo: consider outsourcing this to connect function
-            graph.add_edge(departure_node_index, arrival_node_index, Edge {
+            // connect stations of this trip
+            graph.add_edge(departure_node_index, arrival_node_index, Edge::Trip {
                 capacity: trip.capacity,
                 duration: trip.arrival - trip.departure
             });
         }
 
+        // iterate over all stations
+        for (station_id, station) in stations_map.iter_mut() {
 
-        for (_, station) in stations_map.iter() {
-            station.add_connections(&mut graph);
+            // iterate over all arrivals
+            for (trip_id, arrival_node_index) in station.arrival_node_indices.iter() {
+                
+                let arrival_node = graph.node_weight(*arrival_node_index).expect("Could not find node in graph");
+                let arrival_node_id = arrival_node.id.clone();
+                let arrival_node_time = arrival_node.time;
+
+                // generate corresponding transfer node
+                // ARRIVAL TRANSFER NODE (each departure also induces a corresponding departure node at the station)
+                let arrival_transfer_node_index = graph.add_node(Node {
+                    id: format!("transfer_from_{}", arrival_node_id),
+                    time: arrival_node_time + station.transfer_time,
+                    kind: NodeType::Transfer
+                });
+
+                // add connection from arrival to transfer node
+                graph.add_edge(*arrival_node_index, arrival_transfer_node_index, Edge::Alight {
+                    duration: station.transfer_time,
+                });
+
+                // add transfer node to list of transfer nodes of this station
+                station.transfer_node_indices.push((arrival_node_time + station.transfer_time, arrival_transfer_node_index));
+
+                // connect arrival of this trip to departure of this trip (if exists)
+                // this edge represents staying in the same train
+                match station.departure_node_indices.get(trip_id) {
+                    Some(departure_node_index) => {
+                        let departure_node_time = graph.node_weight(*departure_node_index).unwrap().time;
+
+                        graph.add_edge(*arrival_node_index, *departure_node_index, Edge::Stay {
+                            duration: departure_node_time - arrival_node_time
+                        });
+                    },
+                    None => {}
+                }
+            }
+
+
+            // iterate over all departures
+            for (_, departure_node_index) in station.departure_node_indices.iter() {
+
+                let departure_node = graph.node_weight(*departure_node_index).unwrap();
+                let departure_node_id = departure_node.id.clone();
+                let departure_node_time = departure_node.time;
+
+                // DEPARTURE TRANSFER NODE (each departure also induces a corresponding departure node at the station)
+                let departure_transfer_node_index = graph.add_node(Node {
+                    id: format!("transfer_to_{}", departure_node_id),
+                    time: departure_node_time,
+                    kind: NodeType::Transfer
+                });
+
+                // edge between transfer of this station to departure
+                graph.add_edge(departure_transfer_node_index, *departure_node_index, Edge::Embark{});
+
+                // add transfer node to list of transfer nodes of this station
+                station.transfer_node_indices.push((departure_node_time, departure_transfer_node_index));
+            }
+
+
+            // sort transfer node list (by first tuple element -> time)
+            station.transfer_node_indices.sort_unstable_by_key(|(key, _)| *key);
+
+            // connect transfers with each other
+            for transfer_node_indices in station.transfer_node_indices.windows(2) {
+                graph.add_edge(transfer_node_indices[0].1, transfer_node_indices[1].1, Edge::Wait {
+                    duration: transfer_node_indices[1].0 - transfer_node_indices[0].0
+                });
+            }
         }
+
+        // iterate over all footpaths
+        for footpath in footpaths_vec.iter() {
+            let from_station = match stations_map.get(&footpath.from_station) {
+                Some(from_station) => from_station,
+                None => {
+                    println!("footpath's from_station {} unknown", footpath.from_station);
+                    continue // with next footpath
+                }
+            };
+
+            let to_station = match stations_map.get(&footpath.to_station) {
+                Some(to_station) => to_station,
+                None => {
+                    println!("footpath's to_station {} unknown", footpath.to_station);
+                    continue // with next footpath
+                }
+            };
+
+            // for every arrival at the from_station try to find the next transfer node at the to_station
+            for arrival_node_index in from_station.arrival_node_indices.values() {
+                let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().time;
+
+                // timestamp of arrival at the footpaths to_station
+                let earliest_transfer_time = arrival_node_time + footpath.duration;
+
+                // try to find next transfer node at to_station
+                for (transfer_timestamp, transfer_node_index) in to_station.transfer_node_indices.iter() {
+                    if earliest_transfer_time <= *transfer_timestamp {
+                        graph.add_edge(*arrival_node_index, *transfer_node_index, Edge::Walk {
+                            duration: footpath.duration
+                        });
+                        break // the loop
+                    }
+                }
+
+                println!("There couldn't be found any valid (time) transfer node for footpath from {} -> {}", footpath.from_station, footpath.to_station);
+            }
+        }
+
 
         Self {
             graph

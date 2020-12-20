@@ -14,9 +14,7 @@ fn main() {
     let model = model::Model::with_stations_footpaths_and_trips("sample_data/");
     let dot_code = format!("{:?}", Dot::with_config(&model.graph, &[]));
 
-    // 
     BufWriter::new(File::create("graph.dot").unwrap()).write(
         dot_code.as_bytes()
     ).unwrap();
-
 }
