@@ -4,7 +4,7 @@ pub mod station;
 pub mod trip;
 
 use group::Group;
-use petgraph::graph::{NodeIndex, DiGraph};
+use petgraph::{graph::{NodeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
 use petgraph::algo::{dijkstra, min_spanning_tree};
 use petgraph::data::FromElements;
 use petgraph::dot::{Dot, Config};
@@ -16,19 +16,22 @@ use std::io::{prelude::*, BufWriter};
 use crate::csv_reader;
 
 #[derive(Debug)]
-enum NodeType {
-    Departure,
-    Arrival,
+pub enum Node {
+    Departure {
+        trip_id: u64,
+        time: u64
+    },
+
+    Arrival {
+        trip_id: u64,
+        time: u64
+    },
+
+    Station {
+        station_id: String
+    },
+
     Transfer
-}
-
-#[derive(Debug)]
-pub struct Node {
-    station: String,
-    trip_id: u64,
-    time: u64, // time of arrival/departure
-
-    kind: NodeType // type of this node (departure, arrival or stay)
 }
 
 // impl std::fmt::Debug for Node {
@@ -40,24 +43,32 @@ pub struct Node {
 // }
 
 impl Node {
-    pub fn is_arrival(&self) -> bool {
-        match self.kind {
-            NodeType::Arrival => true,
-            _ => false
-        }
-    }
+    // pub fn is_arrival(&self) -> bool {
+    //     match self.kind {
+    //         NodeType::Arrival => true,
+    //         _ => false
+    //     }
+    // }
 
-    pub fn is_departure(&self) -> bool {
-        match self.kind {
-            NodeType::Departure => true,
-            _ => false
-        }
-    }
+    // pub fn is_departure(&self) -> bool {
+    //     match self.kind {
+    //         NodeType::Departure => true,
+    //         _ => false
+    //     }
+    // }
 
-    pub fn is_transfer(&self) -> bool {
-        match self.kind {
-            NodeType::Transfer => true,
-            _ => false
+    // pub fn is_transfer(&self) -> bool {
+    //     match self.kind {
+    //         NodeType::Transfer => true,
+    //         _ => false
+    //     }
+    // }
+
+    pub fn get_time(&self) -> Option<u64> {
+        match self {
+            Self::Departure {trip_id, time} => Some(*time),
+            Self::Arrival {trip_id, time} => Some(*time),
+            _ => None
         }
     }
 }
@@ -65,27 +76,44 @@ impl Node {
 /// Edge Type of the DiGraph
 #[derive(Debug)]
 pub enum Edge {
-    Trip { // edge between departure and arrival
+    Ride { // edge between departure and arrival
         duration: u64,
         capacity: u64
     },
 
-    Stay { // edge between arrival and departure in the same train (stay in the train)
+    StayInTrain { // edge between arrival and departure in the same train (stay in the train)
         duration: u64
     },
     
-    Embark {}, // edge between transfer node and departure
+    Embark, // edge between transfer node and departure
 
     Alight { // edge between arrival and transfer
         duration: u64
     },
 
-    TransferWait { // edge between two transfer nodes
+    StayAtStation { // edge between two transfer nodes
         duration: u64
     },
 
-    TransferWalk { // edge between arrival and next transfer node at other station
+    Walk { // edge between arrival and next transfer node at other station
         duration: u64
+    },
+
+    StationRelation // edge between arrival/departure and station node
+}
+
+
+impl Edge {
+    /// get duration of self, defaults to 0
+    pub fn get_duration(&self) -> u64 {
+        match self {
+            Self::Ride{duration, capacity: _} => *duration,
+            Self::StayInTrain{duration} => *duration,
+            Self::Alight{duration} => *duration,
+            Self::StayAtStation{duration} => *duration,
+            Self::Walk{duration} => *duration,
+            _ => 0,
+        }
     }
 }
 
@@ -95,6 +123,7 @@ pub enum Edge {
 /// entire combined data model
 pub struct Model {
     pub graph: DiGraph<Node, Edge>,
+    station_main_node_indices: HashMap<String, NodeIndex>, // maps stations to one's station main NodeIndex
     groups_map: HashMap<u64, Group>
 }
 
@@ -117,19 +146,15 @@ impl Model {
         for (_, trip) in trips_map.iter() {
 
             // ARRIVAL NODE
-            let arrival_node_index = graph.add_node(Node {
-                station: trip.to_station.clone(),
+            let arrival_node_index = graph.add_node(Node::Arrival {
                 trip_id: trip.id,
-                time: trip.arrival,
-                kind: NodeType::Arrival
+                time: trip.arrival
             });
 
             // DEPARTURE NODE
-            let departure_node_index = graph.add_node(Node {
-                station: trip.from_station.clone(),
+            let departure_node_index = graph.add_node(Node::Departure {
                 trip_id: trip.id,
                 time: trip.departure,
-                kind: NodeType::Departure
             });
 
             // add these nodes to a station
@@ -140,32 +165,34 @@ impl Model {
             from_station.departure_node_indices.insert(trip.id, departure_node_index);
 
             // connect stations of this trip
-            graph.add_edge(departure_node_index, arrival_node_index, Edge::Trip {
+            graph.add_edge(departure_node_index, arrival_node_index, Edge::Ride {
                 capacity: trip.capacity,
                 duration: trip.arrival - trip.departure
             });
         }
 
+        let mut station_main_node_indices = HashMap::with_capacity(stations_map.len());
 
         // iterate over all stations
         for (station_id, station) in stations_map.iter_mut() {
 
+            let station_main_node_index = graph.add_node(Node::Station {
+                station_id: station_id.clone()
+            });
+
             // iterate over all departures
             for (trip_id, departure_node_index) in station.departure_node_indices.iter() {
 
+                // connect departure node to station's main node
+                graph.add_edge(station_main_node_index, *departure_node_index, Edge::StationRelation);
+
                 let departure_node = graph.node_weight(*departure_node_index).unwrap();
-                let departure_node_time = departure_node.time;
+                let departure_node_time = departure_node.get_time().unwrap();
 
                 // DEPARTURE TRANSFER NODE (each departure also induces a corresponding departure node at the station)
-                let departure_transfer_node_index = graph.add_node(Node {
-                    station: station_id.clone(),
-                    trip_id: *trip_id,
-                    time: departure_node_time,
-                    kind: NodeType::Transfer
-                });
-
+                let departure_transfer_node_index = graph.add_node(Node::Transfer);
                 // edge between transfer of this station to departure
-                graph.add_edge(departure_transfer_node_index, *departure_node_index, Edge::Embark{});
+                graph.add_edge(departure_transfer_node_index, *departure_node_index, Edge::Embark);
 
                 // add transfer node to list of transfer nodes of this station
                 station.transfer_node_indices.push((departure_node_time, departure_transfer_node_index));
@@ -174,9 +201,9 @@ impl Model {
                 // this edge represents staying in the same train
                 match station.arrival_node_indices.get(trip_id) {
                     Some(arrival_node_index) => {
-                        let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().time;
+                        let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().get_time().unwrap();
 
-                        graph.add_edge(*arrival_node_index, *departure_node_index, Edge::Stay {
+                        graph.add_edge(*arrival_node_index, *departure_node_index, Edge::StayInTrain {
                             duration: departure_node_time - arrival_node_time
                         });
                     },
@@ -189,7 +216,7 @@ impl Model {
 
             // connect transfers with each other
             for transfer_node_indices in station.transfer_node_indices.windows(2) {
-                graph.add_edge(transfer_node_indices[0].1, transfer_node_indices[1].1, Edge::TransferWait {
+                graph.add_edge(transfer_node_indices[0].1, transfer_node_indices[1].1, Edge::StayAtStation {
                     duration: transfer_node_indices[1].0 - transfer_node_indices[0].0
                 });
             }
@@ -197,8 +224,11 @@ impl Model {
             // iterate over all arrivals
             for (_, arrival_node_index) in station.arrival_node_indices.iter() {
                 
+                // connect arrival to station's main node
+                graph.add_edge(*arrival_node_index, station_main_node_index, Edge::StationRelation{});
+
                 let arrival_node = graph.node_weight(*arrival_node_index).expect("Could not find node in graph");
-                let arrival_node_time = arrival_node.time;
+                let arrival_node_time = arrival_node.get_time().unwrap();
 
                 let earliest_transfer_time = arrival_node_time + station.transfer_time;
 
@@ -212,6 +242,9 @@ impl Model {
                     }
                 }
             }
+
+            // finally save station main node to HashMap
+            station_main_node_indices.insert(station_id.clone(), station_main_node_index);
         }
 
         // iterate over all footpaths
@@ -234,7 +267,7 @@ impl Model {
 
             // for every arrival at the from_station try to find the next transfer node at the to_station
             for arrival_node_index in from_station.arrival_node_indices.values() {
-                let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().time;
+                let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().get_time().unwrap();
 
                 // timestamp of arrival at the footpaths to_station
                 let earliest_transfer_time = arrival_node_time + footpath.duration;
@@ -242,7 +275,7 @@ impl Model {
                 // try to find next transfer node at to_station
                 for (transfer_timestamp, transfer_node_index) in to_station.transfer_node_indices.iter() {
                     if earliest_transfer_time <= *transfer_timestamp {
-                        graph.add_edge(*arrival_node_index, *transfer_node_index, Edge::TransferWalk {
+                        graph.add_edge(*arrival_node_index, *transfer_node_index, Edge::Walk {
                             duration: footpath.duration
                         });
                         break // the loop
@@ -257,9 +290,28 @@ impl Model {
         let group_maps = csv_reader::read_to_maps(&format!("{}groups.csv", csv_folder_path));
         Self {
             graph,
+            station_main_node_indices,
             groups_map: group::Group::from_maps_to_map(&group_maps)
         }
     }
 
+    pub fn to_dot(&self) -> String {
+        format!("{:?}", Dot::with_config(&self.graph, &[]))
+    }
+
+    pub fn n_shortest_paths(&self) {
+
+        let start_station_node_index = self.station_main_node_indices.get("00000003").unwrap();
+        let end_station_node_index = self.station_main_node_indices.get("00000008").unwrap();
+
+        let paths = dijkstra(
+            &self.graph,
+            *start_station_node_index, 
+            Some(*end_station_node_index),
+            |edge| 1
+        );
+
+        println!("path: {:?}", paths);
+    }
 
 }
