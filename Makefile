@@ -3,3 +3,6 @@ sample:
 
 real:
 	cargo run --release real_data/
+
+graphs:
+	dot -Tpdf graphs/*.dot > *.pdf

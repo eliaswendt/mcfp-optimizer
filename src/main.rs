@@ -20,9 +20,11 @@ fn main() {
 
     let model = model::Model::with_stations_footpaths_and_trips(&args[1]);
 
+    model.find_solutions("sample_data/groups.csv", 60);
+
     let dot_code = model.to_dot();
 
-    BufWriter::new(File::create("graph.dot").unwrap()).write(
+    BufWriter::new(File::create("graphs/graph.dot").unwrap()).write(
         dot_code.as_bytes()
     ).unwrap();
 }

@@ -297,19 +297,27 @@ impl Model {
     }
 
 
-    fn find_solutions(&self, groups_csv_filepath: &str, max_duration: u64) {
+    pub fn find_solutions(&self, groups_csv_filepath: &str, max_duration: u64) {
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups_map = group::Group::from_maps_to_map(&group_maps);
 
+        for (group_key, group_value) in groups_map.iter() {
 
-        let from_node_index = self.find_start_node_index(from_station_id, start_time).expect("Could not find departure at from_station");
-        let to_node_index = self.find_end_node_index(to_station_id).expect("Could not find arrival station");
+            let from_node_index = self.find_start_node_index(&group_value.start, group_value.departure).expect("Could not find departure at from_station");
+            let to_node_index = self.find_end_node_index(&group_value.destination).expect("Could not find arrival station");
+    
+            let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration);
+            
+            let subgraph = self.create_subgraph_from_paths(paths);
+    
+            let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
+    
+            BufWriter::new(File::create(format!("graphs/subgraph_group_{}.dot", group_key)).unwrap()).write(
+                dot_code.as_bytes()
+            ).unwrap();
+        }
 
-        let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration);
-        println!("All found paths for max costs {}: {:?}", (max_costs, paths));
-        
-        let subgraph = self.create_subgraph_from_paths(paths);
 
         // todo: iterate groups, augment routes ... return solutions
     }
@@ -343,62 +351,8 @@ impl Model {
     }
 
 
-    fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64) -> Vec<Vec<NodeIndex>> {
-
-        // list of already visited nodes
-        let mut visited = vec![from_node_index];
-
-        // list of childs of currently exploring path nodes,
-        // last elem is list of childs of last visited node
-        let mut stack = vec![self.graph.neighbors_directed(from_node_index, Outgoing)];
-        let mut durations: Vec<u64> = vec![0];
-    
-        let path_finder = from_fn(move || {
-            while let Some(children) = stack.last_mut() {
-                if let Some(child) = children.next() {
-                    if durations.iter().sum::<u64>() < max_duration {
-                        if child == to_node_index {
-                            let path = visited
-                                .iter()
-                                .cloned()
-                                .chain(Some(child))
-                                .collect::<Vec<NodeIndex>>();
-                            return Some(path);
-                        } else if !visited.contains(&child) {
-                            durations.push(self.graph.edge_weight(self.graph.find_edge(*visited.last().unwrap(), child).unwrap()).unwrap().get_duration());
-                            visited.push(child);
-                            stack.push(self.graph.neighbors_directed(child, Outgoing));
-                        }
-                    } else {
-                        if child == to_node_index || children.any(|v| v == to_node_index) && durations.iter().sum::<u64>() >= max_duration { //&& visited.len() >= min_length {
-                            let path = visited
-                                .iter()
-                                .cloned()
-                                .chain(Some(child))
-                                .collect::<Vec<NodeIndex>>();
-                            return Some(path);
-                        }
-                        stack.pop();
-                        visited.pop();
-                        durations.pop();
-                    }
-                    
-                } else {
-                    stack.pop();
-                    visited.pop();
-                    durations.pop();
-                }
-            }
-            
-            None
-        });
-    
-        path_finder.collect::<Vec<_>>()
-    }
-
-
     /// creates a subgraph of self with only the part of the graph of specified paths
-    fn create_subgraph_from_paths(&self, paths: Vec<Vec<NodeIndex>>) -> DiGraph<Node, Edge> {
+    pub fn create_subgraph_from_paths(&self, paths: Vec<Vec<NodeIndex>>) -> DiGraph<Node, Edge> {
         let mut subgraph = DiGraph::new();
 
         // maps index of node in graph to index of node in subgraph
@@ -453,5 +407,58 @@ impl Model {
         }
 
         subgraph
+    }
+
+    fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64) -> Vec<Vec<NodeIndex>> {
+
+        // list of already visited nodes
+        let mut visited = vec![from_node_index];
+
+        // list of childs of currently exploring path nodes,
+        // last elem is list of childs of last visited node
+        let mut stack = vec![self.graph.neighbors_directed(from_node_index, Outgoing)];
+        let mut durations: Vec<u64> = vec![0];
+    
+        let path_finder = from_fn(move || {
+            while let Some(children) = stack.last_mut() {
+                if let Some(child) = children.next() {
+                    if durations.iter().sum::<u64>() < max_duration {
+                        if child == to_node_index {
+                            let path = visited
+                                .iter()
+                                .cloned()
+                                .chain(Some(child))
+                                .collect::<Vec<NodeIndex>>();
+                            return Some(path);
+                        } else if !visited.contains(&child) {
+                            durations.push(self.graph.edge_weight(self.graph.find_edge(*visited.last().unwrap(), child).unwrap()).unwrap().get_duration());
+                            visited.push(child);
+                            stack.push(self.graph.neighbors_directed(child, Outgoing));
+                        }
+                    } else {
+                        if child == to_node_index || children.any(|v| v == to_node_index) && durations.iter().sum::<u64>() >= max_duration { //&& visited.len() >= min_length {
+                            let path = visited
+                                .iter()
+                                .cloned()
+                                .chain(Some(child))
+                                .collect::<Vec<NodeIndex>>();
+                            return Some(path);
+                        }
+                        stack.pop();
+                        visited.pop();
+                        durations.pop();
+                    }
+                    
+                } else {
+                    stack.pop();
+                    visited.pop();
+                    durations.pop();
+                }
+            }
+            
+            None
+        });
+    
+        path_finder.collect::<Vec<_>>()
     }
 }

@@ -4,19 +4,19 @@ use std::collections::HashMap;
 pub struct Group {
     id: u64,
     
-    start: String, // Start-Halt für die Alternativensuche (Station ID)
-    destination: String, // Ziel der Gruppe (Station ID)
+    pub start: String, // Start-Halt für die Alternativensuche (Station ID)
+    pub destination: String, // Ziel der Gruppe (Station ID)
 
-    departure: usize, // Frühstmögliche Abfahrtszeit am Start-Halt (Integer)
-    arrival: usize, // Ursprünglich geplante Ankunftszeit am Ziel (Integer)
+    pub departure: u64, // Frühstmögliche Abfahrtszeit am Start-Halt (Integer)
+    pub arrival: u64, // Ursprünglich geplante Ankunftszeit am Ziel (Integer)
 
-    passengers: usize, // Größe der Gruppe (Integer)
+    pub passengers: usize, // Größe der Gruppe (Integer)
 
 
     // Hier gibt es zwei Möglichkeiten (siehe auch unten):
     // Wenn der Wert leer ist, befindet sich die Gruppe am Start-Halt.
     // Wenn der Wert nicht leer ist, gibt er die Trip ID (Integer) der Fahrt an, in der sich die Gruppe befindet.
-    in_trip: Option<usize>,
+    pub in_trip: Option<usize>,
 }
 
 impl Group {
