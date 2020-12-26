@@ -1,11 +1,3 @@
-fn depth_limited_search(graph: &DiGraph<Node, Edge>, start_node_index: NodeIndex, destination_station: &str, max_costs: &u64) -> DiGraph<Node, Edge> {
-    let current_path = vec![start_node_index];
-    let paths = all_simple_paths(graph, start_node_index, destination_station, limit_costs.clone());
-    println!("All found paths for max costs {}: {:?}", (max_costs, paths));
-    let subgraph = create_graph(graph, paths);
-    return subgraph
-}
-
 fn find_solution(graph: &DiGraph<Node, Edge>, group: &Group) -> DiGraph<Node, Edge> {
     let mut start_node_index: Option<NodeIndex> = None;
     
@@ -41,7 +33,6 @@ fn find_solution(graph: &DiGraph<Node, Edge>, group: &Group) -> DiGraph<Node, Ed
     //path search
     return depth_limited_search(graph,&start_node_index.unwrap(), destination_station, &80) // limit_costs TODO 
 }
-
 
 
 fn goal_test(graph: &DiGraph<Node, Edge>, node_index: &NodeIndex, destination_station: &str) -> bool {

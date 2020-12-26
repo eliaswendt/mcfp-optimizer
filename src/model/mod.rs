@@ -126,8 +126,6 @@ pub struct Model {
     stations_departures: HashMap<String, Vec<(u64, NodeIndex)>>,
     // only store one arrival main node for each station (each arrival points to this node)
     station_arrival_main_node_indices: HashMap<String, NodeIndex>,
-
-    groups_map: HashMap<u64, Group>
 }
 
 impl Model {
@@ -287,19 +285,35 @@ impl Model {
             }
         }
 
-
-        let group_maps = csv_reader::read_to_maps(&format!("{}groups.csv", csv_folder_path));
         Self {
             graph,
             stations_departures,
-            station_arrival_main_node_indices,
-            groups_map: group::Group::from_maps_to_map(&group_maps)
+            station_arrival_main_node_indices
         }
     }
 
     pub fn to_dot(&self) -> String {
         format!("{:?}", Dot::with_config(&self.graph, &[]))
     }
+
+
+    fn find_solutions(&self, groups_csv_filepath: &str, max_duration: u64) {
+
+        let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
+        let groups_map = group::Group::from_maps_to_map(&group_maps);
+
+
+        let from_node_index = self.find_start_node_index(from_station_id, start_time).expect("Could not find departure at from_station");
+        let to_node_index = self.find_end_node_index(to_station_id).expect("Could not find arrival station");
+
+        let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration);
+        println!("All found paths for max costs {}: {:?}", (max_costs, paths));
+        
+        let subgraph = self.create_subgraph_from_paths(paths);
+
+        // todo: iterate groups, augment routes ... return solutions
+    }
+
 
     pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
         match self.stations_departures.get(station_id) {
@@ -327,7 +341,7 @@ impl Model {
             None => None
         }
     }
-    
+
 
     fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64) -> Vec<Vec<NodeIndex>> {
 
