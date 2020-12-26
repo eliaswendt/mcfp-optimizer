@@ -4,18 +4,18 @@ pub mod station;
 pub mod trip;
 
 use group::Group;
-use petgraph::{graph::{NodeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
-use petgraph::algo::{dijkstra, min_spanning_tree};
+use petgraph::{EdgeDirection::Outgoing, graph::{NodeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
+use petgraph::algo::{dijkstra, min_spanning_tree, all_simple_paths};
 use petgraph::data::FromElements;
 use petgraph::dot::{Dot, Config};
-use std::collections::{HashMap};
+use std::{collections::{HashMap, HashSet}, iter::from_fn};
 
 use std::fs::File;
 use std::io::{prelude::*, BufWriter};
 
 use crate::csv_reader;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Node {
     Departure {
         trip_id: u64,
@@ -74,7 +74,7 @@ impl Node {
 }
 
 /// Edge Type of the DiGraph
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Edge {
     Ride { // edge between departure and arrival
         duration: u64,
@@ -118,20 +118,21 @@ impl Edge {
 }
 
 
-
-
 /// entire combined data model
 pub struct Model {
     pub graph: DiGraph<Node, Edge>,
-    station_main_node_indices: HashMap<String, NodeIndex>, // maps stations to one's station main NodeIndex
+
+    // we need to store all departure nodes for all stations at all times
+    stations_departures: HashMap<String, Vec<(u64, NodeIndex)>>,
+    // only store one arrival main node for each station (each arrival points to this node)
+    station_arrival_main_node_indices: HashMap<String, NodeIndex>,
+
     groups_map: HashMap<u64, Group>
 }
 
 impl Model {
 
     pub fn with_stations_footpaths_and_trips(csv_folder_path: &str) -> Self {
-
-        let mut graph = DiGraph::new();
 
         let footpath_maps = csv_reader::read_to_maps(&format!("{}footpaths.csv", csv_folder_path));
         let station_maps = csv_reader::read_to_maps(&format!("{}stations.csv", csv_folder_path));
@@ -141,6 +142,10 @@ impl Model {
         let footpaths_vec = footpath::Footpath::from_maps_to_vec(&footpath_maps);
         let mut stations_map = station::Station::from_maps_to_map(&station_maps);
         let trips_map = trip::Trip::from_maps_to_map(&trip_maps);
+
+        let mut graph = DiGraph::new();
+        let mut stations_departures = HashMap::with_capacity(stations_map.len());
+        let mut station_arrival_main_node_indices = HashMap::with_capacity(stations_map.len());
 
         // iterate over all trips
         for (_, trip) in trips_map.iter() {
@@ -171,20 +176,15 @@ impl Model {
             });
         }
 
-        let mut station_main_node_indices = HashMap::with_capacity(stations_map.len());
-
         // iterate over all stations
         for (station_id, station) in stations_map.iter_mut() {
 
-            let station_main_node_index = graph.add_node(Node::Station {
+            let station_arrival_main_node_index = graph.add_node(Node::Station {
                 station_id: station_id.clone()
             });
 
             // iterate over all departures
             for (trip_id, departure_node_index) in station.departure_node_indices.iter() {
-
-                // connect departure node to station's main node
-                graph.add_edge(station_main_node_index, *departure_node_index, Edge::StationRelation);
 
                 let departure_node = graph.node_weight(*departure_node_index).unwrap();
                 let departure_node_time = departure_node.get_time().unwrap();
@@ -225,7 +225,7 @@ impl Model {
             for (_, arrival_node_index) in station.arrival_node_indices.iter() {
                 
                 // connect arrival to station's main node
-                graph.add_edge(*arrival_node_index, station_main_node_index, Edge::StationRelation{});
+                graph.add_edge(*arrival_node_index, station_arrival_main_node_index, Edge::StationRelation);
 
                 let arrival_node = graph.node_weight(*arrival_node_index).expect("Could not find node in graph");
                 let arrival_node_time = arrival_node.get_time().unwrap();
@@ -243,8 +243,9 @@ impl Model {
                 }
             }
 
-            // finally save station main node to HashMap
-            station_main_node_indices.insert(station_id.clone(), station_main_node_index);
+            // save refernces to all transfers and to arrival_main
+            stations_departures.insert(station_id.clone(), station.transfer_node_indices.clone());
+            station_arrival_main_node_indices.insert(station_id.clone(), station_arrival_main_node_index);
         }
 
         // iterate over all footpaths
@@ -290,7 +291,8 @@ impl Model {
         let group_maps = csv_reader::read_to_maps(&format!("{}groups.csv", csv_folder_path));
         Self {
             graph,
-            station_main_node_indices,
+            stations_departures,
+            station_arrival_main_node_indices,
             groups_map: group::Group::from_maps_to_map(&group_maps)
         }
     }
@@ -299,19 +301,143 @@ impl Model {
         format!("{:?}", Dot::with_config(&self.graph, &[]))
     }
 
-    pub fn n_shortest_paths(&self) {
+    pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
+        match self.stations_departures.get(station_id) {
+            Some(station_departures) => {
+                
+                // iterate until we find a departure time >= the time we want to start
+                for (departure_time, departure_node_index) in station_departures.iter() {
+                    if start_time <= *departure_time {
+                        return Some(*departure_node_index);
+                    }
+                }
 
-        let start_station_node_index = self.station_main_node_indices.get("00000003").unwrap();
-        let end_station_node_index = self.station_main_node_indices.get("00000008").unwrap();
+                // no departure >= start_time found
+                None
+            },
 
-        let paths = dijkstra(
-            &self.graph,
-            *start_station_node_index, 
-            Some(*end_station_node_index),
-            |edge| 1
-        );
-
-        println!("path: {:?}", paths);
+            // station not found
+            None => None
+        }
     }
 
+    pub fn find_end_node_index(&self, station_id: &str) -> Option<NodeIndex> {
+        match self.station_arrival_main_node_indices.get(station_id) {
+            Some(station_arrival_main_node_index) => Some(*station_arrival_main_node_index),
+            None => None
+        }
+    }
+    
+
+    fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64) -> Vec<Vec<NodeIndex>> {
+
+        // list of already visited nodes
+        let mut visited = vec![from_node_index];
+
+        // list of childs of currently exploring path nodes,
+        // last elem is list of childs of last visited node
+        let mut stack = vec![self.graph.neighbors_directed(from_node_index, Outgoing)];
+        let mut durations: Vec<u64> = vec![0];
+    
+        let path_finder = from_fn(move || {
+            while let Some(children) = stack.last_mut() {
+                if let Some(child) = children.next() {
+                    if durations.iter().sum::<u64>() < max_duration {
+                        if child == to_node_index {
+                            let path = visited
+                                .iter()
+                                .cloned()
+                                .chain(Some(child))
+                                .collect::<Vec<NodeIndex>>();
+                            return Some(path);
+                        } else if !visited.contains(&child) {
+                            durations.push(self.graph.edge_weight(self.graph.find_edge(*visited.last().unwrap(), child).unwrap()).unwrap().get_duration());
+                            visited.push(child);
+                            stack.push(self.graph.neighbors_directed(child, Outgoing));
+                        }
+                    } else {
+                        if child == to_node_index || children.any(|v| v == to_node_index) && durations.iter().sum::<u64>() >= max_duration { //&& visited.len() >= min_length {
+                            let path = visited
+                                .iter()
+                                .cloned()
+                                .chain(Some(child))
+                                .collect::<Vec<NodeIndex>>();
+                            return Some(path);
+                        }
+                        stack.pop();
+                        visited.pop();
+                        durations.pop();
+                    }
+                    
+                } else {
+                    stack.pop();
+                    visited.pop();
+                    durations.pop();
+                }
+            }
+            
+            None
+        });
+    
+        path_finder.collect::<Vec<_>>()
+    }
+
+
+    /// creates a subgraph of self with only the part of the graph of specified paths
+    fn create_subgraph_from_paths(&self, paths: Vec<Vec<NodeIndex>>) -> DiGraph<Node, Edge> {
+        let mut subgraph = DiGraph::new();
+
+        // maps index of node in graph to index of node in subgraph
+        let mut node_index_graph_subgraph_mapping: HashMap<NodeIndex, NodeIndex> = HashMap::new();
+
+        // iterate all paths in graph
+        for path in paths {
+
+            // iterate over all NodeIndex pairs in this path
+            for graph_node_index_pair in path.windows(2) {
+
+                // check if the first node already exists in subgraph
+                let subgraph_node_a_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[0]) {
+                    Some(subgraph_node_index) => *subgraph_node_index,
+                    None => {
+                        // clone NodeWeight from graph
+                        let node_weight = self.graph.node_weight(graph_node_index_pair[0]).unwrap().clone();
+
+                        // create new node in subgraph
+                        let subgraph_node_index = subgraph.add_node(node_weight);
+                        
+                        // insert mapping into HashMap
+                        node_index_graph_subgraph_mapping.insert(graph_node_index_pair[0], subgraph_node_index.clone());
+
+                        subgraph_node_index
+                    }
+                };
+                    
+                // check if the first node already exists in subgraph
+                let subgraph_node_b_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[1]) {
+                    Some(subgraph_node_index) => *subgraph_node_index,
+                    None => {
+                        // clone NodeWeight from graph
+                        let node_weight = self.graph.node_weight(graph_node_index_pair[1]).unwrap().clone();
+
+                        // create new node in subgraph
+                        let subgraph_node_index = subgraph.add_node(node_weight);
+                        
+                        // insert mapping into HashMap
+                        node_index_graph_subgraph_mapping.insert(graph_node_index_pair[1], subgraph_node_index);
+
+                        subgraph_node_index
+                    }
+                };
+
+                // find edge and create copy
+                let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
+                let graph_edge_weight = self.graph.edge_weight(graph_edge_index).unwrap().clone();
+
+                subgraph.add_edge(subgraph_node_a_index, subgraph_node_b_index, graph_edge_weight);
+            }
+        }
+
+        subgraph
+    }
 }
