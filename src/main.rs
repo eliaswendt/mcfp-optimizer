@@ -20,7 +20,7 @@ fn main() {
 
     let model = model::Model::with_stations_footpaths_and_trips(&args[1]);
 
-    model.find_solutions(&format!("{}groups.csv", &args[1]), 60);
+    model.find_solutions(&format!("{}groups.csv", &args[1]), 30);
 
     if args[1].contains("sample") {
         let dot_code = model.to_dot();
