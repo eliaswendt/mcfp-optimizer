@@ -1,11 +1,11 @@
 digraph {
-    0 [ label = "Transfer" ]
-    1 [ label = "Transfer" ]
-    2 [ label = "Departure { trip_id: 6, time: 105 }" ]
+    0 [ label = "Transfer { time: 100, station_id: \"00000001\" }" ]
+    1 [ label = "Transfer { time: 105, station_id: \"00000001\" }" ]
+    2 [ label = "Departure { trip_id: 6, time: 105, station_id: \"00000001\" }" ]
     3 [ label = "Arrival { trip_id: 6, time: 120 }" ]
     4 [ label = "Station { station_id: \"00000007\" }" ]
     0 -> 1 [ label = "StayAtStation { duration: 5 }" ]
     1 -> 2 [ label = "Embark" ]
-    2 -> 3 [ label = "Ride { duration: 15, capacity: 2 }" ]
+    2 -> 3 [ label = "Ride { duration: 15, capacity: 2, utilization: 0 }" ]
     3 -> 4 [ label = "StationRelation" ]
 }

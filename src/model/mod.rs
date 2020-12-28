@@ -2,9 +2,10 @@ pub mod group;
 pub mod footpath;
 pub mod station;
 pub mod trip;
+pub mod algo;
 
 use group::Group;
-use petgraph::{EdgeDirection::Outgoing, graph::{NodeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
+use petgraph::{EdgeDirection::Outgoing, graph::{NodeIndex, EdgeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
 use petgraph::algo::{dijkstra, min_spanning_tree, all_simple_paths};
 use petgraph::data::FromElements;
 use petgraph::dot::{Dot, Config};
@@ -15,11 +16,13 @@ use std::io::{prelude::*, BufWriter};
 
 use crate::csv_reader;
 
+/// Node Type of the DiGraph
 #[derive(Debug, Clone)]
 pub enum Node {
     Departure {
         trip_id: u64,
-        time: u64
+        time: u64,
+        station_id: String
     },
 
     Arrival {
@@ -31,7 +34,10 @@ pub enum Node {
         station_id: String
     },
 
-    Transfer
+    Transfer {
+        time: u64,
+        station_id: String
+    }
 }
 
 // impl std::fmt::Debug for Node {
@@ -66,8 +72,18 @@ impl Node {
 
     pub fn get_time(&self) -> Option<u64> {
         match self {
-            Self::Departure {trip_id, time} => Some(*time),
+            Self::Departure {trip_id, time, station_id} => Some(*time),
             Self::Arrival {trip_id, time} => Some(*time),
+            Self::Transfer {time, station_id} => Some(*time),
+            _ => None
+        }
+    }
+
+    pub fn get_station(&self) -> Option<String> {
+        match self {
+            Self::Departure {trip_id, time, station_id} => Some(station_id.clone()),
+            Self::Station {station_id} => Some(station_id.clone()),
+            Self::Transfer {time, station_id} => Some(station_id.clone()),
             _ => None
         }
     }
@@ -78,7 +94,7 @@ impl Node {
 pub enum Edge {
     Ride { // edge between departure and arrival
         duration: u64,
-        capacity: u64
+        capacity: u64,
     },
 
     StayInTrain { // edge between arrival and departure in the same train (stay in the train)
@@ -115,8 +131,46 @@ impl Edge {
             _ => 0,
         }
     }
+
+    /// get capacity of self, defaults to MAX
+    pub fn get_capacity(&self) -> u64 {
+        match self {
+            Self::Ride{duration, capacity} => *capacity,
+            _ => std::u64::MAX,
+        }
+    }
+
+    /// get utilization of self, defaults to 0
+    pub fn get_utilization(&self, index: &EdgeIndex, map: &HashMap<EdgeIndex, u64>) -> u64 {
+        match self {
+            Self::Ride{duration: _, capacity: _} => match map.get(index) {
+                Some(utilization) => *utilization,
+                None => 0,
+            },
+            _ => 0,
+        }
+    }
+
+    /*pub fn increase_utilization(&self, index: &EdgeIndex, map: &HashMap<EdgeIndex, u64>, value: u64) {
+        match self {
+            Self::Ride{duration: _, capacity: _} => match map.get(index) {
+                Some(utilization) => map.insert(*index, utilization + value),
+                None => map.insert(*index, value),
+            },
+            _ => () 
+        }
+    }*/
 }
 
+pub enum Object {
+    Edge(Edge),
+    Node(Node)
+}
+
+pub enum ObjectIndex {
+    NodeIndex(NodeIndex),
+    EdgeIndex(EdgeIndex)
+}
 
 /// entire combined data model
 pub struct Model {
@@ -126,6 +180,8 @@ pub struct Model {
     stations_departures: HashMap<String, Vec<(u64, NodeIndex)>>,
     // only store one arrival main node for each station (each arrival points to this node)
     station_arrival_main_node_indices: HashMap<String, NodeIndex>,
+
+    edge_utilization: HashMap<EdgeIndex, u64>
 }
 
 impl Model {
@@ -158,6 +214,7 @@ impl Model {
             let departure_node_index = graph.add_node(Node::Departure {
                 trip_id: trip.id,
                 time: trip.departure,
+                station_id: trip.from_station.clone()
             });
 
             // add these nodes to a station
@@ -170,7 +227,7 @@ impl Model {
             // connect stations of this trip
             graph.add_edge(departure_node_index, arrival_node_index, Edge::Ride {
                 capacity: trip.capacity,
-                duration: trip.arrival - trip.departure
+                duration: trip.arrival - trip.departure,
             });
         }
 
@@ -188,7 +245,10 @@ impl Model {
                 let departure_node_time = departure_node.get_time().unwrap();
 
                 // DEPARTURE TRANSFER NODE (each departure also induces a corresponding departure node at the station)
-                let departure_transfer_node_index = graph.add_node(Node::Transfer);
+                let departure_transfer_node_index = graph.add_node(Node::Transfer {
+                    time: departure_node_time,
+                    station_id: station_id.clone()
+                });
                 // edge between transfer of this station to departure
                 graph.add_edge(departure_transfer_node_index, *departure_node_index, Edge::Embark);
 
@@ -271,24 +331,32 @@ impl Model {
                 // timestamp of arrival at the footpaths to_station
                 let earliest_transfer_time = arrival_node_time + footpath.duration;
 
+                let mut edge_added = false;
+
                 // try to find next transfer node at to_station
                 for (transfer_timestamp, transfer_node_index) in to_station.transfer_node_indices.iter() {
                     if earliest_transfer_time <= *transfer_timestamp {
                         graph.add_edge(*arrival_node_index, *transfer_node_index, Edge::Walk {
                             duration: footpath.duration
                         });
+                        edge_added = true;
                         break // the loop
                     }
                 }
 
-                println!("There couldn't be found any valid (time) transfer node for footpath from {} -> {}", footpath.from_station, footpath.to_station);
+                if !edge_added {
+                    println!("There couldn't be found any valid (time) transfer node for footpath from {} -> {}", footpath.from_station, footpath.to_station);
+                }
             }
         }
+
+        let mut edge_utilization: HashMap<EdgeIndex, u64> = HashMap::new();
 
         Self {
             graph,
             stations_departures,
-            station_arrival_main_node_indices
+            station_arrival_main_node_indices,
+            edge_utilization
         }
     }
 
@@ -309,7 +377,7 @@ impl Model {
     
             let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration);
             
-            let subgraph = self.create_subgraph_from_paths(paths);
+            let (subgraph, subgraph_paths) = self.create_subgraph_from_paths(paths);
     
             let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
     
@@ -330,6 +398,7 @@ impl Model {
                 // iterate until we find a departure time >= the time we want to start
                 for (departure_time, departure_node_index) in station_departures.iter() {
                     if start_time <= *departure_time {
+                        println!("{:?}", self.graph.node_weight(*departure_node_index).unwrap().get_station());
                         return Some(*departure_node_index);
                     }
                 }
@@ -352,14 +421,19 @@ impl Model {
 
 
     /// creates a subgraph of self with only the part of the graph of specified paths
-    pub fn create_subgraph_from_paths(&self, paths: Vec<Vec<NodeIndex>>) -> DiGraph<Node, Edge> {
+    pub fn create_subgraph_from_paths(&self, paths: Vec<Vec<NodeIndex>>) -> (DiGraph<Node, Edge>, Vec<Vec<ObjectIndex>>) {
         let mut subgraph = DiGraph::new();
+        let mut subgraph_paths: Vec<Vec<ObjectIndex>> = Vec::new();
 
         // maps index of node in graph to index of node in subgraph
         let mut node_index_graph_subgraph_mapping: HashMap<NodeIndex, NodeIndex> = HashMap::new();
 
         // iterate all paths in graph
         for path in paths {
+
+            let mut subgraph_path: Vec<ObjectIndex> = Vec::new();
+            let mut max_flow: u64 = std::u64::MAX;
+            let mut path_edges: Vec<EdgeIndex> = Vec::new();
 
             // iterate over all NodeIndex pairs in this path
             for graph_node_index_pair in path.windows(2) {
@@ -381,7 +455,7 @@ impl Model {
                     }
                 };
                     
-                // check if the first node already exists in subgraph
+                // check if the second node already exists in subgraph
                 let subgraph_node_b_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[1]) {
                     Some(subgraph_node_index) => *subgraph_node_index,
                     None => {
@@ -398,15 +472,60 @@ impl Model {
                     }
                 };
 
-                // find edge and create copy
+                /*
                 let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
                 let graph_edge_weight = self.graph.edge_weight(graph_edge_index).unwrap().clone();
 
                 subgraph.add_edge(subgraph_node_a_index, subgraph_node_b_index, graph_edge_weight);
-            }
+                */
+
+                // add outgoing node to path if path is empty
+                if subgraph_path.is_empty() {
+                    subgraph_path.push(ObjectIndex::NodeIndex(subgraph_node_a_index));
+                };
+
+                // find edge and create copy (only if a copy is not yet inserted)
+                let edge_found = match subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index) {
+                    Some(_) => true,
+                    None => false
+                };
+
+                let subgraph_edge_weight = if edge_found {
+                    let subgraph_edge_index = subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index).unwrap(); // todo: not twice
+                    // add edge to path
+                    subgraph_path.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
+                    path_edges.push(subgraph_edge_index);
+                    subgraph.edge_weight(subgraph_edge_index).unwrap()
+                } else {    
+                    // create new edge in subgraph
+                    let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
+                    let subgraph_edge_weight = self.graph.edge_weight(graph_edge_index).unwrap().clone();
+                    let subgraph_edge_index = subgraph.add_edge(subgraph_node_a_index, subgraph_node_b_index, subgraph_edge_weight);
+                    // add edge to path
+                    subgraph_path.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
+                    path_edges.push(subgraph_edge_index);
+                    subgraph.edge_weight(subgraph_edge_index).unwrap()
+                };
+
+                // update max_flow if edge capacity is smaller current max_flow
+                /*let edge_rest_flow = subgraph_edge_weight.get_capacity() - subgraph_edge_weight.get_utilization();
+                if edge_rest_flow < max_flow {
+                    max_flow = edge_rest_flow;
+                };*/
+                
+                subgraph_path.push(ObjectIndex::NodeIndex(subgraph_node_b_index));
+            };
+
+            subgraph_paths.push(subgraph_path);
+
+            // set flow to all
+            /*for edge_index in path_edges {
+                subgraph.edge_weight(edge_index).unwrap().increase_utilization(max_flow);
+                println!("{}, {}", max_flow, subgraph.edge_weight(edge_index).unwrap().get_utilization(&edge_index, &self.edge_utilization))
+            }*/
         }
 
-        subgraph
+        (subgraph, subgraph_paths)
     }
 
     fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64) -> Vec<Vec<NodeIndex>> {
