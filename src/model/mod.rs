@@ -484,28 +484,37 @@ impl Model {
                     subgraph_path.push(ObjectIndex::NodeIndex(subgraph_node_a_index));
                 };
 
+                let (subgraph_edge_index, subgraph_edge_weight) =  match subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index) {
+                    Some(_) => {
+                        let subgraph_edge_index = subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index).unwrap(); // todo: not twice
+                        // add edge to path
+                        subgraph_path.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
+                        path_edges.push(subgraph_edge_index);
+                        (subgraph_edge_index, subgraph.edge_weight(subgraph_edge_index).unwrap())
+                    },
+                    None => {
+                        let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
+                        let subgraph_edge_weight = self.graph.edge_weight(graph_edge_index).unwrap().clone();
+                        let subgraph_edge_index = subgraph.add_edge(subgraph_node_a_index, subgraph_node_b_index, subgraph_edge_weight);
+                        // add edge to path
+                        subgraph_path.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
+                        path_edges.push(subgraph_edge_index);
+                        (subgraph_edge_index, subgraph.edge_weight(subgraph_edge_index).unwrap())
+                    }
+                };
+
                 // find edge and create copy (only if a copy is not yet inserted)
-                let edge_found = match subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index) {
+                /*let edge_found = match subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index) {
                     Some(_) => true,
                     None => false
                 };
 
                 let subgraph_edge_weight = if edge_found {
-                    let subgraph_edge_index = subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index).unwrap(); // todo: not twice
-                    // add edge to path
-                    subgraph_path.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
-                    path_edges.push(subgraph_edge_index);
-                    subgraph.edge_weight(subgraph_edge_index).unwrap()
+                    
                 } else {    
                     // create new edge in subgraph
-                    let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
-                    let subgraph_edge_weight = self.graph.edge_weight(graph_edge_index).unwrap().clone();
-                    let subgraph_edge_index = subgraph.add_edge(subgraph_node_a_index, subgraph_node_b_index, subgraph_edge_weight);
-                    // add edge to path
-                    subgraph_path.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
-                    path_edges.push(subgraph_edge_index);
-                    subgraph.edge_weight(subgraph_edge_index).unwrap()
-                };
+                    
+                };*/
 
                 // update max_flow if edge capacity is smaller current max_flow
                 /*let edge_rest_flow = subgraph_edge_weight.get_capacity() - subgraph_edge_weight.get_utilization();
