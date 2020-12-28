@@ -5,7 +5,7 @@ pub mod trip;
 pub mod algo;
 
 use group::Group;
-use petgraph::{EdgeDirection::Outgoing, graph::{NodeIndex, EdgeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
+use petgraph::{EdgeDirection::Outgoing, Graph, graph::{NodeIndex, EdgeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
 use petgraph::algo::{dijkstra, min_spanning_tree, all_simple_paths};
 use petgraph::data::FromElements;
 use petgraph::dot::{Dot, Config};
@@ -375,6 +375,9 @@ impl Model {
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups_map = group::Group::from_maps_to_map(&group_maps);
+        let mut subgraph: DiGraph<Node, Edge> = Graph::new();
+        // maps index of node in graph to index of node in subgraph
+        let mut node_index_graph_subgraph_mapping: HashMap<NodeIndex, NodeIndex> = HashMap::new();
 
         for (group_key, group_value) in groups_map.iter() {
 
@@ -383,7 +386,7 @@ impl Model {
     
             let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration);
             
-            let (subgraph, subgraph_paths) = self.create_subgraph_from_paths(paths);
+            let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
     
             let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
     
@@ -427,12 +430,9 @@ impl Model {
 
 
     /// creates a subgraph of self with only the part of the graph of specified paths
-    pub fn create_subgraph_from_paths(&self, paths: Vec<Vec<NodeIndex>>) -> (DiGraph<Node, Edge>, Vec<Vec<ObjectIndex>>) {
-        let mut subgraph = DiGraph::new();
+    pub fn create_subgraph_from_paths(&self, subgraph: &mut Graph<Node, Edge>, paths: Vec<Vec<NodeIndex>>, node_index_graph_subgraph_mapping: &mut HashMap<NodeIndex, NodeIndex>) -> Vec<Vec<ObjectIndex>> {
+        //let mut subgraph = DiGraph::new();
         let mut subgraph_paths: Vec<Vec<ObjectIndex>> = Vec::new();
-
-        // maps index of node in graph to index of node in subgraph
-        let mut node_index_graph_subgraph_mapping: HashMap<NodeIndex, NodeIndex> = HashMap::new();
 
         // iterate all paths in graph
         for path in paths {
@@ -521,7 +521,7 @@ impl Model {
             }
         }
 
-        (subgraph, subgraph_paths)
+        subgraph_paths
     }
 
     fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64) -> Vec<Vec<NodeIndex>> {
