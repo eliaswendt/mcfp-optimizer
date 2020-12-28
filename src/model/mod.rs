@@ -371,7 +371,7 @@ impl Model {
     }
 
 
-    pub fn find_solutions(&self, groups_csv_filepath: &str, max_duration: u64) {
+    pub fn find_solutions(&self, groups_csv_filepath: &str) {
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups_map = group::Group::from_maps_to_map(&group_maps);
@@ -384,6 +384,10 @@ impl Model {
             let from_node_index = self.find_start_node_index(&group_value.start, group_value.departure).expect("Could not find departure at from_station");
             let to_node_index = self.find_end_node_index(&group_value.destination).expect("Could not find arrival station");
     
+            // max duration should depend on the original travel time
+            let travel_time = (group_value.arrival - group_value.departure) as f64;
+            let max_duration = (travel_time * 1.9) as u64; // factor to modify later if not a path could be found for all groups
+
             let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration);
             
             let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
