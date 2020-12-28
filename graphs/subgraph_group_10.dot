@@ -6,6 +6,6 @@ digraph {
     4 [ label = "Station { station_id: \"00000007\" }" ]
     0 -> 1 [ label = "StayAtStation { duration: 5 }" ]
     1 -> 2 [ label = "Embark" ]
-    2 -> 3 [ label = "Ride { duration: 15, capacity: 2 }" ]
+    2 -> 3 [ label = "RideToStation { duration: 15, capacity: 2, utilization: 2 }" ]
     3 -> 4 [ label = "StationRelation" ]
 }
