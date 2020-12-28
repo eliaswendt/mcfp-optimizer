@@ -149,6 +149,13 @@ impl Edge {
         }
     }
 
+    pub fn set_utilization(&mut self, new_utilization: u64) {
+        match self {
+            Self::RideToStation{duration, capacity, utilization} => *utilization = new_utilization,
+            _ => {} // no need to track utilization on other edges, as they have unlimited capacity
+        }
+    }
+
     /// get utilization of self, defaults to 0
     pub fn get_utilization(&self) -> u64 {
         match self {
@@ -442,6 +449,10 @@ impl Model {
             // iterate over all NodeIndex pairs in this path
             for graph_node_index_pair in path.windows(2) {
 
+                // this condition decides whether to create a new edge
+                // in case we crated at least one new node we also want to create a new path
+                let mut created_at_least_one_new_node = false;
+
                 // check if the first node already exists in subgraph
                 let subgraph_node_a_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[0]) {
                     Some(subgraph_node_index) => *subgraph_node_index,
@@ -451,6 +462,7 @@ impl Model {
 
                         // create new node in subgraph
                         let subgraph_node_index = subgraph.add_node(node_weight);
+                        created_at_least_one_new_node = true;
                         
                         // insert mapping into HashMap
                         node_index_graph_subgraph_mapping.insert(graph_node_index_pair[0], subgraph_node_index.clone());
@@ -468,6 +480,7 @@ impl Model {
 
                         // create new node in subgraph
                         let subgraph_node_index = subgraph.add_node(node_weight);
+                        created_at_least_one_new_node = true;
                         
                         // insert mapping into HashMap
                         node_index_graph_subgraph_mapping.insert(graph_node_index_pair[1], subgraph_node_index);
@@ -475,6 +488,11 @@ impl Model {
                         subgraph_node_index
                     }
                 };
+
+                // create edge if there was created at least one new node
+                if created_at_least_one_new_node {
+                    // todo: add edge between nodes
+                }
 
                 /*
                 let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
@@ -532,10 +550,10 @@ impl Model {
             subgraph_paths.push(subgraph_path);
 
             // set flow to all
-            /*for edge_index in path_edges {
-                subgraph.edge_weight(edge_index).unwrap().increase_utilization(max_flow);
-                println!("{}, {}", max_flow, subgraph.edge_weight(edge_index).unwrap().get_utilization(&edge_index, &self.edge_utilization))
-            }*/
+            // for edge_index in path_edges {
+            //     subgraph.edge_weight(edge_index).unwrap().increase_utilization(max_flow);
+            //     println!("{}, {}", max_flow, subgraph.edge_weight(edge_index).unwrap().get_utilization(&edge_index, &self.edge_utilization))
+            // }
         }
 
         (subgraph, subgraph_paths)
