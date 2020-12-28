@@ -92,9 +92,10 @@ impl Node {
 /// Edge Type of the DiGraph
 #[derive(Debug, Clone)]
 pub enum Edge {
-    Ride { // edge between departure and arrival
+    RideToStation { // edge between departure and arrival
         duration: u64,
         capacity: u64,
+        utilization: u64,
     },
 
     StayInTrain { // edge between arrival and departure in the same train (stay in the train)
@@ -111,7 +112,7 @@ pub enum Edge {
         duration: u64
     },
 
-    Walk { // edge between arrival and next transfer node at other station
+    WalkToStation { // edge between arrival and next transfer node at other station
         duration: u64
     },
 
@@ -123,11 +124,11 @@ impl Edge {
     /// get duration of self, defaults to 0
     pub fn get_duration(&self) -> u64 {
         match self {
-            Self::Ride{duration, capacity: _} => *duration,
+            Self::RideToStation{duration, capacity: _, utilization: _} => *duration,
             Self::StayInTrain{duration} => *duration,
             Self::Alight{duration} => *duration,
             Self::StayAtStation{duration} => *duration,
-            Self::Walk{duration} => *duration,
+            Self::WalkToStation{duration} => *duration,
             _ => 0,
         }
     }
@@ -135,31 +136,33 @@ impl Edge {
     /// get capacity of self, defaults to MAX
     pub fn get_capacity(&self) -> u64 {
         match self {
-            Self::Ride{duration, capacity} => *capacity,
+            Self::RideToStation{duration: _, capacity, utilization: _} => *capacity,
             _ => std::u64::MAX,
         }
     }
 
-    /// get utilization of self, defaults to 0
-    pub fn get_utilization(&self, index: &EdgeIndex, map: &HashMap<EdgeIndex, u64>) -> u64 {
+    /// increase utilization of this edge by <addend>
+    pub fn increase_utilization(&mut self, addend: u64) {
         match self {
-            Self::Ride{duration: _, capacity: _} => match map.get(index) {
-                Some(utilization) => *utilization,
-                None => 0,
-            },
-            _ => 0,
+            Self::RideToStation{duration, capacity, utilization} => *utilization += addend,
+            _ => {} // no need to track utilization on other edges, as they have unlimited capacity
         }
     }
 
-    /*pub fn increase_utilization(&self, index: &EdgeIndex, map: &HashMap<EdgeIndex, u64>, value: u64) {
+    /// get utilization of self, defaults to 0
+    pub fn get_utilization(&self) -> u64 {
         match self {
-            Self::Ride{duration: _, capacity: _} => match map.get(index) {
-                Some(utilization) => map.insert(*index, utilization + value),
-                None => map.insert(*index, value),
-            },
-            _ => () 
+            Self::RideToStation{duration: _, capacity: _, utilization} => *utilization,
+            _ => 0 // other edges always return 0 utilization as they have unlimited capacity
         }
-    }*/
+    }
+
+    pub fn get_remaining_capacity(&self) -> u64 {
+        match self {
+            Self::RideToStation{duration: _, capacity, utilization} => *capacity - *utilization,
+            _ => u64::MAX // other edges always return u64::MAX as they have unlimited capacity
+        }
+    }
 }
 
 pub enum Object {
@@ -225,9 +228,10 @@ impl Model {
             from_station.departure_node_indices.insert(trip.id, departure_node_index);
 
             // connect stations of this trip
-            graph.add_edge(departure_node_index, arrival_node_index, Edge::Ride {
+            graph.add_edge(departure_node_index, arrival_node_index, Edge::RideToStation {
                 capacity: trip.capacity,
                 duration: trip.arrival - trip.departure,
+                utilization: 0
             });
         }
 
@@ -336,7 +340,7 @@ impl Model {
                 // try to find next transfer node at to_station
                 for (transfer_timestamp, transfer_node_index) in to_station.transfer_node_indices.iter() {
                     if earliest_transfer_time <= *transfer_timestamp {
-                        graph.add_edge(*arrival_node_index, *transfer_node_index, Edge::Walk {
+                        graph.add_edge(*arrival_node_index, *transfer_node_index, Edge::WalkToStation {
                             duration: footpath.duration
                         });
                         edge_added = true;
