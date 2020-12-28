@@ -539,10 +539,10 @@ impl Model {
                 };*/
 
                 // update max_flow if edge capacity is smaller current max_flow
-                /*let edge_rest_flow = subgraph_edge_weight.get_capacity() - subgraph_edge_weight.get_utilization();
+                let edge_rest_flow = subgraph_edge_weight.get_capacity() - subgraph_edge_weight.get_utilization();
                 if edge_rest_flow < max_flow {
                     max_flow = edge_rest_flow;
-                };*/
+                };
                 
                 subgraph_path.push(ObjectIndex::NodeIndex(subgraph_node_b_index));
             };
@@ -550,10 +550,10 @@ impl Model {
             subgraph_paths.push(subgraph_path);
 
             // set flow to all
-            // for edge_index in path_edges {
-            //     subgraph.edge_weight(edge_index).unwrap().increase_utilization(max_flow);
-            //     println!("{}, {}", max_flow, subgraph.edge_weight(edge_index).unwrap().get_utilization(&edge_index, &self.edge_utilization))
-            // }
+            for edge_index in path_edges {
+                subgraph.edge_weight_mut(edge_index).unwrap().increase_utilization(max_flow);
+                println!("{}, {}", max_flow, subgraph.edge_weight(edge_index).unwrap().get_utilization())
+            }
         }
 
         (subgraph, subgraph_paths)
