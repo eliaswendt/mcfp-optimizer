@@ -7,7 +7,6 @@ pub mod algo;
 use group::Group;
 use petgraph::{EdgeDirection::Outgoing, Graph, graph::{NodeIndex, EdgeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
 use petgraph::algo::{dijkstra, min_spanning_tree, all_simple_paths};
-use petgraph::data::FromElements;
 use petgraph::dot::{Dot, Config};
 use std::{collections::{HashMap, HashSet}, iter::from_fn};
 
@@ -72,18 +71,18 @@ impl Node {
 
     pub fn get_time(&self) -> Option<u64> {
         match self {
-            Self::Departure {trip_id, time, station_id} => Some(*time),
-            Self::Arrival {trip_id, time} => Some(*time),
-            Self::Transfer {time, station_id} => Some(*time),
+            Self::Departure {trip_id: _, time, station_id: _} => Some(*time),
+            Self::Arrival {trip_id: _, time} => Some(*time),
+            Self::Transfer {time, station_id: _} => Some(*time),
             _ => None
         }
     }
 
     pub fn get_station(&self) -> Option<String> {
         match self {
-            Self::Departure {trip_id, time, station_id} => Some(station_id.clone()),
+            Self::Departure {trip_id: _, time: _, station_id} => Some(station_id.clone()),
             Self::Station {station_id} => Some(station_id.clone()),
-            Self::Transfer {time, station_id} => Some(station_id.clone()),
+            Self::Transfer {time: _, station_id} => Some(station_id.clone()),
             _ => None
         }
     }
@@ -121,6 +120,23 @@ pub enum Edge {
 
 
 impl Edge {
+
+    /// is RideToStation Edge
+    pub fn is_rideToStation(&self) -> bool {
+        match self {
+            Self::RideToStation{duration: _, capacity: _, utilization: _} => true,
+            _ => false,
+        }
+    }
+
+    /// is Footpath Edge
+    pub fn is_walkToStation(&self) -> bool {
+        match self {
+            Self::WalkToStation{duration: __} => true,
+            _ => false,
+        }
+    }
+
     /// get duration of self, defaults to 0
     pub fn get_duration(&self) -> u64 {
         match self {
@@ -144,14 +160,14 @@ impl Edge {
     /// increase utilization of this edge by <addend>
     pub fn increase_utilization(&mut self, addend: u64) {
         match self {
-            Self::RideToStation{duration, capacity, utilization} => *utilization += addend,
+            Self::RideToStation{duration: _, capacity: _, utilization} => *utilization += addend,
             _ => {} // no need to track utilization on other edges, as they have unlimited capacity
         }
     }
 
     pub fn set_utilization(&mut self, new_utilization: u64) {
         match self {
-            Self::RideToStation{duration, capacity, utilization} => *utilization = new_utilization,
+            Self::RideToStation{duration: _, capacity: _, utilization} => *utilization = new_utilization,
             _ => {} // no need to track utilization on other edges, as they have unlimited capacity
         }
     }
@@ -383,22 +399,28 @@ impl Model {
 
             let from_node_index = self.find_start_node_index(&group_value.start, group_value.departure).expect("Could not find departure at from_station");
             let to_node_index = self.find_end_node_index(&group_value.destination).expect("Could not find arrival station");
+            println!("{:?}", to_node_index);
     
             // max duration should depend on the original travel time
             let travel_time = (group_value.arrival - group_value.departure) as f64;
-            let max_duration = (travel_time * 1.9) as u64; // factor to modify later if not a path could be found for all groups
+            let max_duration = (travel_time * 3.0) as u64; // todo: factor to modify later if not a path could be found for all groups
 
-            let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration);
-            
+            let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration, 50); // todo: factor to modify later 
+            println!("Found {} simple paths!", paths.len());
             let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
     
-            let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
+            // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
     
-            BufWriter::new(File::create(format!("graphs/subgraph_group_{}.dot", group_key)).unwrap()).write(
-                dot_code.as_bytes()
-            ).unwrap();
+            // BufWriter::new(File::create(format!("graphs/subgraph_group_{}.dot", group_key)).unwrap()).write(
+            //     dot_code.as_bytes()
+            // ).unwrap();
         }
 
+        let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
+    
+        BufWriter::new(File::create(format!("graphs/subgraph_complete.dot")).unwrap()).write(
+            dot_code.as_bytes()
+        ).unwrap();
 
         // todo: iterate groups, augment routes ... return solutions
     }
@@ -411,7 +433,7 @@ impl Model {
                 // iterate until we find a departure time >= the time we want to start
                 for (departure_time, departure_node_index) in station_departures.iter() {
                     if start_time <= *departure_time {
-                        println!("{:?}", self.graph.node_weight(*departure_node_index).unwrap().get_station());
+                        println!("Station to start {:?}", self.graph.node_weight(*departure_node_index).unwrap().get_station());
                         return Some(*departure_node_index);
                     }
                 }
@@ -528,7 +550,7 @@ impl Model {
         subgraph_paths
     }
 
-    fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64) -> Vec<Vec<NodeIndex>> {
+    fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
 
         // list of already visited nodes
         let mut visited = vec![from_node_index];
@@ -537,11 +559,12 @@ impl Model {
         // last elem is list of childs of last visited node
         let mut stack = vec![self.graph.neighbors_directed(from_node_index, Outgoing)];
         let mut durations: Vec<u64> = vec![0];
+        let mut rides: Vec<u64> = vec![0];
     
         let path_finder = from_fn(move || {
             while let Some(children) = stack.last_mut() {
                 if let Some(child) = children.next() {
-                    if durations.iter().sum::<u64>() < max_duration {
+                    if durations.iter().sum::<u64>() < max_duration && rides.iter().sum::<u64>() < max_rides {
                         if child == to_node_index {
                             let path = visited
                                 .iter()
@@ -550,28 +573,38 @@ impl Model {
                                 .collect::<Vec<NodeIndex>>();
                             return Some(path);
                         } else if !visited.contains(&child) {
-                            durations.push(self.graph.edge_weight(self.graph.find_edge(*visited.last().unwrap(), child).unwrap()).unwrap().get_duration());
+                            let edge_weight = self.graph.edge_weight(self.graph.find_edge(*visited.last().unwrap(), child).unwrap()).unwrap();
+                            durations.push(edge_weight.get_duration());
+                            // only count ride to station and walk to station as limit factor
+                            if edge_weight.is_rideToStation() || edge_weight.is_walkToStation() {
+                                rides.push(1);
+                            } else {
+                                rides.push(0);
+                            };
+                            rides.push(1);
                             visited.push(child);
                             stack.push(self.graph.neighbors_directed(child, Outgoing));
                         }
                     } else {
-                        if child == to_node_index || children.any(|v| v == to_node_index) && durations.iter().sum::<u64>() >= max_duration { //&& visited.len() >= min_length {
+                        if child == to_node_index || children.any(|v| v == to_node_index) {
                             let path = visited
                                 .iter()
                                 .cloned()
-                                .chain(Some(child))
+                                .chain(Some(to_node_index))
                                 .collect::<Vec<NodeIndex>>();
                             return Some(path);
                         }
                         stack.pop();
                         visited.pop();
                         durations.pop();
+                        rides.pop();
                     }
                     
                 } else {
                     stack.pop();
                     visited.pop();
                     durations.pop();
+                    rides.pop();
                 }
             }
             
@@ -580,4 +613,6 @@ impl Model {
     
         path_finder.collect::<Vec<_>>()
     }
+
 }
+    
