@@ -5,15 +5,16 @@ pub mod trip;
 pub mod algo;
 
 use group::Group;
-use petgraph::{EdgeDirection::Outgoing, Graph, graph::{NodeIndex, EdgeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
+use petgraph::{EdgeDirection::Outgoing, Graph, graph::{NodeIndex, EdgeIndex, GraphIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
 use petgraph::algo::{dijkstra, min_spanning_tree, all_simple_paths};
 use petgraph::dot::{Dot, Config};
-use std::{collections::{HashMap, HashSet}, iter::from_fn};
+use std::{collections::{HashMap, HashSet}, iter::{FromFn, FromIterator, from_fn}};
 
 use std::fs::File;
 use std::io::{prelude::*, BufWriter};
 
 use crate::csv_reader;
+use indexmap::IndexSet;
 
 /// Node Type of the DiGraph
 #[derive(Debug, Clone)]
@@ -188,6 +189,7 @@ impl Edge {
     }
 }
 
+
 pub enum Object {
     Edge(Edge),
     Node(Node)
@@ -294,7 +296,7 @@ impl Model {
                 }
             }
 
-            // sort transfer node list (by first tuple element -> time)
+            // sort transfer node list by time (first tuple element)
             station.transfer_node_indices.sort_unstable_by_key(|(key, _)| *key);
 
             // connect transfers with each other
@@ -550,10 +552,125 @@ impl Model {
         subgraph_paths
     }
 
+
+    // /// uses dijkstra's algorithm to find the shortest paths from a node to some other node fulfilling the end-condition
+    // // returns an iterator yielding paths in the order of length (least cost first)
+    // fn shortest_paths(&self, start_node: NodeIndex, end_node_condition: fn(NodeIndex) -> bool, path_cost: fn(EdgeIndex) -> u64, max_cost: u64) {
+
+    //     let mut visited: HashSet<NodeIndex> = HashSet::new();
+
+    // }
+
+
+    pub fn all_simple_paths_<TargetColl, G>(
+        &self, 
+        start_node: NodeIndex, 
+        end_node_condition: fn(NodeIndex) -> bool, 
+        edge_cost: fn(EdgeIndex) -> u64, 
+        max_costs: u64
+    ) {
+
+        let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(start_node));
+        let mut stack = vec![self.graph.neighbors_directed(start_node, Outgoing)];
+
+
+
+    }
+
+
+
+    // pub fn shortest_paths<TargetColl, G>(
+    //     &self, 
+    //     start_node: NodeIndex, 
+    //     end_node_condition: fn(NodeIndex) -> bool, 
+    //     edge_cost: fn(EdgeIndex) -> u64, 
+    //     max_costs: u64
+    // ) {
+    //     // how many nodes are allowed in simple path up to target node
+    //     // it is min/max allowed path length minus one, because it is more appropriate when implementing lookahead
+    //     // than constantly add 1 to length of current path
+    //     // let max_length = if let Some(l) = max_intermediate_nodes {
+    //     //     l + 1
+    //     // } else {
+    //     //     graph.node_count() - 1
+    //     // };
+    
+    //     // let min_length = min_intermediate_nodes + 1;
+    
+    //     // set of visited nodes
+    //     let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(start_node));
+
+    //     // list of childs of currently exploring path nodes,
+    //     // last elem is list of outgoing edges of last visited node
+    //     let mut stack = vec![self.graph.edges_directed(start_node, Outgoing)];
+    
+    //     from_fn(move || {
+
+    //         while let Some(outgoings) = stack.last_mut() {
+
+    //             if let Some(outgoing) = outgoings.next() {
+    //                 let child = self.graph
+    //                 if (visited.len() as u64) < max_costs { // todo: calculate max costs
+    //                     if end_node_condition(outgoing) {
+    //                         let path = visited
+    //                             .iter()
+    //                             .cloned()
+    //                             .chain(Some(outgoing))
+    //                             .collect::<TargetColl>();
+    //                         return Some(path);
+    //                     } else if !visited.contains(&outgoing) {
+    //                         visited.insert(outgoing);
+    //                         stack.push(self.graph.neighbors_directed(outgoing, Outgoing));
+    //                     }
+    //                 } else {
+    //                     if (end_node_condition(outgoing) || outgoings.any(|v| v == to)) && visited.len() >= min_length {
+    //                         let path = visited
+    //                             .iter()
+    //                             .cloned()
+    //                             .chain(Some(outgoing))
+    //                             .collect::<TargetColl>();
+    //                         return Some(path);
+    //                     }
+
+
+    //                     stack.pop();
+    //                     visited.pop();
+    //                 }
+    //             } else {
+    //                 // no unvisited edge on this path -> pop empty edge iterator and continue with next path
+    //                 stack.pop();
+    //                 visited.pop();
+    //             }
+    //         }
+    //         None
+    //     });
+    // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
 
         // list of already visited nodes
-        let mut visited = vec![from_node_index];
+        let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(from_node_index));
 
         // list of childs of currently exploring path nodes,
         // last elem is list of childs of last visited node
@@ -582,7 +699,7 @@ impl Model {
                                 rides.push(0);
                             };
                             rides.push(1);
-                            visited.push(child);
+                            visited.insert(child);
                             stack.push(self.graph.neighbors_directed(child, Outgoing));
                         }
                     } else {
