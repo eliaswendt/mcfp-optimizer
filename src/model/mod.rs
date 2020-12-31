@@ -4,11 +4,18 @@ pub mod station;
 pub mod trip;
 pub mod algo;
 
-use group::Group;
-use petgraph::{EdgeDirection::Outgoing, Graph, graph::{NodeIndex, EdgeIndex, GraphIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges, IntoNeighborsDirected, NodeCount}};
-use petgraph::algo::{dijkstra, min_spanning_tree, all_simple_paths};
-use petgraph::dot::{Dot, Config};
-use std::{collections::{HashMap, HashSet}, hash::Hash, iter::{FromFn, FromIterator, from_fn}};
+use petgraph::{
+    dot::{Dot, Config}, 
+    algo::{dijkstra, min_spanning_tree, all_simple_paths}, 
+    EdgeDirection::Outgoing, Graph, 
+    graph::{NodeIndex, EdgeIndex, GraphIndex, DiGraph}, 
+    visit::{IntoEdgeReferences, IntoEdges, IntoNeighborsDirected, NodeCount}
+};
+use std::{
+    collections::{HashMap, HashSet}, 
+    hash::Hash, 
+    iter::{FromFn, FromIterator, from_fn}
+};
 
 use std::fs::File;
 use std::io::{prelude::*, BufWriter};
@@ -562,87 +569,89 @@ impl Model {
     // }
 
 
-    pub fn all_simple_paths_<TargetColl, G>(
-        &self, 
-        start_node: NodeIndex, 
-        end_node_condition: fn(NodeIndex) -> bool, 
-        edge_cost: fn(EdgeIndex) -> u64, 
-        max_costs: u64
-    ) -> impl Iterator<Item = TargetCollection>
-    where
-    G: NodeCount,
-    G: IntoNeighborsDirected,
-    G::NodeId: Eq + Hash,
-    TargetCollection: FromIterator<G::NodeId>,
-    {
+    // pub fn all_simple_paths_<TargetCollection, G>(
+    //     &self, 
+    //     start_node: NodeIndex, 
+    //     end_node_condition: fn(NodeIndex) -> bool, 
+    //     edge_cost: fn(EdgeIndex) -> u64, 
+    //     max_costs: u64
+    // ) -> impl Iterator<Item = TargetCollection>
+    // where
+    // G: NodeCount,
+    // G: IntoNeighborsDirected,
+    // G::NodeId: Eq + Hash,
+    // TargetCollection: FromIterator<G::NodeId>,
+    // {
 
-        // loop detection: save all already visited nodes
-        let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(start_node));
-        let mut stack = vec![self.graph.neighbors_directed(start_node, Outgoing)];
+    //     // loop detection: save all already visited nodes
+    //     let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(start_node));
 
+    //     let mut stack = vec![self.graph.neighbors_directed(start_node, Outgoing).detach()];
+    //     self.graph.ed
 
+    //     from_fn(|| {
 
-    }
+    //     })
+    // }
 
-    pub fn all_simple_paths2<TargetCollection, G>(
-        graph: G,
-        from: G::NodeId,
-        to: G::NodeId,
+    pub fn all_simple_paths_reloaded (
+        &self,
+        from: NodeIndex,
+        to: NodeIndex,
         min_intermediate_nodes: usize,
         max_intermediate_nodes: Option<usize>,
-    ) -> impl Iterator<Item = TargetCollection>
-    where
-        G: NodeCount,
-        G: IntoNeighborsDirected,
-        G::NodeId: Eq + Hash,
-        TargetCollection: FromIterator<G::NodeId>,
-    {
+    ) -> impl Iterator<Item = FromIterator<Vec<Vec<EdgeIndex>>>> {
         // how many nodes are allowed in simple path up to target node
         // it is min/max allowed path length minus one, because it is more appropriate when implementing lookahead
         // than constantly add 1 to length of current path
         let max_length = if let Some(l) = max_intermediate_nodes {
             l + 1
         } else {
-            graph.node_count() - 1
+            self.graph.node_count() - 1
         };
     
         let min_length = min_intermediate_nodes + 1;
     
         // list of visited nodes
-        let mut visited: IndexSet<G::NodeId> = IndexSet::from_iter(Some(from));
+        let mut visited: IndexSet<EdgeIndex> = IndexSet::new();
         // list of childs of currently exploring path nodes,
         // last elem is list of childs of last visited node
-        let mut stack = vec![graph.neighbors_directed(from, Outgoing)];
+        let mut stack = vec![self.graph.neighbors_directed(from, Outgoing).detach()];
     
         from_fn(move || {
-            while let Some(children) = stack.last_mut() {
-                if let Some(child) = children.next() {
+            while let Some(walker) = stack.last_mut() {
+                if let Some((next_edge, next_node)) = walker.next(&self.graph) {
+
+                    let costs: u64 = visited.iter().map(|edge| self.graph[*edge].get_duration()).sum();
+
                     if visited.len() < max_length {
-                        if child == to {
+                        if next_node == to {
                             if visited.len() >= min_length {
                                 let path = visited
                                     .iter()
                                     .cloned()
-                                    .chain(Some(to))
-                                    .collect::<TargetCollection>();
+                                    .chain(Some(next_edge))
+                                    .collect::<Vec<Vec<EdgeIndex>>>();
                                 return Some(path);
                             }
-                        } else if !visited.contains(&child) {
-                            visited.insert(child);
-                            stack.push(graph.neighbors_directed(child, Outgoing));
+                        } else if !visited.contains(&next_edge) {
+                            visited.insert(next_edge);
+                            stack.push(self.graph.neighbors_directed(next_node, Outgoing).detach());
                         }
                     } else {
-                        if (child == to || children.any(|v| v == to)) && visited.len() >= min_length {
+                        if next_node == to && visited.len() >= min_length {
                             let path = visited
                                 .iter()
                                 .cloned()
-                                .chain(Some(to))
-                                .collect::<TargetCollection>();
+                                .chain(Some(next_edge))
+                                .collect::<Vec<Vec<EdgeIndex>>>();
                             return Some(path);
                         }
                         stack.pop();
                         visited.pop();
                     }
+
+
                 } else {
                     stack.pop();
                     visited.pop();
@@ -651,93 +660,6 @@ impl Model {
             None
         })
     }
-
-    // pub fn shortest_paths<TargetColl, G>(
-    //     &self, 
-    //     start_node: NodeIndex, 
-    //     end_node_condition: fn(NodeIndex) -> bool, 
-    //     edge_cost: fn(EdgeIndex) -> u64, 
-    //     max_costs: u64
-    // ) {
-    //     // how many nodes are allowed in simple path up to target node
-    //     // it is min/max allowed path length minus one, because it is more appropriate when implementing lookahead
-    //     // than constantly add 1 to length of current path
-    //     // let max_length = if let Some(l) = max_intermediate_nodes {
-    //     //     l + 1
-    //     // } else {
-    //     //     graph.node_count() - 1
-    //     // };
-    
-    //     // let min_length = min_intermediate_nodes + 1;
-    
-    //     // set of visited nodes
-    //     let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(start_node));
-
-    //     // list of childs of currently exploring path nodes,
-    //     // last elem is list of outgoing edges of last visited node
-    //     let mut stack = vec![self.graph.edges_directed(start_node, Outgoing)];
-    
-    //     from_fn(move || {
-
-    //         while let Some(outgoings) = stack.last_mut() {
-
-    //             if let Some(outgoing) = outgoings.next() {
-    //                 let child = self.graph
-    //                 if (visited.len() as u64) < max_costs { // todo: calculate max costs
-    //                     if end_node_condition(outgoing) {
-    //                         let path = visited
-    //                             .iter()
-    //                             .cloned()
-    //                             .chain(Some(outgoing))
-    //                             .collect::<TargetColl>();
-    //                         return Some(path);
-    //                     } else if !visited.contains(&outgoing) {
-    //                         visited.insert(outgoing);
-    //                         stack.push(self.graph.neighbors_directed(outgoing, Outgoing));
-    //                     }
-    //                 } else {
-    //                     if (end_node_condition(outgoing) || outgoings.any(|v| v == to)) && visited.len() >= min_length {
-    //                         let path = visited
-    //                             .iter()
-    //                             .cloned()
-    //                             .chain(Some(outgoing))
-    //                             .collect::<TargetColl>();
-    //                         return Some(path);
-    //                     }
-
-
-    //                     stack.pop();
-    //                     visited.pop();
-    //                 }
-    //             } else {
-    //                 // no unvisited edge on this path -> pop empty edge iterator and continue with next path
-    //                 stack.pop();
-    //                 visited.pop();
-    //             }
-    //         }
-    //         None
-    //     });
-    // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
