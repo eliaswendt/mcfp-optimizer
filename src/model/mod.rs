@@ -11,11 +11,7 @@ use petgraph::{
     graph::{NodeIndex, EdgeIndex, GraphIndex, DiGraph}, 
     visit::{IntoEdgeReferences, IntoEdges, IntoNeighborsDirected, NodeCount}
 };
-use std::{
-    collections::{HashMap, HashSet}, 
-    hash::Hash, 
-    iter::{FromFn, FromIterator, from_fn}
-};
+use std::{collections::{HashMap, HashSet, LinkedList}, hash::Hash, iter::{FromFn, FromIterator, from_fn}};
 
 use std::fs::File;
 use std::io::{prelude::*, BufWriter};
@@ -414,7 +410,7 @@ impl Model {
             let travel_time = (group_value.arrival - group_value.departure) as f64;
             let max_duration = (travel_time * 3.0) as u64; // todo: factor to modify later if not a path could be found for all groups
 
-            let paths = self.all_simple_paths(from_node_index, to_node_index, max_duration, 50); // todo: factor to modify later 
+            let paths = self.all_simple_paths_dfs_dorian(from_node_index, to_node_index, max_duration, 50); // todo: factor to modify later 
             println!("Found {} simple paths!", paths.len());
             let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
     
@@ -594,31 +590,28 @@ impl Model {
     //     })
     // }
 
-    pub fn all_simple_paths_reloaded (
+    pub fn all_paths_bfs (
         &self,
         from: NodeIndex,
         to: NodeIndex,
-        min_intermediate_nodes: usize,
-        max_intermediate_nodes: Option<usize>,
-    ) -> impl Iterator<Item = FromIterator<Vec<Vec<EdgeIndex>>>> {
-        // how many nodes are allowed in simple path up to target node
-        // it is min/max allowed path length minus one, because it is more appropriate when implementing lookahead
-        // than constantly add 1 to length of current path
-        let max_length = if let Some(l) = max_intermediate_nodes {
-            l + 1
-        } else {
-            self.graph.node_count() - 1
-        };
-    
-        let min_length = min_intermediate_nodes + 1;
-    
+    ) -> Vec<Vec<EdgeIndex>> {
+
+        let mut visit_queue = LinkedList::new();
+        visit_queue.push_back(self.graph.(from, Outgoing));
+
         // list of visited nodes
         let mut visited: IndexSet<EdgeIndex> = IndexSet::new();
-        // list of childs of currently exploring path nodes,
-        // last elem is list of childs of last visited node
-        let mut stack = vec![self.graph.neighbors_directed(from, Outgoing).detach()];
-    
-        from_fn(move || {
+
+        // remove first element of queue until queue is empty
+        while let Some(edges) = visit_queue.pop_front() {
+            for edge in edges {
+                edge();
+            }
+        }
+
+        let mut paths: Vec<Vec<EdgeIndex>> = Vec::with_capacity(max_paths as usize);
+        for i in 0..max_paths {
+
             while let Some(walker) = stack.last_mut() {
                 if let Some((next_edge, next_node)) = walker.next(&self.graph) {
 
@@ -631,7 +624,9 @@ impl Model {
                                     .iter()
                                     .cloned()
                                     .chain(Some(next_edge))
-                                    .collect::<Vec<Vec<EdgeIndex>>>();
+                                    .collect::<Vec<EdgeIndex>>();
+                                paths.push(path);
+
                                 return Some(path);
                             }
                         } else if !visited.contains(&next_edge) {
@@ -644,7 +639,7 @@ impl Model {
                                 .iter()
                                 .cloned()
                                 .chain(Some(next_edge))
-                                .collect::<Vec<Vec<EdgeIndex>>>();
+                                .collect::<Vec<EdgeIndex>>();
                             return Some(path);
                         }
                         stack.pop();
@@ -658,11 +653,13 @@ impl Model {
                 }
             }
             None
-        })
+        }
+
+        paths
     }
 
 
-    fn all_simple_paths(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
+    fn all_simple_paths_dfs_dorian(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
 
         // list of already visited nodes
         let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(from_node_index));
