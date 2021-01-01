@@ -1,15 +1,9 @@
-use petgraph::dot::{Dot, Config};
+use std::{env, io::{prelude::*, BufWriter}, fs::File};
 
+use petgraph::dot::{Dot, Config};
 mod csv_reader;
 
 mod model;
-
-use std::fs::File;
-use std::io::{prelude::*, BufWriter};
-use std::net::TcpStream;
-
-use std::env;
-
 
 
 fn main() {
