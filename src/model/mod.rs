@@ -12,10 +12,9 @@ use petgraph::{
     graph::{NodeIndex, EdgeIndex, GraphIndex, DiGraph}, 
     visit::{IntoEdgeReferences, IntoEdges, IntoNeighborsDirected, NodeCount}
 };
-use std::{collections::{HashMap, HashSet, LinkedList}, hash::Hash, iter::{FromFn, FromIterator, from_fn}};
+use std::{collections::{HashMap, HashSet, LinkedList}, fs::File, hash::Hash, io::{prelude::*, BufWriter}, iter::{FromFn, FromIterator, from_fn}, rc::Rc, time::Instant};
 
-use std::fs::File;
-use std::io::{prelude::*, BufWriter};
+
 
 use crate::csv_reader;
 use indexmap::IndexSet;
@@ -31,7 +30,8 @@ pub enum Node {
 
     Arrival {
         trip_id: u64,
-        time: u64
+        time: u64,
+        station_id: String
     },
 
     Station {
@@ -77,7 +77,7 @@ impl Node {
     pub fn get_time(&self) -> Option<u64> {
         match self {
             Self::Departure {trip_id: _, time, station_id: _} => Some(*time),
-            Self::Arrival {trip_id: _, time} => Some(*time),
+            Self::Arrival {trip_id: _, time, station_id: _} => Some(*time),
             Self::Transfer {time, station_id: _} => Some(*time),
             _ => None
         }
@@ -89,6 +89,13 @@ impl Node {
             Self::Station {station_id} => Some(station_id.clone()),
             Self::Transfer {time: _, station_id} => Some(station_id.clone()),
             _ => None
+        }
+    }
+
+    pub fn is_arrival_at_station(&self, target_station_id: &str) -> bool {
+        match self {
+            Self::Arrival {trip_id: _, time: _, station_id} => station_id == target_station_id,
+            _ => false
         }
     }
 }
@@ -193,15 +200,14 @@ impl Edge {
     }
 }
 
-
 pub enum Object {
     Edge(Edge),
     Node(Node)
 }
 
 pub enum ObjectIndex {
+    EdgeIndex(EdgeIndex),
     NodeIndex(NodeIndex),
-    EdgeIndex(EdgeIndex)
 }
 
 /// entire combined data model
@@ -237,7 +243,8 @@ impl Model {
             // ARRIVAL NODE
             let arrival_node_index = graph.add_node(Node::Arrival {
                 trip_id: trip.id,
-                time: trip.arrival
+                time: trip.arrival,
+                station_id: trip.to_station.clone()
             });
 
             // DEPARTURE NODE
@@ -337,6 +344,9 @@ impl Model {
             station_arrival_main_node_indices.insert(station_id.clone(), station_arrival_main_node_index);
         }
 
+        let mut successful_footpath_counter: u64 = 0;
+        let mut failed_footpath_counter: u64 = 0;
+
         // iterate over all footpaths
         for footpath in footpaths_vec.iter() {
             let from_station = match stations_map.get(&footpath.from_station) {
@@ -355,6 +365,7 @@ impl Model {
                 }
             };
 
+
             // for every arrival at the from_station try to find the next transfer node at the to_station
             for arrival_node_index in from_station.arrival_node_indices.values() {
                 let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().get_time().unwrap();
@@ -371,15 +382,19 @@ impl Model {
                             duration: footpath.duration
                         });
                         edge_added = true;
+                        successful_footpath_counter += 1;
                         break // the loop
                     }
                 }
 
                 if !edge_added {
-                    println!("There couldn't be found any valid (time) transfer node for footpath from {} -> {}", footpath.from_station, footpath.to_station);
+                    failed_footpath_counter += 1;
+                    //println!("There couldn't be found any valid (time) transfer node for footpath from {} -> {}", footpath.from_station, footpath.to_station);
                 }
             }
         }
+
+        println!("successful_footpaths: {}, failed_footpaths: {}", successful_footpath_counter, failed_footpath_counter);
 
         Self {
             graph,
@@ -397,22 +412,25 @@ impl Model {
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups_map = group::Group::from_maps_to_map(&group_maps);
+
         let mut subgraph: DiGraph<Node, Edge> = Graph::new();
         // maps index of node in graph to index of node in subgraph
         let mut node_index_graph_subgraph_mapping: HashMap<NodeIndex, NodeIndex> = HashMap::new();
 
-        for (group_key, group_value) in groups_map.iter() {
+        for (group_id, group_value) in groups_map.iter() {
 
             let from_node_index = self.find_start_node_index(&group_value.start, group_value.departure).expect("Could not find departure at from_station");
             let to_node_index = self.find_end_node_index(&group_value.destination).expect("Could not find arrival station");
-            println!("{:?}", to_node_index);
     
             // max duration should depend on the original travel time
-            let travel_time = (group_value.arrival - group_value.departure) as f64;
-            let max_duration = (travel_time * 3.0) as u64; // todo: factor to modify later if not a path could be found for all groups
+            let travel_time = group_value.arrival - group_value.departure;
+            let max_duration = travel_time * 2; // todo: factor to modify later if not a path could be found for all groups
 
-            let paths = Self::all_paths_bfs(&self.graph, from_node_index, to_node_index, 50); // todo: factor to modify later 
-            println!("Found {} simple paths!", paths.len());
+            let start = Instant::now();
+            print!("[group_id={}]: {} -> {} with {} passenger(s) in {} min(s) ... ", group_id, group_value.start, group_value.destination, group_value.passengers, max_duration);
+            let paths = Self::all_paths_dfs(&self.graph, from_node_index, to_node_index, group_value.passengers as u64, max_duration, 30); // todo: factor to modify later 
+            println!("found {} paths in {}ms", paths.len(), start.elapsed().as_millis());
+
             //let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
     
             // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
@@ -439,7 +457,6 @@ impl Model {
                 // iterate until we find a departure time >= the time we want to start
                 for (departure_time, departure_node_index) in station_departures.iter() {
                     if start_time <= *departure_time {
-                        println!("Station to start {:?}", self.graph.node_weight(*departure_node_index).unwrap().get_station());
                         return Some(*departure_node_index);
                     }
                 }
@@ -462,8 +479,8 @@ impl Model {
     }
 
 
-    /// creates a subgraph of self with only the part of the graph of specified paths
-    pub fn create_subgraph_from_paths(&self, subgraph: &mut Graph<Node, Edge>, paths: Vec<Vec<NodeIndex>>, node_index_graph_subgraph_mapping: &mut HashMap<NodeIndex, NodeIndex>) -> Vec<Vec<ObjectIndex>> {
+    // creates a subgraph of self with only the part of the graph of specified paths
+    pub fn create_subgraph_from_paths_alt(&self, subgraph: &mut Graph<Node, Edge>, paths: Vec<Vec<NodeIndex>>, node_index_graph_subgraph_mapping: &mut HashMap<NodeIndex, NodeIndex>) -> Vec<Vec<ObjectIndex>> {
         //let mut subgraph = DiGraph::new();
         let mut subgraph_paths: Vec<Vec<ObjectIndex>> = Vec::new();
 
@@ -558,51 +575,82 @@ impl Model {
     }
 
 
-    pub fn all_paths_bfs (
+
+    // recursive implementation of dfs
+    pub fn all_paths_dfs (
         graph: &DiGraph<Node, Edge>,
         from: NodeIndex,
-        to: NodeIndex,
-        min_capacity: u64
-    ) -> LinkedList<LinkedList<EdgeIndex>> {
+        to: NodeIndex, // condition that determines whether goal node was found
+        min_capacity: u64,
+        max_duration: u64,
+        max_depth: u64
+    ) -> Vec<Vec<EdgeIndex>> {
 
-        let mut paths = LinkedList::new();
+        // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
 
-        let mut visit_queue = LinkedList::new();
-        visit_queue.push_back(from);
+        let mut visited = Vec::new();
 
-        // list of visited nodes
-        let mut visited: IndexSet<EdgeIndex> = IndexSet::new();
+        Self::all_paths_dfs_recursive(graph, from, to, &mut visited, min_capacity, max_duration, max_depth)
+    }
 
-        // iterate over queue until it is empty
-        while let Some(current) = visit_queue.pop_front() {
+    fn all_paths_dfs_recursive(
+        graph: &DiGraph<Node, Edge>, 
+        current: NodeIndex, 
+        goal: NodeIndex, 
+        visited: &mut Vec<EdgeIndex>, // vec of visited edges (in order of visit)
+        min_capacity: u64,
+        remaining_duration: u64,
+        remaining_depth: u64
+    ) -> Vec<Vec<EdgeIndex>> {
 
-            if current == to {
-                println!("reached target node");
-                return LinkedList::new();
-            }
+        // println!("all_paths_dfs_recursive(current={:?}, goal={:?}, visited.len()={}, min_capacity={}, remaining_duration={})", current, goal, visited.len(), min_capacity, remaining_duration);
+        // println!("remaining_duration: {}", remaining_duration);
+
+        let mut result = Vec::new();
+
+        if current == goal {
+            
+            // take all edge indices (in order of visit) and insert them into a vec
+            result.push(
+                visited.iter().cloned().collect()
+            );
+
+        } else {
 
             let mut walker = graph.neighbors_directed(current, Outgoing).detach();
 
             // iterate over all outgoing edges
             while let Some((next_edge, next_node)) = walker.next(graph) {
 
-                if !visited.contains(&next_edge) {
-                    // edge was not visited before 
+                if graph[next_edge].get_remaining_capacity() >= min_capacity && graph[next_edge].get_duration() <= remaining_duration && remaining_depth > 0 {
+                    // edge can handle the minium required capacity and does not take longer then the remaining duration        
 
-                    // set edge as visited now (we consider this edge from now on as visited, even if it did not provided the required capacity)
-                    visited.insert(next_edge);
+                    visited.push(next_edge);
+                    // append result of recursive call with next_node
+                    result.append(
+                        &mut Self::all_paths_dfs_recursive(
+                            graph, 
+                            next_node, 
+                            goal, 
+                            visited, 
+                            min_capacity, 
+                            remaining_duration - graph[next_edge].get_duration(), 
+                            remaining_depth - 1
+                        )
+                    );
 
-                    if graph[next_edge].get_remaining_capacity() >= min_capacity {
-                        // edge can handle the minium required capacity
+                    // remove next_edge from visited
+                    visited.pop();
 
-                        visit_queue.push_back(next_node);
-                    }
                 }
             }
         }
 
-        paths
+        result
     }
+
+
+
 
 
 

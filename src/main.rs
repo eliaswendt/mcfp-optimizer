@@ -24,10 +24,13 @@ fn main() {
 
     model.find_solutions(&format!("{}groups.csv", &args[1]));
 
+
     if args[1].contains("sample") {
+        // create dot code only for sample data
+
         let dot_code = model.to_dot();
 
-        BufWriter::new(File::create("graphs/graph.dot").unwrap()).write(
+        BufWriter::new(File::create("graph.dot").unwrap()).write(
             dot_code.as_bytes()
         ).unwrap();
     }

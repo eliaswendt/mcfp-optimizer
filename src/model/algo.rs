@@ -18,5 +18,4 @@ pub fn max_flow(graph: &DiGraph<Node, Edge>, source_index: NodeIndex, sink_index
             let capacity = .unwrap().get.
         }
     }*/
-    ()
 }
