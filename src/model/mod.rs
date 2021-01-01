@@ -4,6 +4,7 @@ pub mod station;
 pub mod trip;
 pub mod algo;
 
+use group::Group;
 use petgraph::{
     dot::{Dot, Config}, 
     algo::{dijkstra, min_spanning_tree, all_simple_paths}, 
@@ -410,9 +411,9 @@ impl Model {
             let travel_time = (group_value.arrival - group_value.departure) as f64;
             let max_duration = (travel_time * 3.0) as u64; // todo: factor to modify later if not a path could be found for all groups
 
-            let paths = self.all_simple_paths_dfs_dorian(from_node_index, to_node_index, max_duration, 50); // todo: factor to modify later 
+            let paths = Self::all_paths_bfs(&self.graph, from_node_index, to_node_index, 50); // todo: factor to modify later 
             println!("Found {} simple paths!", paths.len());
-            let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
+            //let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
     
             // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
     
@@ -451,6 +452,7 @@ impl Model {
             None => None
         }
     }
+
 
     pub fn find_end_node_index(&self, station_id: &str) -> Option<NodeIndex> {
         match self.station_arrival_main_node_indices.get(station_id) {
@@ -556,107 +558,52 @@ impl Model {
     }
 
 
-    // /// uses dijkstra's algorithm to find the shortest paths from a node to some other node fulfilling the end-condition
-    // // returns an iterator yielding paths in the order of length (least cost first)
-    // fn shortest_paths(&self, start_node: NodeIndex, end_node_condition: fn(NodeIndex) -> bool, path_cost: fn(EdgeIndex) -> u64, max_cost: u64) {
-
-    //     let mut visited: HashSet<NodeIndex> = HashSet::new();
-
-    // }
-
-
-    // pub fn all_simple_paths_<TargetCollection, G>(
-    //     &self, 
-    //     start_node: NodeIndex, 
-    //     end_node_condition: fn(NodeIndex) -> bool, 
-    //     edge_cost: fn(EdgeIndex) -> u64, 
-    //     max_costs: u64
-    // ) -> impl Iterator<Item = TargetCollection>
-    // where
-    // G: NodeCount,
-    // G: IntoNeighborsDirected,
-    // G::NodeId: Eq + Hash,
-    // TargetCollection: FromIterator<G::NodeId>,
-    // {
-
-    //     // loop detection: save all already visited nodes
-    //     let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(start_node));
-
-    //     let mut stack = vec![self.graph.neighbors_directed(start_node, Outgoing).detach()];
-    //     self.graph.ed
-
-    //     from_fn(|| {
-
-    //     })
-    // }
-
     pub fn all_paths_bfs (
-        &self,
+        graph: &DiGraph<Node, Edge>,
         from: NodeIndex,
         to: NodeIndex,
-    ) -> Vec<Vec<EdgeIndex>> {
+        min_capacity: u64
+    ) -> LinkedList<LinkedList<EdgeIndex>> {
+
+        let mut paths = LinkedList::new();
 
         let mut visit_queue = LinkedList::new();
-        visit_queue.push_back(self.graph.(from, Outgoing));
+        visit_queue.push_back(from);
 
         // list of visited nodes
         let mut visited: IndexSet<EdgeIndex> = IndexSet::new();
 
-        // remove first element of queue until queue is empty
-        while let Some(edges) = visit_queue.pop_front() {
-            for edge in edges {
-                edge();
+        // iterate over queue until it is empty
+        while let Some(current) = visit_queue.pop_front() {
+
+            if current == to {
+                println!("reached target node");
+                return LinkedList::new();
             }
-        }
 
-        let mut paths: Vec<Vec<EdgeIndex>> = Vec::with_capacity(max_paths as usize);
-        for i in 0..max_paths {
+            let mut walker = graph.neighbors_directed(current, Outgoing).detach();
 
-            while let Some(walker) = stack.last_mut() {
-                if let Some((next_edge, next_node)) = walker.next(&self.graph) {
+            // iterate over all outgoing edges
+            while let Some((next_edge, next_node)) = walker.next(graph) {
 
-                    let costs: u64 = visited.iter().map(|edge| self.graph[*edge].get_duration()).sum();
+                if !visited.contains(&next_edge) {
+                    // edge was not visited before 
 
-                    if visited.len() < max_length {
-                        if next_node == to {
-                            if visited.len() >= min_length {
-                                let path = visited
-                                    .iter()
-                                    .cloned()
-                                    .chain(Some(next_edge))
-                                    .collect::<Vec<EdgeIndex>>();
-                                paths.push(path);
+                    // set edge as visited now (we consider this edge from now on as visited, even if it did not provided the required capacity)
+                    visited.insert(next_edge);
 
-                                return Some(path);
-                            }
-                        } else if !visited.contains(&next_edge) {
-                            visited.insert(next_edge);
-                            stack.push(self.graph.neighbors_directed(next_node, Outgoing).detach());
-                        }
-                    } else {
-                        if next_node == to && visited.len() >= min_length {
-                            let path = visited
-                                .iter()
-                                .cloned()
-                                .chain(Some(next_edge))
-                                .collect::<Vec<EdgeIndex>>();
-                            return Some(path);
-                        }
-                        stack.pop();
-                        visited.pop();
+                    if graph[next_edge].get_remaining_capacity() >= min_capacity {
+                        // edge can handle the minium required capacity
+
+                        visit_queue.push_back(next_node);
                     }
-
-
-                } else {
-                    stack.pop();
-                    visited.pop();
                 }
             }
-            None
         }
 
         paths
     }
+
 
 
     fn all_simple_paths_dfs_dorian(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
