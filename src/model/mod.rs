@@ -1,3 +1,5 @@
+use std::{collections::HashMap, fs::File, io::{prelude::*, BufWriter}, iter::{FromIterator, from_fn}, time::Instant};
+
 pub mod group;
 pub mod footpath;
 pub mod station;
@@ -5,15 +7,12 @@ pub mod trip;
 pub mod algo;
 
 use group::Group;
-use petgraph::{
-    dot::{Dot, Config}, 
-    algo::{dijkstra, min_spanning_tree, all_simple_paths}, 
-    EdgeDirection::Outgoing, Graph, 
-    graph::{NodeIndex, EdgeIndex, GraphIndex, DiGraph}, 
-    visit::{IntoEdgeReferences, IntoEdges, IntoNeighborsDirected, NodeCount}
-};
-use std::{collections::{HashMap, HashSet, LinkedList}, fs::File, hash::Hash, io::{prelude::*, BufWriter}, iter::{FromFn, FromIterator, from_fn}, rc::Rc, time::Instant};
 
+use petgraph::{
+    dot::{Dot}, 
+    EdgeDirection::Outgoing, Graph, 
+    graph::{NodeIndex, EdgeIndex, DiGraph}, 
+};
 
 
 use crate::csv_reader;
@@ -22,57 +21,26 @@ use indexmap::IndexSet;
 /// Node Type of the DiGraph
 #[derive(Debug, Clone)]
 pub enum Node {
-    Departure {
+    Departure { // departure of a train ride
         trip_id: u64,
         time: u64,
         station_id: String
     },
 
-    Arrival {
+    Arrival { // arrival of a train ride
         trip_id: u64,
         time: u64,
         station_id: String
     },
 
-    Station {
-        station_id: String
-    },
-
-    Transfer {
+    Transfer { // transfer node at a station, existing for every departure at that station
         time: u64,
         station_id: String
     }
 }
 
-// impl std::fmt::Debug for Node {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         f.debug_struct("Node")
-//          .field("id", &self.id)
-//          .finish()
-//     }
-// }
 
 impl Node {
-    // pub fn is_arrival(&self) -> bool {
-    //     match self.kind {
-    //         NodeType::Arrival => true,
-    //         _ => false
-    //     }
-    // }
-
-    // pub fn is_departure(&self) -> bool {
-    //     match self.kind {
-    //         NodeType::Departure => true,
-    //         _ => false
-    //     }
-    // }
-
-    // pub fn is_transfer(&self) -> bool {
-    //     match self.kind {
-    //         NodeType::Transfer => true,
-    //         _ => false
-    //     }
-    // }
 
     pub fn get_time(&self) -> Option<u64> {
         match self {
@@ -86,7 +54,6 @@ impl Node {
     pub fn get_station(&self) -> Option<String> {
         match self {
             Self::Departure {trip_id: _, time: _, station_id} => Some(station_id.clone()),
-            Self::Station {station_id} => Some(station_id.clone()),
             Self::Transfer {time: _, station_id} => Some(station_id.clone()),
             _ => None
         }
@@ -126,15 +93,13 @@ pub enum Edge {
     WalkToStation { // edge between arrival and next transfer node at other station
         duration: u64
     },
-
-    StationRelation // edge between arrival/departure and station node
 }
 
 
 impl Edge {
 
     /// is RideToStation Edge
-    pub fn is_rideToStation(&self) -> bool {
+    pub fn is_ride_to_station(&self) -> bool {
         match self {
             Self::RideToStation{duration: _, capacity: _, utilization: _} => true,
             _ => false,
@@ -142,7 +107,7 @@ impl Edge {
     }
 
     /// is Footpath Edge
-    pub fn is_walkToStation(&self) -> bool {
+    pub fn is_walk_to_station(&self) -> bool {
         match self {
             Self::WalkToStation{duration: __} => true,
             _ => false,
@@ -399,7 +364,7 @@ impl Model {
     pub fn find_solutions(&self, groups_csv_filepath: &str) {
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
-        let groups_map = group::Group::from_maps_to_map(&group_maps);
+        let groups_map = Group::from_maps_to_map(&group_maps);
 
         let mut subgraph: DiGraph<Node, Edge> = Graph::new();
         // maps index of node in graph to index of node in subgraph
@@ -422,7 +387,7 @@ impl Model {
                 |node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
                 group_value.passengers as u64, 
                 max_duration, 
-                35 // todo: evaluate best value here
+                32 // todo: evaluate best value here
             );
 
             println!("found {} paths in {}ms", paths.len(), start.elapsed().as_millis());
@@ -615,7 +580,7 @@ impl Model {
         // println!("all_paths_dfs_recursive(current={:?}, goal={:?}, visited.len()={}, min_capacity={}, remaining_duration={})", current, goal, visited.len(), min_capacity, remaining_duration);
         // println!("remaining_duration: {}", remaining_duration);
 
-        if goal_condition(&graph[current]) {
+        if goal_condition(graph.node_weight(current).unwrap()) {
             
             // take all edge indices (in order of visit) and insert them into a vec
             paths.push(
@@ -687,7 +652,7 @@ impl Model {
                             let edge_weight = self.graph.edge_weight(self.graph.find_edge(*visited.last().unwrap(), child).unwrap()).unwrap();
                             durations.push(edge_weight.get_duration());
                             // only count ride to station and walk to station as limit factor
-                            if edge_weight.is_rideToStation() || edge_weight.is_walkToStation() {
+                            if edge_weight.is_ride_to_station() || edge_weight.is_walk_to_station() {
                                 rides.push(1);
                             } else {
                                 rides.push(0);
