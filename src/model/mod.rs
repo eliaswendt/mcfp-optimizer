@@ -8,11 +8,7 @@ pub mod algo;
 
 use group::Group;
 
-use petgraph::{
-    dot::{Dot}, 
-    EdgeDirection::Outgoing, Graph, 
-    graph::{NodeIndex, EdgeIndex, DiGraph}, 
-};
+use petgraph::{EdgeDirection::Outgoing, Graph, IntoWeightedEdge, dot::{Dot}, graph::{NodeIndex, EdgeIndex, DiGraph}};
 
 
 use crate::csv_reader;
@@ -36,9 +32,14 @@ pub enum Node {
     Transfer { // transfer node at a station, existing for every departure at that station
         time: u64,
         station_id: String
-    }
+    },
+
+    Default // empty default (used in intermediate subgraph)
 }
 
+impl Default for Node {
+    fn default() -> Self { Node::Default }
+}
 
 impl Node {
 
@@ -391,6 +392,17 @@ impl Model {
             );
 
             println!("found {} paths in {}ms", paths.len(), start.elapsed().as_millis());
+
+
+            // BITTE NICHT ENTFERNEN, HIER ARBEITE ICH GRADE DRAN
+            // subgraph.extend_with_edges(paths
+            //     .iter()
+            //     .flatten()
+            //     .map(|edge_index| self.graph.edge_weight(*edge_index).unwrap())
+            //     .cloned()
+            //     .collect::<Vec<_>>()
+            //     .windows(2)
+            // );
 
             //let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
     
