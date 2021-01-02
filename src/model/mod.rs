@@ -109,10 +109,10 @@ impl EdgeWeight {
     // maps every edge to some virtual cost for improved DFS (aka. effort/expense to "take" the edge)
     pub fn cost(&self) -> u64 {
         match self {
-            Self::Ride {duration: _, capacity: _, utilization: _} => 1,
-            Self::WaitInTrain {duration: _} => 2,
+            Self::Ride {duration: _, capacity: _, utilization: _} => 2,
+            Self::WaitInTrain {duration: _} => 1,
             Self::Alight {duration: _} => 5,
-            Self::WaitAtStation {duration: _} => 5,
+            Self::WaitAtStation {duration: _} => 3,
             Self::Walk {duration: _} => 10,
             Self::Board => 5,
             Self::MainArrivalRelation => 0 // no cost, just a "meta" path
@@ -414,7 +414,7 @@ impl Model {
         let mut node_index_graph_subgraph_mapping: HashMap<NodeIndex, NodeIndex> = HashMap::new();
 
         let mut groups_sorted: Vec<&Group> = groups_map.values().collect();
-        groups_sorted.sort_unstable_by_key(|x| x.passengers);
+        groups_sorted.sort_unstable_by_key(|group| group.passengers);
         groups_sorted.reverse();
 
         for group_value in groups_sorted.into_iter(){
