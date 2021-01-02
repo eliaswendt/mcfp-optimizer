@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 /// travel group
 pub struct Group {
-    id: u64,
+    pub id: u64,
     
     pub start: String, // Start-Halt für die Alternativensuche (Station ID)
     pub destination: String, // Ziel der Gruppe (Station ID)

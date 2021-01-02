@@ -14,7 +14,7 @@ fn main() {
         return;
     }
 
-    let model = model::Model::with_stations_footpaths_and_trips(&args[1]);
+    let mut model = model::Model::with_stations_footpaths_and_trips(&args[1]);
 
     model.find_solutions(&format!("{}groups.csv", &args[1]));
 
