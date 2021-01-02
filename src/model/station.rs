@@ -13,7 +13,8 @@ pub struct Station {
 impl Station {
     pub fn from_maps_to_map(station_maps: &Vec<HashMap<String, String>>) -> HashMap<String, Self> {
 
-        println!("parsing {} stations", station_maps.len());
+        
+        println!("parsing {} station(s)", station_maps.len());
 
         let mut stations_map = HashMap::with_capacity(station_maps.len());
 

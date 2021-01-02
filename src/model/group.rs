@@ -22,7 +22,7 @@ pub struct Group {
 impl Group {
     pub fn from_maps_to_map(group_maps: &Vec<HashMap<String, String>>) -> HashMap<u64, Self> {
 
-        println!("parsing {} groups", group_maps.len());
+        println!("parsing {} group(s)", group_maps.len());
 
         let mut groups_map = HashMap::with_capacity(group_maps.len());
 

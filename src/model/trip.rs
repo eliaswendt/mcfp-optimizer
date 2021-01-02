@@ -12,7 +12,7 @@ pub struct Trip {
 impl Trip {
     pub fn from_maps_to_map(trip_maps: &Vec<HashMap<String, String>>) -> HashMap<String, Self> {
 
-        println!("parsing {} trips", trip_maps.len());
+        println!("parsing {} trip(s)", trip_maps.len());
 
         let mut trips_map = HashMap::with_capacity(trip_maps.len());
 
