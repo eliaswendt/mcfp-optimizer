@@ -9,6 +9,7 @@ pub mod algo;
 use group::Group;
 
 use petgraph::{EdgeDirection::{Incoming, Outgoing}, Graph, IntoWeightedEdge, dot::{Dot}, graph::{NodeIndex, EdgeIndex, DiGraph}};
+use colored::*;
 
 
 use crate::csv_reader;
@@ -75,27 +76,27 @@ impl NodeWeight {
 /// Edge Type of the DiGraph
 #[derive(Debug, Clone)]
 pub enum EdgeWeight {
-    RideToStation { // edge between departure and arrival
+    Ride { // edge between departure and arrival
         duration: u64,
         capacity: u64,
         utilization: u64,
     },
 
-    StayInTrain { // edge between arrival and departure in the same train (stay in the train)
+    WaitInTrain { // edge between arrival and departure in the same train (stay in the train)
         duration: u64
     },
     
-    Embark, // edge between transfer node and departure
+    Board, // edge between transfer node and departure
 
     Alight { // edge between arrival and transfer
         duration: u64
     },
 
-    StayAtStation { // edge between two transfer nodes
+    WaitAtStation { // edge between two transfer nodes
         duration: u64
     },
 
-    WalkToStation { // edge between arrival and next transfer node at other station
+    Walk { // edge between arrival and next transfer node at other station
         duration: u64
     },
 
@@ -108,29 +109,21 @@ impl EdgeWeight {
     // maps every edge to some virtual cost for improved DFS (aka. effort/expense to "take" the edge)
     pub fn cost(&self) -> u64 {
         match self {
-            Self::RideToStation {duration: _, capacity: _, utilization: _} => 1,
-            Self::StayInTrain {duration: _} => 5,
+            Self::Ride {duration: _, capacity: _, utilization: _} => 1,
+            Self::WaitInTrain {duration: _} => 2,
             Self::Alight {duration: _} => 5,
-            Self::StayAtStation {duration: _} => 5,
-            Self::WalkToStation {duration: _} => 10,
-            Self::Embark => 5,
+            Self::WaitAtStation {duration: _} => 5,
+            Self::Walk {duration: _} => 10,
+            Self::Board => 5,
             Self::MainArrivalRelation => 0 // no cost, just a "meta" path
         }
     }
 
-    pub fn is_stay_in_train(&self) -> bool {
-        match self {
-            Self::StayInTrain {
-                duration: _, 
-            } => true,
-            _ => false,
-        }
-    }
 
     /// is RideToStation Edge
-    pub fn is_ride_to_station(&self) -> bool {
+    pub fn is_ride(&self) -> bool {
         match self {
-            Self::RideToStation {
+            Self::Ride {
                 duration: _, 
                 capacity: _, 
                 utilization: _
@@ -140,9 +133,9 @@ impl EdgeWeight {
     }
 
     /// is Footpath Edge
-    pub fn is_walk_to_station(&self) -> bool {
+    pub fn is_walk(&self) -> bool {
         match self {
-            Self::WalkToStation {
+            Self::Walk {
                 duration: __
             } => true,
             _ => false,
@@ -161,11 +154,11 @@ impl EdgeWeight {
     /// get duration of self, defaults to 0
     pub fn get_duration(&self) -> u64 {
         match self {
-            Self::RideToStation{duration, capacity: _, utilization: _} => *duration,
-            Self::StayInTrain{duration} => *duration,
+            Self::Ride{duration, capacity: _, utilization: _} => *duration,
+            Self::WaitInTrain{duration} => *duration,
             Self::Alight{duration} => *duration,
-            Self::StayAtStation{duration} => *duration,
-            Self::WalkToStation{duration} => *duration,
+            Self::WaitAtStation{duration} => *duration,
+            Self::Walk{duration} => *duration,
             _ => 0,
         }
     }
@@ -173,22 +166,15 @@ impl EdgeWeight {
     /// get capacity of self, defaults to MAX
     pub fn get_capacity(&self) -> u64 {
         match self {
-            Self::RideToStation{duration: _, capacity, utilization: _} => *capacity,
-            _ => std::u64::MAX,
+            Self::Ride{duration: _, capacity, utilization: _} => *capacity,
+            _ => std::u64::MAX, // all other edges are not limited in terms of capacity
         }
     }
 
     /// increase utilization of this edge by <addend>
     pub fn increase_utilization(&mut self, addend: u64) {
         match self {
-            Self::RideToStation{duration: _, capacity: _, utilization} => *utilization += addend,
-            _ => {} // no need to track utilization on other edges, as they have unlimited capacity
-        }
-    }
-
-    pub fn set_utilization(&mut self, new_utilization: u64) {
-        match self {
-            Self::RideToStation{duration: _, capacity: _, utilization} => *utilization = new_utilization,
+            Self::Ride{duration: _, capacity: _, utilization} => *utilization += addend,
             _ => {} // no need to track utilization on other edges, as they have unlimited capacity
         }
     }
@@ -196,14 +182,14 @@ impl EdgeWeight {
     /// get utilization of self, defaults to 0
     pub fn get_utilization(&self) -> u64 {
         match self {
-            Self::RideToStation{duration: _, capacity: _, utilization} => *utilization,
+            Self::Ride{duration: _, capacity: _, utilization} => *utilization,
             _ => 0 // other edges always return 0 utilization as they have unlimited capacity
         }
     }
 
     pub fn get_remaining_capacity(&self) -> u64 {
         match self {
-            Self::RideToStation{duration: _, capacity, utilization} => *capacity - *utilization,
+            Self::Ride{duration: _, capacity, utilization} => *capacity - *utilization,
             _ => u64::MAX // other edges always return u64::MAX as they have unlimited capacity
         }
     }
@@ -271,7 +257,7 @@ impl Model {
             from_station.departure_node_indices.insert(trip.id, departure_node_index);
 
             // connect stations of this trip
-            graph.add_edge(departure_node_index, arrival_node_index, EdgeWeight::RideToStation {
+            graph.add_edge(departure_node_index, arrival_node_index, EdgeWeight::Ride {
                 capacity: trip.capacity,
                 duration: trip.arrival - trip.departure,
                 utilization: 0
@@ -297,7 +283,7 @@ impl Model {
                     station_id: station_id.clone()
                 });
                 // edge between transfer of this station to departure
-                graph.add_edge(departure_transfer_node_index, *departure_node_index, EdgeWeight::Embark);
+                graph.add_edge(departure_transfer_node_index, *departure_node_index, EdgeWeight::Board);
 
                 // add transfer node to list of transfer nodes of this station
                 station.transfer_node_indices.push((departure_node_time, departure_transfer_node_index));
@@ -308,7 +294,7 @@ impl Model {
                     Some(arrival_node_index) => {
                         let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().get_time().unwrap();
 
-                        graph.add_edge(*arrival_node_index, *departure_node_index, EdgeWeight::StayInTrain {
+                        graph.add_edge(*arrival_node_index, *departure_node_index, EdgeWeight::WaitInTrain {
                             duration: departure_node_time - arrival_node_time
                         });
                     },
@@ -321,7 +307,7 @@ impl Model {
 
             // connect transfers with each other
             for transfer_node_indices in station.transfer_node_indices.windows(2) {
-                graph.add_edge(transfer_node_indices[0].1, transfer_node_indices[1].1, EdgeWeight::StayAtStation {
+                graph.add_edge(transfer_node_indices[0].1, transfer_node_indices[1].1, EdgeWeight::WaitAtStation {
                     duration: transfer_node_indices[1].0 - transfer_node_indices[0].0
                 });
             }
@@ -388,7 +374,7 @@ impl Model {
                 // try to find next transfer node at to_station
                 for (transfer_timestamp, transfer_node_index) in to_station.transfer_node_indices.iter() {
                     if earliest_transfer_time <= *transfer_timestamp {
-                        graph.add_edge(*arrival_node_index, *transfer_node_index, EdgeWeight::WalkToStation {
+                        graph.add_edge(*arrival_node_index, *transfer_node_index, EdgeWeight::Walk {
                             duration: footpath.duration
                         });
                         edge_added = true;
@@ -441,7 +427,7 @@ impl Model {
             let max_duration = (travel_time as f64 * 2.0) as u64; // todo: factor to modify later if not a path could be found for all groups
 
             let start = Instant::now();
-            print!("[group_id={}]: {} -> {} with {} passenger(s) in {} min(s) ... ", group_value.id, group_value.start, group_value.destination, group_value.passengers, max_duration);
+            print!("[group={}]: {} -> {} with {} passenger(s) in {} min(s) ... ", group_value.id, group_value.start, group_value.destination, group_value.passengers, max_duration);
 
             let mut paths_recursive = Self::all_paths_dfs_recursive(
                 &self.graph, 
@@ -450,22 +436,32 @@ impl Model {
 
                 group_value.passengers as u64, 
                 max_duration, 
-                100
+                100 // initial budget for cost (each edge has individual search cost)
             );
 
+            print!("done in {}ms ... ", start.elapsed().as_millis());
+
+            // sort paths by remaining duration (highest first)
             paths_recursive.sort_unstable_by_key(|(remaining_duration, _)| *remaining_duration);
             paths_recursive.reverse();
 
-            match paths_recursive.first() {
-                Some((_, path)) => {
-                    for edge_index in path.iter() {
+            let output = match paths_recursive.first() {
+                Some((remaining_duration, path)) => {
 
+                    for edge_index in path.iter() {
+                        
                         self.graph.edge_weight_mut(*edge_index).unwrap().increase_utilization(group_value.passengers as u64);
                     }
-                    println!("found {} path(s) in {}ms", paths_recursive.len(), start.elapsed().as_millis());
+
+                    format!("augmenting best path (remaining_duration={}, len={})", remaining_duration, path.len()).green()
+                },
+
+                None => {
+                    "no path to augment".red()
                 }
-                None => { println!("Could not find a path!") }
-            }
+            };
+
+            println!("{}", output);
             
             //let paths_recursive = self.all_simple_paths_dfs_dorian(from_node_index, to_node_index, max_duration, 5);
 
@@ -723,7 +719,7 @@ impl Model {
                             let edge_weight = self.graph.edge_weight(child_edge_index).unwrap();
                             durations.push(edge_weight.get_duration());
                             // only count ride to station and walk to station as limit factor
-                            if edge_weight.is_ride_to_station() || edge_weight.is_walk_to_station() {
+                            if edge_weight.is_ride() || edge_weight.is_walk() {
                                 rides.push(1);
                             } else {
                                 rides.push(0);
