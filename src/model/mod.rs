@@ -483,100 +483,7 @@ impl Model {
     }
 
 
-    // creates a subgraph of self with only the part of the graph of specified paths
-    pub fn create_subgraph_from_paths_alt(&self, subgraph: &mut Graph<NodeWeight, EdgeWeight>, paths: Vec<Vec<NodeIndex>>, node_index_graph_subgraph_mapping: &mut HashMap<NodeIndex, NodeIndex>) -> Vec<Vec<ObjectIndex>> {
-        //let mut subgraph = DiGraph::new();
-        let mut subgraph_paths: Vec<Vec<ObjectIndex>> = Vec::new();
-
-        // iterate all paths in graph
-        for path in paths {
-
-            let mut subgraph_path_indices: Vec<ObjectIndex> = Vec::new();
-            let mut path_max_flow: u64 = std::u64::MAX;
-            let mut path_edge_indices: Vec<EdgeIndex> = Vec::new();
-
-            // iterate over all NodeIndex pairs in this path
-            for graph_node_index_pair in path.windows(2) {
-
-                // check if the first node already exists in subgraph
-                let subgraph_node_a_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[0]) {
-                    Some(subgraph_node_index) => *subgraph_node_index,
-                    None => {
-                        // clone NodeWeight from graph
-                        let node_weight = self.graph.node_weight(graph_node_index_pair[0]).unwrap().clone();
-
-                        // create new node in subgraph
-                        let subgraph_node_index = subgraph.add_node(node_weight);
-                        
-                        // insert mapping into HashMap
-                        node_index_graph_subgraph_mapping.insert(graph_node_index_pair[0], subgraph_node_index.clone());
-
-                        subgraph_node_index
-                    }
-                };
-                    
-                // check if the second node already exists in subgraph
-                let subgraph_node_b_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[1]) {
-                    Some(subgraph_node_index) => *subgraph_node_index,
-                    None => {
-                        // clone NodeWeight from graph
-                        let node_weight = self.graph.node_weight(graph_node_index_pair[1]).unwrap().clone();
-
-                        // create new node in subgraph
-                        let subgraph_node_index = subgraph.add_node(node_weight);
-                        
-                        // insert mapping into HashMap
-                        node_index_graph_subgraph_mapping.insert(graph_node_index_pair[1], subgraph_node_index);
-
-                        subgraph_node_index
-                    }
-                };
-                
-                // add outgoing node to path if path is empty
-                if subgraph_path_indices.is_empty() {
-                    subgraph_path_indices.push(ObjectIndex::NodeIndex(subgraph_node_a_index));
-                };
-
-                // create edge if there was created at least one new node
-                let subgraph_edge_weight = match subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index) {
-                    Some(subgraph_edge_index) => {
-                        // add edge to path
-                        subgraph_path_indices.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
-                        path_edge_indices.push(subgraph_edge_index);
-                        subgraph.edge_weight(subgraph_edge_index).unwrap()
-                    },
-                    None => {
-                        let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
-                        let subgraph_edge_weight = self.graph.edge_weight(graph_edge_index).unwrap().clone();
-
-                        let subgraph_edge_index = subgraph.add_edge(subgraph_node_a_index, subgraph_node_b_index, subgraph_edge_weight);
-                        // add edge to path
-                        subgraph_path_indices.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
-                        path_edge_indices.push(subgraph_edge_index);
-                        subgraph.edge_weight(subgraph_edge_index).unwrap()
-                    }
-                };
-
-                // update max_flow if edge capacity is smaller current path_max_flow
-                let edge_remaining_flow = subgraph_edge_weight.get_capacity() - subgraph_edge_weight.get_utilization();
-                if edge_remaining_flow < path_max_flow {
-                    path_max_flow = edge_remaining_flow;
-                };
-                
-                subgraph_path_indices.push(ObjectIndex::NodeIndex(subgraph_node_b_index));
-            };
-
-            subgraph_paths.push(subgraph_path_indices);
-
-            // set utilization to all edges of path
-            for path_edge_index in path_edge_indices {
-                subgraph.edge_weight_mut(path_edge_index).unwrap().increase_utilization(path_max_flow);
-                //println!("{}, {}", path_max_flow, subgraph.edge_weight(path_edge_index).unwrap().get_utilization())
-            }
-        }
-
-        subgraph_paths
-    }
+    
 
 
 
@@ -666,69 +573,174 @@ impl Model {
 
 
 
-    fn all_simple_paths_dfs_dorian(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
+    // fn all_simple_paths_dfs_dorian(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
 
-        // list of already visited nodes
-        let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(from_node_index));
+    //     // list of already visited nodes
+    //     let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(from_node_index));
 
-        // list of childs of currently exploring path nodes,
-        // last elem is list of childs of last visited node
-        let mut stack = vec![self.graph.neighbors_directed(from_node_index, Outgoing)];
-        let mut durations: Vec<u64> = vec![0];
-        let mut rides: Vec<u64> = vec![0];
-    
-        let path_finder = from_fn(move || {
-            while let Some(children) = stack.last_mut() {
-                if let Some(child) = children.next() {
-                    if durations.iter().sum::<u64>() < max_duration && rides.iter().sum::<u64>() < max_rides {
-                        if child == to_node_index {
-                            let path = visited
-                                .iter()
-                                .cloned()
-                                .chain(Some(child))
-                                .collect::<Vec<NodeIndex>>();
-                            return Some(path);
-                        } else if !visited.contains(&child) {
-                            let edge_weight = self.graph.edge_weight(self.graph.find_edge(*visited.last().unwrap(), child).unwrap()).unwrap();
-                            durations.push(edge_weight.get_duration());
-                            // only count ride to station and walk to station as limit factor
-                            if edge_weight.is_ride_to_station() || edge_weight.is_walk_to_station() {
-                                rides.push(1);
-                            } else {
-                                rides.push(0);
-                            };
-                            rides.push(1);
-                            visited.insert(child);
-                            stack.push(self.graph.neighbors_directed(child, Outgoing));
-                        }
-                    } else {
-                        if child == to_node_index || children.any(|v| v == to_node_index) {
-                            let path = visited
-                                .iter()
-                                .cloned()
-                                .chain(Some(to_node_index))
-                                .collect::<Vec<NodeIndex>>();
-                            return Some(path);
-                        }
-                        stack.pop();
-                        visited.pop();
-                        durations.pop();
-                        rides.pop();
-                    }
+    //     // list of childs of currently exploring path nodes,
+    //     // last elem is list of childs of last visited node
+    //     let mut stack = vec![self.graph.neighbors_directed(from_node_index, Outgoing).detach()];
+    //     let mut durations: Vec<u64> = vec![0];
+    //     let mut rides: Vec<u64> = vec![0];
+
+    //     //let mut bfs = self.graph.neighbors_directed(from_node_index, Outgoing).detach();
+    //     //let mut a = bfs.next(&self.graph);
+    //     let path_finder = from_fn(move || {
+    //         while let Some(children) = stack.last_mut() {
+    //             if let Some((child_edge_index, child_node_index)) = children.next(&self.graph) {
+    //                 if durations.iter().sum::<u64>() < max_duration && rides.iter().sum::<u64>() < max_rides {
+    //                     if child_node_index == to_node_index {
+    //                         let path = visited
+    //                             .iter()
+    //                             .cloned()
+    //                             .chain(Some(child_node_index))
+    //                             .collect::<Vec<NodeIndex>>();
+    //                         return Some(path);
+    //                     } else if !visited.contains(&child_node_index) {
+    //                         let edge_weight = self.graph.edge_weight(child_edge_index).unwrap();
+    //                         durations.push(edge_weight.get_duration());
+    //                         // only count ride to station and walk to station as limit factor
+    //                         if edge_weight.is_ride_to_station() || edge_weight.is_walk_to_station() {
+    //                             rides.push(1);
+    //                         } else {
+    //                             rides.push(0);
+    //                         };
+    //                         //rides.push(1);
+    //                         visited.insert(child_node_index);
+    //                         stack.push(self.graph.neighbors_directed(child_node_index, Outgoing).detach());
+    //                     }
+    //                 } else {
+    //                     let mut children_any_to_node_index = false;
+    //                     // while let Some((_, c_node_index)) = children.next(&self.graph) {
+    //                     //     if c_node_index == to_node_index {
+    //                     //         children_any_to_node_index = true;
+    //                     //         break;
+    //                     //     }
+    //                     // }
+    //                     if child_node_index == to_node_index || children_any_to_node_index { //} || children..  any(|v| v == to_node_index) {
+    //                         let path = visited
+    //                             .iter()
+    //                             .cloned()
+    //                             .chain(Some(to_node_index))
+    //                             .collect::<Vec<NodeIndex>>();
+    //                         return Some(path);
+    //                     } 
+    //                     stack.pop();
+    //                     visited.pop();
+    //                     durations.pop();
+    //                     rides.pop();
+    //                 }
                     
-                } else {
-                    stack.pop();
-                    visited.pop();
-                    durations.pop();
-                    rides.pop();
-                }
-            }
+    //             } else {
+    //                 stack.pop();
+    //                 visited.pop();
+    //                 durations.pop();
+    //                 rides.pop();
+    //             }
+    //         }
             
-            None
-        });
+    //         None
+    //     });
     
-        path_finder.collect::<Vec<_>>()
-    }
+    //     path_finder.collect::<Vec<_>>()
+    // }
+
+
+    // // creates a subgraph of self with only the part of the graph of specified paths
+    // pub fn create_subgraph_with_nodes(&self, subgraph: &mut Graph<NodeWeight, EdgeWeight>, paths: Vec<Vec<NodeIndex>>, node_index_graph_subgraph_mapping: &mut HashMap<NodeIndex, NodeIndex>) -> Vec<Vec<ObjectIndex>> {
+    //     //let mut subgraph = DiGraph::new();
+    //     let mut subgraph_paths: Vec<Vec<ObjectIndex>> = Vec::new();
+
+    //     // iterate all paths in graph
+    //     for path in paths {
+
+    //         let mut subgraph_path_indices: Vec<ObjectIndex> = Vec::new();
+    //         let mut path_max_flow: u64 = std::u64::MAX;
+    //         let mut path_edge_indices: Vec<EdgeIndex> = Vec::new();
+
+    //         // iterate over all NodeIndex pairs in this path
+    //         for graph_node_index_pair in path.windows(2) {
+
+    //             // check if the first node already exists in subgraph
+    //             let subgraph_node_a_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[0]) {
+    //                 Some(subgraph_node_index) => *subgraph_node_index,
+    //                 None => {
+    //                     // clone NodeWeight from graph
+    //                     let node_weight = self.graph.node_weight(graph_node_index_pair[0]).unwrap().clone();
+
+    //                     // create new node in subgraph
+    //                     let subgraph_node_index = subgraph.add_node(node_weight);
+                        
+    //                     // insert mapping into HashMap
+    //                     node_index_graph_subgraph_mapping.insert(graph_node_index_pair[0], subgraph_node_index.clone());
+
+    //                     subgraph_node_index
+    //                 }
+    //             };
+                    
+    //             // check if the second node already exists in subgraph
+    //             let subgraph_node_b_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[1]) {
+    //                 Some(subgraph_node_index) => *subgraph_node_index,
+    //                 None => {
+    //                     // clone NodeWeight from graph
+    //                     let node_weight = self.graph.node_weight(graph_node_index_pair[1]).unwrap().clone();
+
+    //                     // create new node in subgraph
+    //                     let subgraph_node_index = subgraph.add_node(node_weight);
+                        
+    //                     // insert mapping into HashMap
+    //                     node_index_graph_subgraph_mapping.insert(graph_node_index_pair[1], subgraph_node_index);
+
+    //                     subgraph_node_index
+    //                 }
+    //             };
+                
+    //             // add outgoing node to path if path is empty
+    //             if subgraph_path_indices.is_empty() {
+    //                 subgraph_path_indices.push(ObjectIndex::NodeIndex(subgraph_node_a_index));
+    //             };
+
+    //             // create edge if there was created at least one new node
+    //             let subgraph_edge_weight = match subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index) {
+    //                 Some(subgraph_edge_index) => {
+    //                     // add edge to path
+    //                     subgraph_path_indices.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
+    //                     path_edge_indices.push(subgraph_edge_index);
+    //                     subgraph.edge_weight(subgraph_edge_index).unwrap()
+    //                 },
+    //                 None => {
+    //                     let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
+    //                     let subgraph_edge_weight = self.graph.edge_weight(graph_edge_index).unwrap().clone();
+
+    //                     let subgraph_edge_index = subgraph.add_edge(subgraph_node_a_index, subgraph_node_b_index, subgraph_edge_weight);
+    //                     // add edge to path
+    //                     subgraph_path_indices.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
+    //                     path_edge_indices.push(subgraph_edge_index);
+    //                     subgraph.edge_weight(subgraph_edge_index).unwrap()
+    //                 }
+    //             };
+
+    //             // update max_flow if edge capacity is smaller current path_max_flow
+    //             let edge_remaining_flow = subgraph_edge_weight.get_capacity() - subgraph_edge_weight.get_utilization();
+    //             if edge_remaining_flow < path_max_flow {
+    //                 path_max_flow = edge_remaining_flow;
+    //             };
+                
+    //             subgraph_path_indices.push(ObjectIndex::NodeIndex(subgraph_node_b_index));
+    //         };
+
+    //         subgraph_paths.push(subgraph_path_indices);
+
+    //         // set utilization to all edges of path
+    //         for path_edge_index in path_edge_indices {
+    //             subgraph.edge_weight_mut(path_edge_index).unwrap().increase_utilization(path_max_flow);
+    //             //println!("{}, {}", path_max_flow, subgraph.edge_weight(path_edge_index).unwrap().get_utilization())
+    //         }
+    //     }
+
+    //     subgraph_paths
+    // }
 
 
 
@@ -797,4 +809,3 @@ impl Model {
 
 
 }
-    
