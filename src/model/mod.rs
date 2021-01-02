@@ -386,10 +386,6 @@ impl Model {
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups_map = Group::from_maps_to_map(&group_maps);
 
-        let mut subgraph: DiGraph<NodeWeight, EdgeWeight> = Graph::new();
-        // maps index of node in graph to index of node in subgraph
-        let mut node_index_graph_subgraph_mapping: HashMap<NodeIndex, NodeIndex> = HashMap::new();
-
         for (group_id, group_value) in groups_map.iter() {
 
             let from_node_index = self.find_start_node_index(&group_value.start, group_value.departure).expect("Could not find departure at from_station");
@@ -411,14 +407,10 @@ impl Model {
                 32 // todo: evaluate best value here
             );
 
-            let all_edges_in_paths_recursive: HashSet<EdgeIndex> = paths_recursive.iter().flatten().cloned().collect();
-
             println!("found {} path(s) in {}ms", paths_recursive.len(), start.elapsed().as_millis());
+            
 
-            for path in paths_recursive.iter() {
-                println!("{:?}", self.graph[*path.last().unwrap()]);
-            }
-
+            let all_edges_in_paths_recursive: HashSet<EdgeIndex> = paths_recursive.iter().flatten().cloned().collect();
             if all_edges_in_paths_recursive.len() > 0 {
     
                 let subgraph = self.build_subgraph_with_edges(&all_edges_in_paths_recursive);
@@ -427,17 +419,6 @@ impl Model {
                     format!("{:?}", Dot::with_config(&subgraph, &[])).as_bytes()
                 ).unwrap();
             }
-
-            break;
-
-
-            //let subgraph_paths = self.create_subgraph_from_paths(&mut subgraph, paths, &mut node_index_graph_subgraph_mapping);
-    
-            // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
-    
-            // BufWriter::new(File::create(format!("graphs/subgraph_group_{}.dot", group_key)).unwrap()).write(
-            //     dot_code.as_bytes()
-            // ).unwrap();
         }
 
 
@@ -473,7 +454,7 @@ impl Model {
         }
     }
 
-    
+
     /// builds subgraph that only contains nodes connected by edges
     pub fn build_subgraph_with_edges(&self, edges: &HashSet<EdgeIndex>) -> DiGraph<NodeWeight, EdgeWeight> {
 
