@@ -1,10 +1,10 @@
 use petgraph::{EdgeDirection::{Outgoing}, graph::{NodeIndex, DiGraph}, visit::{IntoEdgeReferences, IntoEdges}};
 use std::collections::{HashMap, HashSet};
 
-use super::{Edge, Node, Object, group};
+use super::{EdgeWeight, NodeWeight, Object, group};
 use group::Group;
 
-pub fn max_flow(graph: &DiGraph<Node, Edge>, source_index: NodeIndex, sink_index: NodeIndex, groups: &HashMap<u64, Group>) {
+pub fn max_flow(graph: &DiGraph<NodeWeight, EdgeWeight>, source_index: NodeIndex, sink_index: NodeIndex, groups: &HashMap<u64, Group>) {
     /*let paths: Vec<Vec<Object>> = Vec::new();
     let source_node = graph.node_weight(source_index).unwrap();
 
