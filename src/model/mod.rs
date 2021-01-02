@@ -108,7 +108,11 @@ impl EdgeWeight {
     /// is RideToStation Edge
     pub fn is_ride_to_station(&self) -> bool {
         match self {
-            Self::RideToStation{duration: _, capacity: _, utilization: _} => true,
+            Self::RideToStation {
+                duration: _, 
+                capacity: _, 
+                utilization: _
+            } => true,
             _ => false,
         }
     }
@@ -116,8 +120,19 @@ impl EdgeWeight {
     /// is Footpath Edge
     pub fn is_walk_to_station(&self) -> bool {
         match self {
-            Self::WalkToStation{duration: __} => true,
+            Self::WalkToStation {
+                duration: __
+            } => true,
             _ => false,
+        }
+    }
+
+    pub fn is_alight(&self) -> bool {
+        match self {
+            Self::Alight {
+                duration: _
+            } => true,
+            _ => false
         }
     }
 
@@ -410,7 +425,7 @@ impl Model {
                 to_node_index, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
                 group_value.passengers as u64, 
                 max_duration, 
-                32 // todo: evaluate best value here
+                8 // todo: evaluate best value here
             );
 
             paths_recursive.sort_unstable_by_key(|(remaining_duration, _)| *remaining_duration);
@@ -419,6 +434,7 @@ impl Model {
             match paths_recursive.first() {
                 Some((_, path)) => {
                     for edge_index in path.iter() {
+
                         self.graph.edge_weight_mut(*edge_index).unwrap().increase_utilization(group_value.passengers as u64);
                     }
                     println!("found {} path(s) in {}ms", paths_recursive.len(), start.elapsed().as_millis());
@@ -517,13 +533,14 @@ impl Model {
     }
 
     // launcher of recursive implementation of dfs
+    // returns a vec of paths along with their remaining_duration
     pub fn all_paths_dfs_recursive(
         graph: &DiGraph<NodeWeight, EdgeWeight>,
         from: NodeIndex,
         to: NodeIndex, // condition that determines whether goal node was found
         min_capacity: u64,
         max_duration: u64,
-        max_depth: u64
+        max_alights: u64 // maximum number of transfers to follow
     ) -> Vec<(u64, Vec<EdgeIndex>)> {
 
         // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
@@ -539,7 +556,7 @@ impl Model {
             &mut visited, 
             min_capacity, 
             max_duration, 
-            max_depth
+            max_alights + 1
         );
 
         paths
@@ -553,7 +570,7 @@ impl Model {
         visited: &mut Vec<EdgeIndex>, // vec of visited edges (in order of visit)
         min_capacity: u64,
         remaining_duration: u64, // if zero -> recursion anchor
-        remaining_depth: u64 // aka. remaining_path_length, if zero -> recursion anchor
+        remaining_alights: u64 // if zero -> recursion anchor
     ) {
 
         // println!("all_paths_dfs_recursive(current={:?}, goal={:?}, visited.len()={}, min_capacity={}, remaining_duration={})", current, to, visited.len(), min_capacity, remaining_duration);
@@ -566,7 +583,7 @@ impl Model {
                 (remaining_duration, visited.iter().cloned().collect())
             );
 
-        } else if remaining_depth > 0 {
+        } else if remaining_alights > 0 {
             let mut walker = graph.neighbors_directed(current, Outgoing).detach();
 
             // iterate over all outgoing edges
@@ -575,11 +592,18 @@ impl Model {
                 let edge_weight = &graph[next_edge];
                 let edge_duration = edge_weight.get_duration();
 
-                if edge_weight.get_remaining_capacity() >= min_capacity && edge_duration <= remaining_duration {
+                if edge_duration <= remaining_duration && edge_weight.get_remaining_capacity() >= min_capacity {
                     // edge can handle the minium required capacity and does not take longer then the remaining duration        
 
+                    let new_remaining_alights = if edge_weight.is_alight() {
+                        remaining_alights - 1
+                    } else {
+                        remaining_alights
+                    };
+
+
+                    // add next_edge for next call
                     visited.push(next_edge);
-                    // append result of recursive call with next_node
 
                     &mut Self::all_paths_dfs_recursive_helper(
                         graph, 
@@ -589,7 +613,7 @@ impl Model {
                         visited, 
                         min_capacity, 
                         remaining_duration - edge_duration, 
-                        remaining_depth - 1
+                        new_remaining_alights
                     );
 
                     // remove next_edge from visited
