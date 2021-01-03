@@ -72,6 +72,51 @@ impl NodeWeight {
             _ => false
         }
     }
+
+    pub fn is_departure(&self) -> bool {
+        match self {
+            Self::Departure {trip_id: _, time: _, station_id: _} => true,
+            _ => false
+        }
+    }
+
+    pub fn is_arrival(&self) -> bool {
+        match self {
+            Self::Arrival {trip_id: _, time: _, station_id: _} => true,
+            _ => false
+        }
+    }
+
+    pub fn is_transfer(&self) -> bool {
+        match self {
+            Self::Transfer {time: _, station_id: _}  => true,
+            _ => false
+        }
+    }
+
+    pub fn is_main_arrival(&self) -> bool {
+        match self {
+            Self::MainArrival {station_id: _} => true,
+            _ => false
+        }
+    }
+
+    pub fn is_default(&self) -> bool {
+        match self {
+            Self::Default => true,
+            _ => false
+        }
+    }
+
+    pub fn get_kind(&self) -> &str {
+        match self {
+            Self::Departure {trip_id: _, time: _, station_id: _} => "Departure",
+            Self::Arrival {trip_id: _, time: _, station_id: _} => "Arrival",
+            Self::Transfer {time: _, station_id: _}  => "Transfer",
+            Self::MainArrival {station_id: _} => "MainArrival",
+            Self::Default => "Default",
+        }
+    }
 }
 
 /// Edge Type of the DiGraph
@@ -133,6 +178,16 @@ impl EdgeWeight {
         }
     }
 
+    /// is WaitInTrain Edge
+    pub fn is_wait_in_train(&self) -> bool {
+        match self {
+            Self::WaitInTrain {
+                duration: _, 
+            } => true,
+            _ => false,
+        }
+    }
+
     /// is Footpath Edge
     pub fn is_walk(&self) -> bool {
         match self {
@@ -148,6 +203,13 @@ impl EdgeWeight {
             Self::Alight {
                 duration: _
             } => true,
+            _ => false
+        }
+    }
+    
+    pub fn is_main_arrival_relation(&self) -> bool {
+        match self {
+            Self::MainArrivalRelation => true,
             _ => false
         }
     }
@@ -192,6 +254,18 @@ impl EdgeWeight {
         match self {
             Self::Ride{duration: _, capacity, utilization} => *capacity - *utilization,
             _ => u64::MAX // other edges always return u64::MAX as they have unlimited capacity
+        }
+    }
+
+    pub fn get_kind(&self) -> &str {
+        match self {
+            Self::Ride {duration: _, capacity: _, utilization: _}  => "Ride",
+            Self::WaitInTrain {duration: _} => "WaitInTrain",
+            Self::Board => "Board",
+            Self::Alight {duration: _} => "Alight",
+            Self::WaitAtStation {duration: _} => "WaitAtStation",
+            Self::Walk {duration: _} => "Walk",
+            Self::MainArrivalRelation => "MainArrivalRelation"
         }
     }
 }
@@ -396,6 +470,8 @@ impl Model {
             }
         }
 
+        Self::validate_graph_integrity(&graph);
+
         println!("successful_footpaths: {}, failed_footpaths: {}", successful_footpath_counter, failed_footpath_counter);
 
         println!("node_count={}, edge_count={}", graph.node_count(), graph.edge_count());
@@ -450,10 +526,19 @@ impl Model {
                 max_duration, 
                 100 // initial budget for cost (each edge has individual search cost)
             );
+            
+            //let mut paths_recursive = Self::all_simple_paths_dfs_dorian(&self.graph, from_node_index, to_node_index, max_duration, 25).collect::<Vec<_>>();
 
             print!("done in {}ms ... ", start.elapsed().as_millis());
 
+            // sort by remaining time and number of edges
             // sort paths by remaining duration (highest first)
+            // paths_recursive.sort_by(|(x_remaining_duration, x_path), (y_remaining_duration, y_path)| {
+            //     match x_remaining_duration.cmp(y_remaining_duration).reverse() {
+            //         std::cmp::Ordering::Equal => x_path.len().cmp(&y_path.len()), // prefer less edges -> should be less transfers
+            //         other => other, 
+            //     }
+            // });
             paths_recursive.sort_unstable_by_key(|(remaining_duration, _)| *remaining_duration);
             paths_recursive.reverse();
 
@@ -465,7 +550,7 @@ impl Model {
                         self.graph.edge_weight_mut(*edge_index).unwrap().increase_utilization(group_value.passengers as u64);
                     }
 
-                    format!("augmenting best path (remaining_duration={}, len={})", remaining_duration, path.len()).green()
+                    format!("augmenting best path (remaining_duration={}, len={}, total_number_paths={})", remaining_duration, path.len(), paths_recursive.len()).green()
                 },
 
                 None => {
@@ -477,12 +562,17 @@ impl Model {
             
             //let paths_recursive = self.all_simple_paths_dfs_dorian(from_node_index, to_node_index, max_duration, 5);
 
-            
+            // let mut only_paths = Vec::new();
+            // for (_, path) in paths_recursive {
+            //     only_paths.push(path.clone())
+            // }
+
             
 
-            // let all_edges_in_paths_recursive: HashSet<EdgeIndex> = paths_recursive.iter().flatten().cloned().collect();
+            // let all_edges_in_paths_recursive: HashSet<EdgeIndex> = only_paths.iter().flatten().cloned().collect();
             // if all_edges_in_paths_recursive.len() > 0 {
             //     let subgraph = self.build_subgraph_with_edges(&all_edges_in_paths_recursive);
+            //     println!("node_count_subgraph={}, edge_count_subgraph={}", subgraph.node_count(), subgraph.edge_count());
 
             //     BufWriter::new(File::create(format!("graphs/groups/{}.dot", group_value.id)).unwrap()).write(
             //         format!("{:?}", Dot::with_config(&subgraph, &[])).as_bytes()
@@ -565,79 +655,82 @@ impl Model {
         )
     }
 
-
-
-    fn all_simple_paths_dfs_dorian(&self, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> Vec<Vec<NodeIndex>> {
+    fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<NodeWeight, EdgeWeight>, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> impl Iterator<Item = (u64, Vec<EdgeIndex>)> {//Vec<(u64, Vec<EdgeIndex>)> {
 
         // list of already visited nodes
-        let mut visited: IndexSet<NodeIndex> = IndexSet::from_iter(Some(from_node_index));
+        let mut visited: IndexSet<EdgeIndex> = IndexSet::new();
 
         // list of childs of currently exploring path nodes,
         // last elem is list of childs of last visited node
-        let mut stack = vec![self.graph.neighbors_directed(from_node_index, Outgoing).detach()];
-        let mut durations: Vec<u64> = vec![0];
+        let mut stack = vec![graph.neighbors_directed(from_node_index, Outgoing).detach()];
+        let mut durations: Vec<u64> = Vec::new();
         let mut rides: Vec<u64> = vec![0];
 
         //let mut bfs = self.graph.neighbors_directed(from_node_index, Outgoing).detach();
         //let mut a = bfs.next(&self.graph);
         let path_finder = from_fn(move || {
             while let Some(children) = stack.last_mut() {
-                if let Some((child_edge_index, child_node_index)) = children.next(&self.graph) {
-                    if durations.iter().sum::<u64>() < max_duration && rides.iter().sum::<u64>() < max_rides {
+                if let Some((child_edge_index, child_node_index)) = children.next(graph) {
+                    let mut duration = graph.edge_weight(child_edge_index).unwrap().get_duration();
+                    if durations.iter().sum::<u64>() + duration < max_duration && rides.iter().sum::<u64>() < max_rides {
                         if child_node_index == to_node_index {
                             let path = visited
                                 .iter()
                                 .cloned()
-                                .chain(Some(child_node_index))
-                                .collect::<Vec<NodeIndex>>();
-                            return Some(path);
-                        } else if !visited.contains(&child_node_index) {
-                            let edge_weight = self.graph.edge_weight(child_edge_index).unwrap();
+                                .chain(Some(child_edge_index))
+                                .collect::<Vec<EdgeIndex>>();
+                            return Some((max_duration - durations.iter().sum::<u64>() - duration, path));
+                        } else if !visited.contains(&child_edge_index) {
+                            let edge_weight = graph.edge_weight(child_edge_index).unwrap();
                             durations.push(edge_weight.get_duration());
                             // only count ride to station and walk to station as limit factor
-                            if edge_weight.is_ride() || edge_weight.is_walk() {
-                                rides.push(1);
-                            } else {
-                                rides.push(0);
-                            };
+                            // if edge_weight.is_ride_to_station() || edge_weight.is_walk_to_station() {
+                            //     rides.push(1);
+                            // } else {
+                            //     rides.push(0);
+                            // };
                             //rides.push(1);
-                            visited.insert(child_node_index);
-                            stack.push(self.graph.neighbors_directed(child_node_index, Outgoing).detach());
+                            visited.insert(child_edge_index);
+                            stack.push(graph.neighbors_directed(child_node_index, Outgoing).detach());
                         }
                     } else {
                         let mut children_any_to_node_index = false;
-                        while let Some((_, c_node_index)) = children.next(&self.graph) {
+                        let mut edge_index = None;
+                        let mut children_cloned = children.clone();
+                        while let Some((c_edge_index, c_node_index)) = children_cloned.next(graph) {
                             if c_node_index == to_node_index {
                                 children_any_to_node_index = true;
+                                edge_index = Some(c_edge_index);
+                                duration = graph.edge_weight(child_edge_index).unwrap().get_duration();
                                 break;
                             }
                         }
-                        if child_node_index == to_node_index || children_any_to_node_index { //} || children..  any(|v| v == to_node_index) {
+                        if (child_node_index == to_node_index || children_any_to_node_index) 
+                            && (durations.iter().sum::<u64>() + duration >= max_duration || rides.iter().sum::<u64>() >= max_rides) {
                             let path = visited
                                 .iter()
                                 .cloned()
-                                .chain(Some(to_node_index))
-                                .collect::<Vec<NodeIndex>>();
-                            return Some(path);
+                                .chain(edge_index)
+                                .collect::<Vec<EdgeIndex>>();
+                            return Some((0, path));
                         } 
                         stack.pop();
                         visited.pop();
                         durations.pop();
                         rides.pop();
                     }
-                    
                 } else {
                     stack.pop();
                     visited.pop();
                     durations.pop();
                     rides.pop();
                 }
-            }
-            
+            }   
             None
         });
     
-        path_finder.collect::<Vec<_>>()
+        //path_finder.collect::<Vec<_>>()
+        path_finder
     }
 
 
@@ -736,7 +829,64 @@ impl Model {
         subgraph_paths
     }
 
+    /// Panics if invalid
+    fn validate_graph_integrity(graph: &DiGraph<NodeWeight, EdgeWeight>) {
+        for node_index in graph.node_indices() {
+            let node_weight = graph.node_weight(node_index).unwrap();
+            let mut children = graph.neighbors_directed(node_index, Outgoing).detach();
+            while let Some((child_edge_index, child_node_index)) = children.next(graph){
+                // Check valid successor
+                let child_edge_weight = graph.edge_weight(child_edge_index).unwrap();
+                let child_node_weight = graph.node_weight(child_node_index).unwrap();
 
+                match node_weight {
+                    NodeWeight::Departure {trip_id: _, time: _, station_id: _} => {
+                        let edge_is_ride = child_edge_weight.is_ride();
+                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", child_edge_weight.get_kind()));
+                        
+                        let departure_to_arrival =  child_node_weight.is_arrival();
+                        assert!(departure_to_arrival, format!("Node Departure does not end in Arrival node but in {}!", child_node_weight.get_kind()));
+                        
+                        let departure_before_arrival = node_weight.get_time().unwrap() <= child_node_weight.get_time().unwrap();
+                        assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_weight.get_time().unwrap(), child_node_weight.get_time().unwrap()));
+                        
+                        let one_outgoing = graph.neighbors(node_index).enumerate().count();
+                        assert!(one_outgoing == 1, format!("Departure node has not one outgoing edge but {}", one_outgoing))
+                    },
+                    NodeWeight::Arrival {trip_id: _, time: _, station_id: _} => {
+                        let edge_is_correct = child_edge_weight.is_wait_in_train() || child_edge_weight.is_alight() 
+                            || child_edge_weight.is_walk() || child_edge_weight.is_main_arrival_relation();
+                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", child_edge_weight.get_kind()));
+                        
+                        // todo: only one wait in train edge
 
+                        let arrival_to_departure_transfer_main_arrival =  child_node_weight.is_departure() || child_node_weight.is_transfer() || child_node_weight.is_main_arrival();
+                        assert!(arrival_to_departure_transfer_main_arrival, format!("Node Arrival does not end in Departure, Transfer, or MainArrival node but in {}!", child_node_weight.get_kind()));
+                        
+                        if child_node_weight.is_departure() || child_node_weight.is_transfer() {
+                            let arrival_before_departure_transfer = node_weight.get_time().unwrap() <= child_node_weight.get_time().unwrap();
+                            if ! arrival_before_departure_transfer {
+                                println!("{:?}", node_weight);
+                                println!("{:?}", child_edge_weight);
+                                println!("{:?}", child_node_weight);
+                            }
+                            assert!(arrival_before_departure_transfer, format!("Node Arrival has greater time as {} node! {} vs {}", child_node_weight.get_kind(), node_weight.get_time().unwrap(), child_node_weight.get_time().unwrap()));
+                        }
+                        // todo: stations equal
+                        // todo: same trip for wait in train
+                    },
+                    NodeWeight::Transfer {time: _, station_id: _} => {
+
+                    },
+                    NodeWeight::MainArrival {station_id: _} => {
+
+                    },
+                    NodeWeight::Default => {}
+                }
+            }
+        }
+
+        // check no cycles
+    }
 
 }
