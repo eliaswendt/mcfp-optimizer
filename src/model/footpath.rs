@@ -9,6 +9,8 @@ pub struct Footpath {
 impl Footpath {
     pub fn from_maps_to_vec(footpath_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
 
+        println!("parsing {} footpath(s)", footpath_maps.len());
+
         let mut footpaths_vec = Vec::with_capacity(footpath_maps.len());
 
         for footpath_map in footpath_maps.iter() {

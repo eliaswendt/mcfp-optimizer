@@ -112,7 +112,7 @@ impl EdgeWeight {
         match self {
             Self::Ride {duration: _, capacity: _, utilization: _} => 2,
             Self::WaitInTrain {duration: _} => 1,
-            Self::Alight {duration: _} => 5,
+            Self::Alight {duration: _} => 4,
             Self::WaitAtStation {duration: _} => 3,
             Self::Walk {duration: _} => 10,
             Self::Board => 5,
@@ -265,12 +265,8 @@ impl Model {
             });
         }
 
-        // iterate over all stations
+        // iterate over all stations (first run only inserts departures and transfers)
         for (station_id, station) in stations_map.iter_mut() {
-
-            let station_arrival_main_node_index = graph.add_node(NodeWeight::MainArrival {
-                station_id: station_id.clone()
-            });
 
             // iterate over all departures
             for (trip_id, departure_node_index) in station.departure_node_indices.iter() {
@@ -304,7 +300,7 @@ impl Model {
             }
 
             // sort transfer node list by time (first tuple element)
-            station.transfer_node_indices.sort_unstable_by_key(|(key, _)| *key);
+            station.transfer_node_indices.sort_unstable_by_key(|(time, _)| *time);
 
             // connect transfers with each other
             for transfer_node_indices in station.transfer_node_indices.windows(2) {
@@ -312,6 +308,14 @@ impl Model {
                     duration: transfer_node_indices[1].0 - transfer_node_indices[0].0
                 });
             }
+        }
+
+        // iterate over all stations (second run to add arrivals and connect them to transfers)
+        for (station_id, station) in stations_map.iter_mut() {
+
+            let station_arrival_main_node_index = graph.add_node(NodeWeight::MainArrival {
+                station_id: station_id.clone()
+            });
 
             // iterate over all arrivals
             for (_, arrival_node_index) in station.arrival_node_indices.iter() {
@@ -335,11 +339,12 @@ impl Model {
                 }
             }
 
-            // save refernces to all transfers and to arrival_main
+            // save references to all transfers and to arrival_main
             stations_departures.insert(station_id.clone(), station.transfer_node_indices.clone());
             station_arrival_main_node_indices.insert(station_id.clone(), station_arrival_main_node_index);
-
         }
+
+
 
         let mut successful_footpath_counter: u64 = 0;
         let mut failed_footpath_counter: u64 = 0;
@@ -372,7 +377,7 @@ impl Model {
 
                 let mut edge_added = false;
 
-                // try to find next transfer node at to_station
+                // try to find next transfer node at to_station (requires transfer_node_indices to be sorted, earliest first)
                 for (transfer_timestamp, transfer_node_index) in to_station.transfer_node_indices.iter() {
                     if earliest_transfer_time <= *transfer_timestamp {
                         graph.add_edge(*arrival_node_index, *transfer_node_index, EdgeWeight::Walk {
@@ -380,7 +385,7 @@ impl Model {
                         });
                         edge_added = true;
                         successful_footpath_counter += 1;
-                        break // the loop
+                        break // the inner loop
                     }
                 }
 
@@ -408,6 +413,12 @@ impl Model {
 
 
     pub fn find_solutions(&mut self, groups_csv_filepath: &str) {
+        // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
+        // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
+        // Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
+        // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
+        // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
+
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups_map = Group::from_maps_to_map(&group_maps);
