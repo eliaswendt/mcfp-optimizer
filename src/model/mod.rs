@@ -308,33 +308,43 @@ impl Model {
         let mut station_arrival_main_node_indices = HashMap::with_capacity(stations_map.len());
 
         // iterate over all trips
-        for (_, trip) in trips_map.iter() {
+        for (trip_id, trip_value) in trips_map.iter() {
 
             // ARRIVAL NODE
             let arrival_node_index = graph.add_node(NodeWeight::Arrival {
-                trip_id: trip.id,
-                time: trip.arrival,
-                station_id: trip.to_station.clone()
+                trip_id: trip_value.id,
+                time: trip_value.arrival,
+                station_id: trip_value.to_station.clone()
             });
 
             // DEPARTURE NODE
             let departure_node_index = graph.add_node(NodeWeight::Departure {
-                trip_id: trip.id,
-                time: trip.departure,
-                station_id: trip.from_station.clone()
+                trip_id: trip_value.id,
+                time: trip_value.departure,
+                station_id: trip_value.from_station.clone()
             });
 
             // add these nodes to a station
-            let to_station = stations_map.get_mut(&trip.to_station).unwrap();
-            to_station.arrival_node_indices.insert(trip.id, arrival_node_index);
+            let to_station = stations_map.get_mut(&trip_value.to_station).unwrap();
+            match to_station.arrival_node_indices.insert(trip_value.id, arrival_node_index) {
+                Some(_) => {
+                    println!("collision: there already exists an arrival for this trip at this station")
+                },
+                None => {}
+            };
 
-            let from_station = stations_map.get_mut(&trip.from_station).unwrap();
-            from_station.departure_node_indices.insert(trip.id, departure_node_index);
+            let from_station = stations_map.get_mut(&trip_value.from_station).unwrap();
+            match from_station.departure_node_indices.insert(trip_value.id, departure_node_index) {
+                Some(_) => {
+                    println!("collision: there already exists an arrival for this trip at this station")
+                },
+                None => {}
+            };
 
             // connect stations of this trip
             graph.add_edge(departure_node_index, arrival_node_index, EdgeWeight::Ride {
-                capacity: trip.capacity,
-                duration: trip.arrival - trip.departure,
+                capacity: trip_value.capacity,
+                duration: trip_value.arrival - trip_value.departure,
                 utilization: 0
             });
         }
@@ -365,9 +375,13 @@ impl Model {
                     Some(arrival_node_index) => {
                         let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().get_time().unwrap();
 
-                        graph.add_edge(*arrival_node_index, *departure_node_index, EdgeWeight::WaitInTrain {
-                            duration: departure_node_time - arrival_node_time
-                        });
+                        // only create edge between arrival and departure only if arrival is before (time) departure
+                        // this is required, as it otherwise would also connect start-/end station of a trip with equal start/destination
+                        if arrival_node_time <= departure_node_time {
+                            graph.add_edge(*arrival_node_index, *departure_node_index, EdgeWeight::WaitInTrain {
+                                duration: departure_node_time - arrival_node_time
+                            });
+                        }
                     },
                     None => {}
                 }
