@@ -1,7 +1,7 @@
 use std::collections::{HashMap, LinkedList};
 use petgraph::graph::{DiGraph,NodeIndex};
 pub struct Station {
-    id: String,
+    pub id: String,
     pub transfer_time: u64, // transfer time (minutes) at this station
     pub name: String, 
 

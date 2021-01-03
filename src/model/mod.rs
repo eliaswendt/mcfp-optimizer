@@ -328,7 +328,7 @@ impl Model {
             let to_station = stations_map.get_mut(&trip_value.to_station).unwrap();
             match to_station.arrival_node_indices.insert(trip_value.id, arrival_node_index) {
                 Some(_) => {
-                    println!("collision: there already exists an arrival for this trip at this station")
+                    println!("collision on trip {}: to_station {}", trip_value.id, to_station.id)
                 },
                 None => {}
             };
@@ -336,7 +336,7 @@ impl Model {
             let from_station = stations_map.get_mut(&trip_value.from_station).unwrap();
             match from_station.departure_node_indices.insert(trip_value.id, departure_node_index) {
                 Some(_) => {
-                    println!("collision: there already exists an arrival for this trip at this station")
+                    println!("collision on trip {}: from_station {}", trip_value.id, from_station.id)
                 },
                 None => {}
             };
