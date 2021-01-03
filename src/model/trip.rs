@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub struct Trip {
     pub id: u64,
@@ -10,11 +10,11 @@ pub struct Trip {
 }
 
 impl Trip {
-    pub fn from_maps_to_map(trip_maps: &Vec<HashMap<String, String>>) -> HashMap<String, Self> {
+    pub fn from_maps_to_vec(trip_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
 
         println!("parsing {} trip(s)", trip_maps.len());
 
-        let mut trips_map = HashMap::with_capacity(trip_maps.len());
+        let mut trips = Vec::with_capacity(trip_maps.len());
 
         for trip_map in trip_maps.iter() {
 
@@ -22,10 +22,9 @@ impl Trip {
             let from_station = trip_map.get("from_station").unwrap().clone();
             let to_station = trip_map.get("to_station").unwrap().clone();
 
-            let key = format!("{}_{}->{}", id, from_station, to_station);
+            //let key = format!("{}_{}->{}", id, from_station, to_station);
 
-            trips_map.insert(key, 
-                Self {
+            trips.push(Self {
                 id,
                 from_station: from_station,
                 departure: trip_map.get("departure").unwrap().parse().unwrap(),
@@ -35,6 +34,6 @@ impl Trip {
             });
         }
 
-        trips_map
+        trips
     }
 }

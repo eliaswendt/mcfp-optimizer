@@ -1,4 +1,4 @@
-use std::{collections::{HashSet, HashMap}, fs::File, io::{prelude::*, BufWriter}, iter::{FromIterator, from_fn}, time::Instant};
+use std::{collections::{HashSet, HashMap}, iter::{from_fn}, time::Instant};
 
 pub mod group;
 pub mod footpath;
@@ -9,7 +9,7 @@ mod path_finder;
 
 use group::Group;
 
-use petgraph::{EdgeDirection::{Incoming, Outgoing}, Graph, IntoWeightedEdge, dot::{Dot}, graph::{NodeIndex, EdgeIndex, DiGraph}};
+use petgraph::{EdgeDirection::{Outgoing}, Graph, dot::{Dot}, graph::{NodeIndex, EdgeIndex, DiGraph}};
 use colored::*;
 
 
@@ -299,58 +299,58 @@ impl Model {
         let trip_maps = csv_reader::read_to_maps(&format!("{}trips.csv", csv_folder_path));
 
         // convert each list of maps into a single map with multiple entries with id as key
-        let footpaths_vec = footpath::Footpath::from_maps_to_vec(&footpath_maps);
-        let mut stations_map = station::Station::from_maps_to_map(&station_maps);
-        let trips_map = trip::Trip::from_maps_to_map(&trip_maps);
+        let footpaths = footpath::Footpath::from_maps_to_vec(&footpath_maps);
+        let mut stations = station::Station::from_maps_to_map(&station_maps);
+        let trips = trip::Trip::from_maps_to_vec(&trip_maps);
 
         let mut graph = DiGraph::new();
-        let mut stations_departures = HashMap::with_capacity(stations_map.len());
-        let mut station_arrival_main_node_indices = HashMap::with_capacity(stations_map.len());
+        let mut stations_departures = HashMap::with_capacity(stations.len());
+        let mut station_arrival_main_node_indices = HashMap::with_capacity(stations.len());
 
         // iterate over all trips
-        for (trip_id, trip_value) in trips_map.iter() {
+        for trip in trips.iter() {
 
             // ARRIVAL NODE
             let arrival_node_index = graph.add_node(NodeWeight::Arrival {
-                trip_id: trip_value.id,
-                time: trip_value.arrival,
-                station_id: trip_value.to_station.clone()
+                trip_id: trip.id,
+                time: trip.arrival,
+                station_id: trip.to_station.clone()
             });
 
             // DEPARTURE NODE
             let departure_node_index = graph.add_node(NodeWeight::Departure {
-                trip_id: trip_value.id,
-                time: trip_value.departure,
-                station_id: trip_value.from_station.clone()
+                trip_id: trip.id,
+                time: trip.departure,
+                station_id: trip.from_station.clone()
             });
 
             // add these nodes to a station
-            let to_station = stations_map.get_mut(&trip_value.to_station).unwrap();
-            match to_station.arrival_node_indices.insert(trip_value.id, arrival_node_index) {
+            let to_station = stations.get_mut(&trip.to_station).unwrap();
+            match to_station.arrival_node_indices.insert(trip.id, arrival_node_index) {
                 Some(_) => {
-                    println!("collision on trip {}: to_station {}", trip_value.id, to_station.id)
+                    println!("collision on trip {}: to_station {}", trip.id, to_station.id)
                 },
                 None => {}
             };
 
-            let from_station = stations_map.get_mut(&trip_value.from_station).unwrap();
-            match from_station.departure_node_indices.insert(trip_value.id, departure_node_index) {
+            let from_station = stations.get_mut(&trip.from_station).unwrap();
+            match from_station.departure_node_indices.insert(trip.id, departure_node_index) {
                 Some(_) => {
-                    println!("collision on trip {}: from_station {}", trip_value.id, from_station.id)
+                    println!("collision on trip {}: from_station {}", trip.id, from_station.id)
                 },
                 None => {}
             };
 
             // connect stations of this trip
             graph.add_edge(departure_node_index, arrival_node_index, EdgeWeight::Ride {
-                capacity: trip_value.capacity,
-                duration: trip_value.arrival - trip_value.departure,
+                capacity: trip.capacity,
+                duration: trip.arrival - trip.departure,
                 utilization: 0
             });
         }
 
         // iterate over all stations (first run only inserts departures and transfers)
-        for (station_id, station) in stations_map.iter_mut() {
+        for (station_id, station) in stations.iter_mut() {
 
             // iterate over all departures
             for (trip_id, departure_node_index) in station.departure_node_indices.iter() {
@@ -399,14 +399,14 @@ impl Model {
         }
 
         // iterate over all stations (second run to add arrivals and connect them to transfers)
-        for (station_id, station) in stations_map.iter_mut() {
+        for (station_id, station_value) in stations.iter_mut() {
 
             let station_arrival_main_node_index = graph.add_node(NodeWeight::MainArrival {
                 station_id: station_id.clone()
             });
 
             // iterate over all arrivals
-            for (_, arrival_node_index) in station.arrival_node_indices.iter() {
+            for (_, arrival_node_index) in station_value.arrival_node_indices.iter() {
 
                 // connect arrival to station's main node
                 graph.add_edge(*arrival_node_index, station_arrival_main_node_index, EdgeWeight::MainArrivalRelation);
@@ -414,13 +414,13 @@ impl Model {
                 let arrival_node = graph.node_weight(*arrival_node_index).expect("Could not find node in graph");
                 let arrival_node_time = arrival_node.get_time().unwrap();
 
-                let earliest_transfer_time = arrival_node_time + station.transfer_time;
+                let earliest_transfer_time = arrival_node_time + station_value.transfer_time;
 
                 // try to find next transfer node at this station
-                for (transfer_timestamp, transfer_node_index) in station.transfer_node_indices.iter() {
+                for (transfer_timestamp, transfer_node_index) in station_value.transfer_node_indices.iter() {
                     if earliest_transfer_time <= *transfer_timestamp {
                         graph.add_edge(*arrival_node_index, *transfer_node_index, EdgeWeight::Alight {
-                            duration: station.transfer_time
+                            duration: station_value.transfer_time
                         });
                         break // the loop
                     }
@@ -428,7 +428,7 @@ impl Model {
             }
 
             // save references to all transfers and to arrival_main
-            stations_departures.insert(station_id.clone(), station.transfer_node_indices.clone());
+            stations_departures.insert(station_id.clone(), station_value.transfer_node_indices.clone());
             station_arrival_main_node_indices.insert(station_id.clone(), station_arrival_main_node_index);
         }
 
@@ -438,8 +438,8 @@ impl Model {
         let mut failed_footpath_counter: u64 = 0;
 
         // iterate over all footpaths
-        for footpath in footpaths_vec.iter() {
-            let from_station = match stations_map.get(&footpath.from_station) {
+        for footpath in footpaths.iter() {
+            let from_station = match stations.get(&footpath.from_station) {
                 Some(from_station) => from_station,
                 None => {
                     println!("footpath's from_station {} unknown", footpath.from_station);
@@ -447,7 +447,7 @@ impl Model {
                 }
             };
 
-            let to_station = match stations_map.get(&footpath.to_station) {
+            let to_station = match stations.get(&footpath.to_station) {
                 Some(to_station) => to_station,
                 None => {
                     println!("footpath's to_station {} unknown", footpath.to_station);
@@ -510,9 +510,8 @@ impl Model {
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups_map = Group::from_maps_to_map(&group_maps);
-        let mut subgraph: DiGraph<NodeWeight, EdgeWeight> = Graph::new();
-        let mut node_index_graph_subgraph_mapping: HashMap<NodeIndex, NodeIndex> = HashMap::new();
 
+        // create vector of groups and sort them (highest passenger count first)
         let mut groups_sorted: Vec<&Group> = groups_map.values().collect();
         groups_sorted.sort_unstable_by_key(|group| group.passengers);
         groups_sorted.reverse();
