@@ -470,8 +470,6 @@ impl Model {
             }
         }
 
-        Self::validate_graph_integrity(&graph);
-
         println!("successful_footpaths: {}, failed_footpaths: {}", successful_footpath_counter, failed_footpath_counter);
 
         println!("node_count={}, edge_count={}", graph.node_count(), graph.edge_count());
@@ -830,47 +828,48 @@ impl Model {
     }
 
     /// Panics if invalid
-    fn validate_graph_integrity(graph: &DiGraph<NodeWeight, EdgeWeight>) {
-        for node_index in graph.node_indices() {
-            let node_weight = graph.node_weight(node_index).unwrap();
-            let mut children = graph.neighbors_directed(node_index, Outgoing).detach();
-            while let Some((child_edge_index, child_node_index)) = children.next(graph){
+    pub fn validate_graph_integrity(&self) {
+        for node_a_index in self.graph.node_indices() {
+            let node_a_weight = self.graph.node_weight(node_a_index).unwrap();
+            
+            let mut children = self.graph.neighbors_directed(node_a_index, Outgoing).detach();
+            while let Some((child_edge_index, child_node_index)) = children.next(&self.graph){
                 // Check valid successor
-                let child_edge_weight = graph.edge_weight(child_edge_index).unwrap();
-                let child_node_weight = graph.node_weight(child_node_index).unwrap();
+                let edge_weigth = self.graph.edge_weight(child_edge_index).unwrap();
+                let node_b_weight = self.graph.node_weight(child_node_index).unwrap();
 
-                match node_weight {
+                match node_a_weight {
                     NodeWeight::Departure {trip_id: _, time: _, station_id: _} => {
-                        let edge_is_ride = child_edge_weight.is_ride();
-                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", child_edge_weight.get_kind()));
+                        let edge_is_ride = edge_weigth.is_ride();
+                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", edge_weigth.get_kind()));
                         
-                        let departure_to_arrival =  child_node_weight.is_arrival();
-                        assert!(departure_to_arrival, format!("Node Departure does not end in Arrival node but in {}!", child_node_weight.get_kind()));
+                        let departure_to_arrival =  node_b_weight.is_arrival();
+                        assert!(departure_to_arrival, format!("Node Departure does not end in Arrival node but in {}!", node_b_weight.get_kind()));
                         
-                        let departure_before_arrival = node_weight.get_time().unwrap() <= child_node_weight.get_time().unwrap();
-                        assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_weight.get_time().unwrap(), child_node_weight.get_time().unwrap()));
+                        let departure_before_arrival = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
+                        assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
                         
-                        let one_outgoing = graph.neighbors(node_index).enumerate().count();
+                        let one_outgoing = self.graph.neighbors(node_a_index).enumerate().count();
                         assert!(one_outgoing == 1, format!("Departure node has not one outgoing edge but {}", one_outgoing))
                     },
                     NodeWeight::Arrival {trip_id: _, time: _, station_id: _} => {
-                        let edge_is_correct = child_edge_weight.is_wait_in_train() || child_edge_weight.is_alight() 
-                            || child_edge_weight.is_walk() || child_edge_weight.is_main_arrival_relation();
-                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", child_edge_weight.get_kind()));
+                        let edge_is_correct = edge_weigth.is_wait_in_train() || edge_weigth.is_alight() 
+                            || edge_weigth.is_walk() || edge_weigth.is_main_arrival_relation();
+                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weigth.get_kind()));
                         
                         // todo: only one wait in train edge
 
-                        let arrival_to_departure_transfer_main_arrival =  child_node_weight.is_departure() || child_node_weight.is_transfer() || child_node_weight.is_main_arrival();
-                        assert!(arrival_to_departure_transfer_main_arrival, format!("Node Arrival does not end in Departure, Transfer, or MainArrival node but in {}!", child_node_weight.get_kind()));
+                        let arrival_to_departure_transfer_main_arrival =  node_b_weight.is_departure() || node_b_weight.is_transfer() || node_b_weight.is_main_arrival();
+                        assert!(arrival_to_departure_transfer_main_arrival, format!("Node Arrival does not end in Departure, Transfer, or MainArrival node but in {}!", node_b_weight.get_kind()));
                         
-                        if child_node_weight.is_departure() || child_node_weight.is_transfer() {
-                            let arrival_before_departure_transfer = node_weight.get_time().unwrap() <= child_node_weight.get_time().unwrap();
+                        if node_b_weight.is_departure() || node_b_weight.is_transfer() {
+                            let arrival_before_departure_transfer = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
                             if ! arrival_before_departure_transfer {
-                                println!("{:?}", node_weight);
-                                println!("{:?}", child_edge_weight);
-                                println!("{:?}", child_node_weight);
+                                println!("{:?}", node_a_weight);
+                                println!("{:?}", edge_weigth);
+                                println!("{:?}", node_b_weight);
                             }
-                            assert!(arrival_before_departure_transfer, format!("Node Arrival has greater time as {} node! {} vs {}", child_node_weight.get_kind(), node_weight.get_time().unwrap(), child_node_weight.get_time().unwrap()));
+                            assert!(arrival_before_departure_transfer, format!("Node Arrival than greater time as {} node! {} vs {}", node_b_weight.get_kind(), node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
                         }
                         // todo: stations equal
                         // todo: same trip for wait in train

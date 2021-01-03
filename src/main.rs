@@ -16,6 +16,8 @@ fn main() {
 
     let mut model = model::Model::with_stations_footpaths_and_trips(&args[1]);
 
+    model.validate_graph_integrity();
+
     model.find_solutions(&format!("{}groups.csv", &args[1]));
 
 
