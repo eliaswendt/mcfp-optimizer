@@ -61,7 +61,9 @@ impl NodeWeight {
     pub fn get_station(&self) -> Option<String> {
         match self {
             Self::Departure {trip_id: _, time: _, station_id} => Some(station_id.clone()),
+            Self::Arrival {trip_id: _, time: _, station_id} => Some(station_id.clone()),
             Self::Transfer {time: _, station_id} => Some(station_id.clone()),
+            Self::MainArrival {station_id} => Some(station_id.clone()),
             _ => None
         }
     }
@@ -115,6 +117,16 @@ impl NodeWeight {
             Self::Transfer {time: _, station_id: _}  => "Transfer",
             Self::MainArrival {station_id: _} => "MainArrival",
             Self::Default => "Default",
+        }
+    }
+
+    pub fn get_trip_id(&self) -> Option<u64> {
+        match self {
+            Self::Departure {trip_id, time: _, station_id: _} => Some(*trip_id),
+            Self::Arrival {trip_id, time: _, station_id: _} => Some(*trip_id),
+            Self::Transfer {time: _, station_id: _}  => None,
+            Self::MainArrival {station_id: _} => None,
+            Self::Default => None,
         }
     }
 }
@@ -853,45 +865,83 @@ impl Model {
 
                 match node_a_weight {
                     NodeWeight::Departure {trip_id: _, time: _, station_id: _} => {
+
+                        // Departure outgoing edge is ride
                         let edge_is_ride = edge_weigth.is_ride();
                         assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", edge_weigth.get_kind()));
                         
+                        // Outgoing Edge ends in Arrival node
                         let departure_to_arrival =  node_b_weight.is_arrival();
                         assert!(departure_to_arrival, format!("Node Departure does not end in Arrival node but in {}!", node_b_weight.get_kind()));
                         
+                        // Departure time is before Arrival time
                         let departure_before_arrival = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
                         assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
                         
+                        // Departure node has only one outgoing edge
                         let one_outgoing = self.graph.neighbors(node_a_index).enumerate().count();
-                        assert!(one_outgoing == 1, format!("Departure node has not one outgoing edge but {}", one_outgoing))
+                        assert!(one_outgoing == 1, format!("Departure node has not one outgoing edge but {}", one_outgoing));
+                    
+                        // both nodes have same trip 
+                        let same_trip = node_a_weight.get_trip_id().unwrap() == node_b_weight.get_trip_id().unwrap();
+                        assert!(same_trip == true, format!("Departure node has not the same trip as Arrival node! {} vs {}", node_a_weight.get_trip_id().unwrap(), node_b_weight.get_trip_id().unwrap()));
                     },
+
                     NodeWeight::Arrival {trip_id: _, time: _, station_id: _} => {
-                        let edge_is_correct = edge_weigth.is_wait_in_train() || edge_weigth.is_alight() 
+
+                        // Outgoing edge is WaitInTrain, Alight, Walk, or MainArrivalRelation
+                        let edge_is_correct = edge_weigth.is_wait_in_train() || edge_weigth.is_alight()
                             || edge_weigth.is_walk() || edge_weigth.is_main_arrival_relation();
                         assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weigth.get_kind()));
                         
-                        // todo: only one wait in train edge
+                        // if edge is WaitInTrain -> Nodes have same trip and node b is departure
+                        if edge_weigth.is_wait_in_train() {
+                            let arrival_to_departure = node_b_weight.is_departure();
+                            assert!(arrival_to_departure, format!("Node Arrival does not end in Departure node after WaitInTrain edge but in {}!", node_b_weight.get_kind()));
+                            
+                            // same trip id
+                            let same_trip = node_a_weight.get_trip_id().unwrap() == node_b_weight.get_trip_id().unwrap();
+                            assert!(same_trip == true, format!("Arrival node has not the same trip as Departure node for WaitInStation edge! {} vs {}", node_a_weight.get_trip_id().unwrap(), node_b_weight.get_trip_id().unwrap()));
+                        }
 
-                        let arrival_to_departure_transfer_main_arrival =  node_b_weight.is_departure() || node_b_weight.is_transfer() || node_b_weight.is_main_arrival();
-                        assert!(arrival_to_departure_transfer_main_arrival, format!("Node Arrival does not end in Departure, Transfer, or MainArrival node but in {}!", node_b_weight.get_kind()));
-                        
+                        // if edge is Alight -> node b is transfer
+                        if edge_weigth.is_alight() {
+                            let arrival_to_transfer = node_b_weight.is_transfer();
+                            assert!(arrival_to_transfer, format!("Node Arrival does not end in Transfer node after Alight edge but in {}!", node_b_weight.get_kind()));
+                        }
+
+                        // if edge is Alight -> node b is transfer
+                        if edge_weigth.is_walk() {
+                            let arrival_to_walk = node_b_weight.is_transfer();
+                            assert!(arrival_to_walk, format!("Node Arrival does not end in Transfer node after Walk edge but in {}!", node_b_weight.get_kind()));
+                        }
+
+                        // if edge is MainStationRelation -> node b is MainArrival
+                        if edge_weigth.is_main_arrival_relation() {
+                            let arrival_to_main_arrival = node_b_weight.is_main_arrival();
+                            assert!(arrival_to_main_arrival, format!("Node Arrival does not end in Transfer node after MainArrivalRelation edge but in {}!", node_b_weight.get_kind()));
+                        }
+
+                        // Arrival node has time before node b
                         if node_b_weight.is_departure() || node_b_weight.is_transfer() {
                             let arrival_before_departure_transfer = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
-                            if ! arrival_before_departure_transfer {
-                                println!("{:?}", node_a_weight);
-                                println!("{:?}", edge_weigth);
-                                println!("{:?}", node_b_weight);
-                            }
                             assert!(arrival_before_departure_transfer, format!("Node Arrival than greater time as {} node! {} vs {}", node_b_weight.get_kind(), node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
                         }
-                        // todo: stations equal
-                        // todo: same trip for wait in train
+
+                        // Arrival node and node b have same stations
+                        if node_b_weight.is_departure() || node_b_weight.is_main_arrival() {
+                            // same stations
+                            let same_stations = node_a_weight.get_station().unwrap() == node_b_weight.get_station().unwrap();
+                            assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station().unwrap(), node_b_weight.get_station().unwrap()));
+                        }
+
+                        // todo: only one wait in train edge
                     },
                     NodeWeight::Transfer {time: _, station_id: _} => {
-
+                        // todo
                     },
                     NodeWeight::MainArrival {station_id: _} => {
-
+                        // todo
                     },
                     NodeWeight::Default => {}
                 }
