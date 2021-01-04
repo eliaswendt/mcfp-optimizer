@@ -221,6 +221,22 @@ impl EdgeWeight {
             _ => false
         }
     }
+
+    pub fn is_wait_at_station(&self) -> bool {
+        match self {
+            Self::WaitAtStation {
+                duration: _
+            } => true,
+            _ => false
+        }
+    }
+
+    pub fn is_board(&self) -> bool {
+        match self {
+            Self::Board => true,
+            _ => false
+        }
+    }
     
     pub fn is_main_arrival_relation(&self) -> bool {
         match self {
@@ -760,17 +776,25 @@ impl Model {
             let node_a_weight = self.graph.node_weight(node_a_index).unwrap();
             
             let mut children = self.graph.neighbors_directed(node_a_index, Outgoing).detach();
+
+            // Number of MainArrival node found for Arrival node
+            let mut num_main_arrival = 0;
+            // Number of WaitInTrain edges for Arrival node
+            let mut num_wait_in_train = 0;
+            // Number of Board edges for Transfer node
+            let mut num_board = 0;
+
             while let Some((child_edge_index, child_node_index)) = children.next(&self.graph){
                 // Check valid successor
-                let edge_weigth = self.graph.edge_weight(child_edge_index).unwrap();
+                let edge_weight = self.graph.edge_weight(child_edge_index).unwrap();
                 let node_b_weight = self.graph.node_weight(child_node_index).unwrap();
 
                 match node_a_weight {
                     NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
 
                         // Departure outgoing edge is ride
-                        let edge_is_ride = edge_weigth.is_ride();
-                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", edge_weigth.get_kind()));
+                        let edge_is_ride = edge_weight.is_ride();
+                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", edge_weight.get_kind()));
                         
                         // Outgoing Edge ends in Arrival node
                         let departure_to_arrival =  node_b_weight.is_arrival();
@@ -792,42 +816,45 @@ impl Model {
                     NodeWeight::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
 
                         // Outgoing edge is WaitInTrain, Alight, Walk, or MainArrivalRelation
-                        let edge_is_correct = edge_weigth.is_wait_in_train() || edge_weigth.is_alight()
-                            || edge_weigth.is_walk() || edge_weigth.is_main_arrival_relation();
-                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weigth.get_kind()));
+                        let edge_is_correct = edge_weight.is_wait_in_train() || edge_weight.is_alight()
+                            || edge_weight.is_walk() || edge_weight.is_main_arrival_relation();
+                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weight.get_kind()));
                         
                         // if edge is WaitInTrain -> Nodes have same trip and node b is departure
-                        if edge_weigth.is_wait_in_train() {
+                        if edge_weight.is_wait_in_train() {
                             let arrival_to_departure = node_b_weight.is_departure();
                             assert!(arrival_to_departure, format!("Node Arrival does not end in Departure node after WaitInTrain edge but in {}!", node_b_weight.get_kind()));
                             
+                            num_wait_in_train += 1;
+
                             // same trip id
                             let same_trip = node_a_weight.get_trip_id().unwrap() == node_b_weight.get_trip_id().unwrap();
                             assert!(same_trip == true, format!("Arrival node has not the same trip as Departure node for WaitInStation edge! {} vs {}", node_a_weight.get_trip_id().unwrap(), node_b_weight.get_trip_id().unwrap()));
                         }
 
                         // if edge is Alight -> node b is transfer
-                        if edge_weigth.is_alight() {
+                        if edge_weight.is_alight() {
                             let arrival_to_transfer = node_b_weight.is_transfer();
                             assert!(arrival_to_transfer, format!("Node Arrival does not end in Transfer node after Alight edge but in {}!", node_b_weight.get_kind()));
                         }
 
-                        // if edge is Alight -> node b is transfer
-                        if edge_weigth.is_walk() {
+                        // if edge is Walk -> node b is transfer
+                        if edge_weight.is_walk() {
                             let arrival_to_walk = node_b_weight.is_transfer();
                             assert!(arrival_to_walk, format!("Node Arrival does not end in Transfer node after Walk edge but in {}!", node_b_weight.get_kind()));
                         }
 
                         // if edge is MainStationRelation -> node b is MainArrival
-                        if edge_weigth.is_main_arrival_relation() {
+                        if edge_weight.is_main_arrival_relation() {
                             let arrival_to_main_arrival = node_b_weight.is_main_arrival();
                             assert!(arrival_to_main_arrival, format!("Node Arrival does not end in Transfer node after MainArrivalRelation edge but in {}!", node_b_weight.get_kind()));
+                            num_main_arrival += 1;
                         }
 
                         // Arrival node has time before node b
                         if node_b_weight.is_departure() || node_b_weight.is_transfer() {
                             let arrival_before_departure_transfer = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
-                            assert!(arrival_before_departure_transfer, format!("Node Arrival than greater time as {} node! {} vs {}", node_b_weight.get_kind(), node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
+                            assert!(arrival_before_departure_transfer, format!("Node Arrival has greater time as {} node! {} vs {}", node_b_weight.get_kind(), node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
                         }
 
                         // Arrival node and node b have same stations
@@ -836,21 +863,90 @@ impl Model {
                             let same_stations = node_a_weight.get_station_id().unwrap() == node_b_weight.get_station_id().unwrap();
                             assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station_id().unwrap(), node_b_weight.get_station_id().unwrap()));
                         }
-
-                        // todo: only one wait in train edge
                     },
                     NodeWeight::Transfer {time: _, station_id: _, station_name: _} => {
-                        // todo
+
+                        // Outgoing edge is Board or WaitAtStation
+                        let edge_is_correct = edge_weight.is_board() || edge_weight.is_wait_at_station();
+                        assert!(edge_is_correct, format!("Outgoing edge of Transfer node is not Board, or WaitAtStation but {}!", edge_weight.get_kind()));
+                        
+                        // if edge is Board -> node b is Departure node and both have same time
+                        if edge_weight.is_board() {
+                            let transfer_to_departure = node_b_weight.is_departure();
+                            assert!(transfer_to_departure, format!("Node Transfer does not end in Departure node after Board edge but in {}!", node_b_weight.get_kind()));
+
+                            let same_time = node_a_weight.get_time().unwrap() == node_b_weight.get_time().unwrap();
+                            assert!(same_time, format!("Transfer node and Departure node have not same time! {} vs. {}", node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
+                        
+                            num_board += 1;
+                        }
+
+                        // if edge is WaitAtStation -> node b is Transfer node and node b has time greater or equal node a
+                        if edge_weight.is_wait_at_station() {
+                            let transfer_to_transfer = node_b_weight.is_transfer();
+                            assert!(transfer_to_transfer, format!("Node Transfer does not end in Transfer node after WaitAtStation edge but in {}!", node_b_weight.get_kind()));
+                        
+                            let transfer_before_transfer = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
+                            assert!(transfer_before_transfer, format!("Transfer node has not time less or equal Transfer node! {} vs. {}", node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
+                        }
+
+                        // both nodes have same station
+                        let same_stations = node_a_weight.get_station_id().unwrap() == node_b_weight.get_station_id().unwrap();
+                        assert!(same_stations, format!("Transfer node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station_id().unwrap(), node_b_weight.get_station_id().unwrap()));                   
                     },
                     NodeWeight::MainArrival {station_id: _} => {
-                        // todo
+                        
+                        // Panic because MainArrival node has no outgoing edges
+                        assert!(false, "MainArrival node has ougoing edge!")
                     },
-                    NodeWeight::Default => {}
+                    NodeWeight::Default => {
+
+                        // Panic because Deafult node should have outgoing edges
+                        assert!(false, "Default node should not have outgoing edges!")
+                    }
+                }
+            }
+
+            // Check valid nodes
+            match node_a_weight {
+                NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
+                    
+                    // Exactly one outgoing edge
+                    let num_edges = self.graph.edges_directed(node_a_index, Outgoing).into_iter().count();
+                    assert!(num_edges == 1, format!("Departure node has {} outgoing edges instead of one!", num_edges));
+                },
+                NodeWeight::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
+                    
+                    // Only one MainArrival node found
+                    if num_main_arrival != 1 {
+                        println!("Outgoing edges:");
+                        let mut children = self.graph.neighbors_directed(node_a_index, Outgoing).detach();
+                        while let Some((child_edge_index, child_node_index)) = children.next(&self.graph) {
+                            println!("{:?}", self.graph.edge_weight(child_edge_index).unwrap());
+                        }
+                    }
+                    assert!(num_main_arrival == 1, format!("Arrival node has {} MainArrival nodes instead of 1!", num_main_arrival));
+
+                    // Max one WaitInTrain outgoing edge per Arrival
+                    assert!(num_wait_in_train <= 1, format!("Arrival node has {} outgoing WaitInTrain edges instead of 0 or 1!", num_wait_in_train));
+                },
+                NodeWeight::Transfer {time: _, station_id: _, station_name: _} => {
+
+                    // Only one outoging board edge
+                    assert!(num_board == 1, format!("Transfer node has {} outgoing Board edges instead of 1!", num_board));
+                },
+                NodeWeight::MainArrival {station_id: _} => {
+                        
+                    // Has no outoging edges
+                    let num_edges = self.graph.edges_directed(node_a_index, Outgoing).into_iter().count();
+                    assert!(num_edges == 1, format!("MainArrival node has {} outgoing Board edges instead of 0!", num_edges));
+                },
+                NodeWeight::Default => {
+
+                    // Panic because Deafult node should not be in graph
+                    assert!(false, "Default node should not be part of graph!")
                 }
             }
         }
-
-        // check no cycles
     }
-
 }
