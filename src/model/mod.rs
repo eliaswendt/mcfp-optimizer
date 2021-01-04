@@ -912,7 +912,7 @@ impl Model {
                 NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
                     
                     // Exactly one outgoing edge
-                    let num_edges = self.graph.edges_directed(node_a_index, Outgoing).into_iter().count();
+                    let num_edges = self.graph.edges_directed(node_a_index, Outgoing).count();
                     assert!(num_edges == 1, format!("Departure node has {} outgoing edges instead of one!", num_edges));
                 },
                 NodeWeight::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
@@ -937,9 +937,9 @@ impl Model {
                 },
                 NodeWeight::MainArrival {station_id: _} => {
                         
-                    // Has no outoging edges
-                    let num_edges = self.graph.edges_directed(node_a_index, Outgoing).into_iter().count();
-                    assert!(num_edges == 1, format!("MainArrival node has {} outgoing Board edges instead of 0!", num_edges));
+                    // has no outgoing edges
+                    let outoging_edge_count = self.graph.edges_directed(node_a_index, Outgoing).count();
+                    assert!(outoging_edge_count > 0, format!("MainArrival node has {} outgoing Board edges instead of 0!", outoging_edge_count));
                 },
                 NodeWeight::Default => {
 

@@ -4,5 +4,5 @@ sample:
 real:
 	cargo run --release real_data/
 
-graphs:
+graph:
 	dot -Tpdf graph.dot > graph.pdf

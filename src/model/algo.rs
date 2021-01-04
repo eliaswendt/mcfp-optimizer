@@ -8,7 +8,7 @@ pub fn max_flow(graph: &DiGraph<NodeWeight, EdgeWeight>, source_index: NodeIndex
     /*let paths: Vec<Vec<Object>> = Vec::new();
     let source_node = graph.node_weight(source_index).unwrap();
 
-    for edge_ref in graph.edges_directed(source_index, Outgoing) { //(source_index, Outgoing).into_iter() {
+    for edge_ref in graph.edges_directed(source_index, Outgoing) { //(source_index, Outgoing).iter() {
         let path: Vec<EdgeIndex> = Vec::new();
         let capacity: u64 = 0;
         let edge = edge_ref.weight().;
