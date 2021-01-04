@@ -22,22 +22,25 @@ pub enum NodeWeight {
     Departure { // departure of a train ride
         trip_id: u64,
         time: u64,
-        station_id: String
+        station_id: String,
+        station_name: String,
     },
 
     Arrival { // arrival of a train ride
         trip_id: u64,
         time: u64,
-        station_id: String
+        station_id: String,
+        station_name: String,
     },
 
     Transfer { // transfer node at a station, existing for every departure at that station
         time: u64,
-        station_id: String
+        station_id: String,
+        station_name: String,
     },
 
     MainArrival {
-        station_id: String
+        station_id: String,
     },
 
     Default // empty default (used in intermediate subgraph)
@@ -51,18 +54,18 @@ impl NodeWeight {
 
     pub fn get_time(&self) -> Option<u64> {
         match self {
-            Self::Departure {trip_id: _, time, station_id: _} => Some(*time),
-            Self::Arrival {trip_id: _, time, station_id: _} => Some(*time),
-            Self::Transfer {time, station_id: _} => Some(*time),
+            Self::Departure {trip_id: _, time, station_id: _, station_name: _} => Some(*time),
+            Self::Arrival {trip_id: _, time, station_id: _, station_name: _} => Some(*time),
+            Self::Transfer {time, station_id: _, station_name: _} => Some(*time),
             _ => None
         }
     }
 
-    pub fn get_station(&self) -> Option<String> {
+    pub fn get_station_id(&self) -> Option<String> {
         match self {
-            Self::Departure {trip_id: _, time: _, station_id} => Some(station_id.clone()),
-            Self::Arrival {trip_id: _, time: _, station_id} => Some(station_id.clone()),
-            Self::Transfer {time: _, station_id} => Some(station_id.clone()),
+            Self::Departure {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
+            Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
+            Self::Transfer {time: _, station_id, station_name: _} => Some(station_id.clone()),
             Self::MainArrival {station_id} => Some(station_id.clone()),
             _ => None
         }
@@ -70,28 +73,28 @@ impl NodeWeight {
 
     pub fn is_arrival_at_station(&self, target_station_id: &str) -> bool {
         match self {
-            Self::Arrival {trip_id: _, time: _, station_id} => station_id == target_station_id,
+            Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => station_id == target_station_id,
             _ => false
         }
     }
 
     pub fn is_departure(&self) -> bool {
         match self {
-            Self::Departure {trip_id: _, time: _, station_id: _} => true,
+            Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => true,
             _ => false
         }
     }
 
     pub fn is_arrival(&self) -> bool {
         match self {
-            Self::Arrival {trip_id: _, time: _, station_id: _} => true,
+            Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => true,
             _ => false
         }
     }
 
     pub fn is_transfer(&self) -> bool {
         match self {
-            Self::Transfer {time: _, station_id: _}  => true,
+            Self::Transfer {time: _, station_id: _, station_name: _}  => true,
             _ => false
         }
     }
@@ -112,9 +115,9 @@ impl NodeWeight {
 
     pub fn get_kind(&self) -> &str {
         match self {
-            Self::Departure {trip_id: _, time: _, station_id: _} => "Departure",
-            Self::Arrival {trip_id: _, time: _, station_id: _} => "Arrival",
-            Self::Transfer {time: _, station_id: _}  => "Transfer",
+            Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
+            Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => "Arrival",
+            Self::Transfer {time: _, station_id: _, station_name: _}  => "Transfer",
             Self::MainArrival {station_id: _} => "MainArrival",
             Self::Default => "Default",
         }
@@ -122,9 +125,9 @@ impl NodeWeight {
 
     pub fn get_trip_id(&self) -> Option<u64> {
         match self {
-            Self::Departure {trip_id, time: _, station_id: _} => Some(*trip_id),
-            Self::Arrival {trip_id, time: _, station_id: _} => Some(*trip_id),
-            Self::Transfer {time: _, station_id: _}  => None,
+            Self::Departure {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
+            Self::Arrival {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
+            Self::Transfer {time: _, station_id: _, station_name: _}  => None,
             Self::MainArrival {station_id: _} => None,
             Self::Default => None,
         }
@@ -296,10 +299,10 @@ pub enum ObjectIndex {
 pub struct Model {
     pub graph: DiGraph<NodeWeight, EdgeWeight>,
 
-    // we need to store all departure nodes for all stations at all times
-    stations_departures: HashMap<String, Vec<(u64, NodeIndex)>>,
-    station_arrival_main_node_indices: HashMap<String, NodeIndex>,
-
+    // we need to store all transfer and arrival nodes for all stations at all times
+    stations_transfers: HashMap<String, Vec<(u64, NodeIndex)>>,
+    stations_arrivals: HashMap<String, Vec<NodeIndex>>,
+    stations_main_arrival: HashMap<String, NodeIndex>
 }
 
 impl Model {
@@ -312,138 +315,52 @@ impl Model {
 
         // convert each list of maps into a single map with multiple entries with id as key
         let footpaths = footpath::Footpath::from_maps_to_vec(&footpath_maps);
-        let mut stations = station::Station::from_maps_to_map(&station_maps);
         let trips = trip::Trip::from_maps_to_vec(&trip_maps);
 
         let mut graph = DiGraph::new();
-        let mut stations_departures = HashMap::with_capacity(stations.len());
-        let mut station_arrival_main_node_indices = HashMap::with_capacity(stations.len());
 
-        // iterate over all trips
+
+        let mut stations = station::Station::from_maps_to_map(&station_maps, &mut graph);
+        let mut stations_transfers = HashMap::with_capacity(stations.len());
+        let mut stations_arrivals = HashMap::with_capacity(stations.len());
+        let mut stations_main_arrival = HashMap::with_capacity(stations.len());
+
+
         for trip in trips.iter() {
 
-            // ARRIVAL NODE
-            let arrival_node_index = graph.add_node(NodeWeight::Arrival {
-                trip_id: trip.id,
-                time: trip.arrival,
-                station_id: trip.to_station.clone()
-            });
-
-            // DEPARTURE NODE
-            let departure_node_index = graph.add_node(NodeWeight::Departure {
-                trip_id: trip.id,
-                time: trip.departure,
-                station_id: trip.from_station.clone()
-            });
-
-            // add these nodes to a station
-            let to_station = stations.get_mut(&trip.to_station).unwrap();
-            match to_station.arrival_node_indices.insert(trip.id, arrival_node_index) {
-                Some(_) => {
-                    println!("collision on trip {}: to_station {}", trip.id, to_station.id)
-                },
-                None => {}
-            };
-
             let from_station = stations.get_mut(&trip.from_station).unwrap();
-            match from_station.departure_node_indices.insert(trip.id, departure_node_index) {
-                Some(_) => {
-                    println!("collision on trip {}: from_station {}", trip.id, from_station.id)
-                },
-                None => {}
-            };
+            let departure = from_station.add_departure(&mut graph, trip.id, trip.departure);
 
-            // connect stations of this trip
-            graph.add_edge(departure_node_index, arrival_node_index, EdgeWeight::Ride {
+            let to_station = stations.get_mut(&trip.to_station).unwrap();
+            let arrival = to_station.add_arrival(&mut graph, trip.id, trip.arrival);
+
+            // connect start and end of this ride
+            graph.add_edge(departure, arrival, EdgeWeight::Ride {
                 capacity: trip.capacity,
                 duration: trip.arrival - trip.departure,
                 utilization: 0
             });
         }
 
-        // iterate over all stations (first run only inserts departures and transfers)
-        for (station_id, station) in stations.iter_mut() {
+        for (station_id, station) in stations.into_iter() {
+            let (transfers, arrivals) = station.connect(&mut graph);
 
-            // iterate over all departures
-            for (trip_id, departure_node_index) in station.departure_node_indices.iter() {
-
-                let departure_node = graph.node_weight(*departure_node_index).unwrap();
-                let departure_node_time = departure_node.get_time().unwrap();
-
-                // DEPARTURE TRANSFER NODE (each departure also induces a corresponding departure node at the station)
-                let departure_transfer_node_index = graph.add_node(NodeWeight::Transfer {
-                    time: departure_node_time,
-                    station_id: station_id.clone()
-                });
-                // edge between transfer of this station to departure
-                graph.add_edge(departure_transfer_node_index, *departure_node_index, EdgeWeight::Board);
-
-                // add transfer node to list of transfer nodes of this station
-                station.transfer_node_indices.push((departure_node_time, departure_transfer_node_index));
-
-                // connect arrival of this trip to departure of this trip (if exists)
-                // this edge represents staying in the same train
-                match station.arrival_node_indices.get(trip_id) {
-                    Some(arrival_node_index) => {
-                        let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().get_time().unwrap();
-
-                        // only create edge between arrival and departure only if arrival is before (time) departure
-                        // this is required, as it otherwise would also connect start-/end station of a trip with equal start/destination
-                        if arrival_node_time <= departure_node_time {
-                            graph.add_edge(*arrival_node_index, *departure_node_index, EdgeWeight::WaitInTrain {
-                                duration: departure_node_time - arrival_node_time
-                            });
-                        }
-                    },
-                    None => {}
-                }
-            }
-
-            // sort transfer node list by time (first tuple element)
-            station.transfer_node_indices.sort_unstable_by_key(|(time, _)| *time);
-
-            // connect transfers with each other
-            for transfer_node_indices in station.transfer_node_indices.windows(2) {
-                graph.add_edge(transfer_node_indices[0].1, transfer_node_indices[1].1, EdgeWeight::WaitAtStation {
-                    duration: transfer_node_indices[1].0 - transfer_node_indices[0].0
-                });
-            }
-        }
-
-        // iterate over all stations (second run to add arrivals and connect them to transfers)
-        for (station_id, station_value) in stations.iter_mut() {
-
-            let station_arrival_main_node_index = graph.add_node(NodeWeight::MainArrival {
-                station_id: station_id.clone()
+            // create main arrival node
+            let main_arrival = graph.add_node(NodeWeight::MainArrival {
+                station_id: station_id.clone()            
             });
 
-            // iterate over all arrivals
-            for (_, arrival_node_index) in station_value.arrival_node_indices.iter() {
-
+            // connect all arrival nodes to the main arrival
+            for arrival in arrivals.iter() {
                 // connect arrival to station's main node
-                graph.add_edge(*arrival_node_index, station_arrival_main_node_index, EdgeWeight::MainArrivalRelation);
-
-                let arrival_node = graph.node_weight(*arrival_node_index).expect("Could not find node in graph");
-                let arrival_node_time = arrival_node.get_time().unwrap();
-
-                let earliest_transfer_time = arrival_node_time + station_value.transfer_time;
-
-                // try to find next transfer node at this station
-                for (transfer_timestamp, transfer_node_index) in station_value.transfer_node_indices.iter() {
-                    if earliest_transfer_time <= *transfer_timestamp {
-                        graph.add_edge(*arrival_node_index, *transfer_node_index, EdgeWeight::Alight {
-                            duration: station_value.transfer_time
-                        });
-                        break // the loop
-                    }
-                }
+                graph.add_edge(*arrival, main_arrival, EdgeWeight::MainArrivalRelation);
             }
 
             // save references to all transfers and to arrival_main
-            stations_departures.insert(station_id.clone(), station_value.transfer_node_indices.clone());
-            station_arrival_main_node_indices.insert(station_id.clone(), station_arrival_main_node_index);
+            stations_transfers.insert(station_id.clone(), transfers);
+            stations_arrivals.insert(station_id.clone(), arrivals);
+            stations_main_arrival.insert(station_id.clone(),main_arrival);
         }
-
 
 
         let mut successful_footpath_counter: u64 = 0;
@@ -451,36 +368,23 @@ impl Model {
 
         // iterate over all footpaths
         for footpath in footpaths.iter() {
-            let from_station = match stations.get(&footpath.from_station) {
-                Some(from_station) => from_station,
-                None => {
-                    println!("footpath's from_station {} unknown", footpath.from_station);
-                    continue // with next footpath
-                }
-            };
-
-            let to_station = match stations.get(&footpath.to_station) {
-                Some(to_station) => to_station,
-                None => {
-                    println!("footpath's to_station {} unknown", footpath.to_station);
-                    continue // with next footpath
-                }
-            };
-
+            let from_station_arrivals = stations_arrivals.get(&footpath.from_station).unwrap();
+            let to_station_transfers = stations_transfers.get(&footpath.to_station).unwrap();
 
             // for every arrival at the from_station try to find the next transfer node at the to_station
-            for arrival_node_index in from_station.arrival_node_indices.values() {
-                let arrival_node_time = graph.node_weight(*arrival_node_index).unwrap().get_time().unwrap();
+            for arrival in from_station_arrivals.iter() {
+                let arrival_time = graph[*arrival].get_time().unwrap();
 
                 // timestamp of arrival at the footpaths to_station
-                let earliest_transfer_time = arrival_node_time + footpath.duration;
+                let earliest_transfer_time = arrival_time + footpath.duration;
 
                 let mut edge_added = false;
 
-                // try to find next transfer node at to_station (requires transfer_node_indices to be sorted, earliest first)
-                for (transfer_timestamp, transfer_node_index) in to_station.transfer_node_indices.iter() {
-                    if earliest_transfer_time <= *transfer_timestamp {
-                        graph.add_edge(*arrival_node_index, *transfer_node_index, EdgeWeight::Walk {
+                // try to find next transfer node at to_station (requires transfers to be sorted, earliest first)
+                for (transfer_time, transfer) in to_station_transfers.iter() {
+
+                    if earliest_transfer_time <= *transfer_time {
+                        graph.add_edge(*arrival, *transfer, EdgeWeight::Walk {
                             duration: footpath.duration
                         });
                         edge_added = true;
@@ -502,8 +406,9 @@ impl Model {
 
         Self {
             graph,
-            stations_departures,
-            station_arrival_main_node_indices
+            stations_transfers,
+            stations_arrivals,
+            stations_main_arrival
         }
     }
 
@@ -623,7 +528,7 @@ impl Model {
 
 
     pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
-        match self.stations_departures.get(station_id) {
+        match self.stations_transfers.get(station_id) {
             Some(station_departures) => {
                 
                 // iterate until we find a departure time >= the time we want to start
@@ -644,10 +549,7 @@ impl Model {
 
 
     pub fn find_end_node_index(&self, station_id: &str) -> Option<NodeIndex> {
-        match self.station_arrival_main_node_indices.get(station_id) {
-            Some(station_arrival_main_node_index) => Some(*station_arrival_main_node_index),
-            None => None
-        }
+        self.stations_main_arrival.get(station_id).map(|main_arrival| *main_arrival)
     }
 
 
@@ -864,7 +766,7 @@ impl Model {
                 let node_b_weight = self.graph.node_weight(child_node_index).unwrap();
 
                 match node_a_weight {
-                    NodeWeight::Departure {trip_id: _, time: _, station_id: _} => {
+                    NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
 
                         // Departure outgoing edge is ride
                         let edge_is_ride = edge_weigth.is_ride();
@@ -887,7 +789,7 @@ impl Model {
                         assert!(same_trip == true, format!("Departure node has not the same trip as Arrival node! {} vs {}", node_a_weight.get_trip_id().unwrap(), node_b_weight.get_trip_id().unwrap()));
                     },
 
-                    NodeWeight::Arrival {trip_id: _, time: _, station_id: _} => {
+                    NodeWeight::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
 
                         // Outgoing edge is WaitInTrain, Alight, Walk, or MainArrivalRelation
                         let edge_is_correct = edge_weigth.is_wait_in_train() || edge_weigth.is_alight()
@@ -931,13 +833,13 @@ impl Model {
                         // Arrival node and node b have same stations
                         if node_b_weight.is_departure() || node_b_weight.is_main_arrival() {
                             // same stations
-                            let same_stations = node_a_weight.get_station().unwrap() == node_b_weight.get_station().unwrap();
-                            assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station().unwrap(), node_b_weight.get_station().unwrap()));
+                            let same_stations = node_a_weight.get_station_id().unwrap() == node_b_weight.get_station_id().unwrap();
+                            assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station_id().unwrap(), node_b_weight.get_station_id().unwrap()));
                         }
 
                         // todo: only one wait in train edge
                     },
-                    NodeWeight::Transfer {time: _, station_id: _} => {
+                    NodeWeight::Transfer {time: _, station_id: _, station_name: _} => {
                         // todo
                     },
                     NodeWeight::MainArrival {station_id: _} => {
