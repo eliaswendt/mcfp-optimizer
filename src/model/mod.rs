@@ -273,7 +273,7 @@ impl EdgeWeight {
         }
     }
 
-    pub fn get_kind(&self) -> &str {
+    pub fn get_kind_as_str(&self) -> &str {
         match self {
             Self::Ride {duration: _, capacity: _, utilization: _}  => "Ride",
             Self::WaitInTrain {duration: _} => "WaitInTrain",
@@ -709,7 +709,7 @@ impl Model {
 
                         // Departure outgoing edge is ride
                         let edge_is_ride = edge_weight.is_ride();
-                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", edge_weight.get_kind()));
+                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", edge_weight.get_kind_as_str()));
                         
                         // Outgoing Edge ends in Arrival node
                         let departure_to_arrival =  node_b_weight.is_arrival();
@@ -733,7 +733,7 @@ impl Model {
                         // Outgoing edge is WaitInTrain, Alight, Walk, or MainArrivalRelation
                         let edge_is_correct = edge_weight.is_wait_in_train() || edge_weight.is_alight()
                             || edge_weight.is_walk() || edge_weight.is_main_arrival_relation();
-                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weight.get_kind()));
+                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weight.get_kind_as_str()));
                         
                         // if edge is WaitInTrain -> Nodes have same trip and node b is departure
                         if edge_weight.is_wait_in_train() {
@@ -783,7 +783,7 @@ impl Model {
 
                         // Outgoing edge is Board or WaitAtStation
                         let edge_is_correct = edge_weight.is_board() || edge_weight.is_wait_at_station();
-                        assert!(edge_is_correct, format!("Outgoing edge of Transfer node is not Board, or WaitAtStation but {}!", edge_weight.get_kind()));
+                        assert!(edge_is_correct, format!("Outgoing edge of Transfer node is not Board, or WaitAtStation but {}!", edge_weight.get_kind_as_str()));
                         
                         // if edge is Board -> node b is Departure node and both have same time
                         if edge_weight.is_board() {
@@ -811,8 +811,8 @@ impl Model {
                     },
                     NodeWeight::MainArrival {station_id: _} => {
                         
-                        // Panic because MainArrival node has no outgoing edges
-                        assert!(false, "MainArrival node has ougoing edge!")
+                        // todo: Panic because MainArrival node has no outgoing edges
+                        assert!(false, "MainArrival node has outgoing edge!")
                     }
                 }
             }
