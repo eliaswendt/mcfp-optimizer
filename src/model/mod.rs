@@ -784,10 +784,10 @@ impl Model {
             // Number of Board edges for Transfer node
             let mut num_board = 0;
 
-            while let Some((child_edge_index, child_node_index)) = children.next(&self.graph){
+            while let Some((edge_index, child_b_index)) = children.next(&self.graph){
                 // Check valid successor
-                let edge_weight = self.graph.edge_weight(child_edge_index).unwrap();
-                let node_b_weight = self.graph.node_weight(child_node_index).unwrap();
+                let edge_weight = self.graph.edge_weight(edge_index).unwrap();
+                let node_b_weight = self.graph.node_weight(child_b_index).unwrap();
 
                 match node_a_weight {
                     NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
@@ -939,7 +939,7 @@ impl Model {
                         
                     // has no outgoing edges
                     let outoging_edge_count = self.graph.edges_directed(node_a_index, Outgoing).count();
-                    assert!(outoging_edge_count > 0, format!("MainArrival node has {} outgoing Board edges instead of 0!", outoging_edge_count));
+                    assert!(outoging_edge_count == 0, format!("MainArrival node has {} outgoing Board edges instead of 0!", outoging_edge_count));
                 },
                 NodeWeight::Default => {
 
