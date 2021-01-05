@@ -41,13 +41,7 @@ pub enum NodeWeight {
 
     MainArrival {
         station_id: String,
-    },
-
-    Default // empty default (used in intermediate subgraph)
-}
-
-impl Default for NodeWeight {
-    fn default() -> Self { NodeWeight::Default }
+    }
 }
 
 impl NodeWeight {
@@ -106,20 +100,12 @@ impl NodeWeight {
         }
     }
 
-    pub fn is_default(&self) -> bool {
-        match self {
-            Self::Default => true,
-            _ => false
-        }
-    }
-
     pub fn get_kind(&self) -> &str {
         match self {
             Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
             Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => "Arrival",
             Self::Transfer {time: _, station_id: _, station_name: _}  => "Transfer",
             Self::MainArrival {station_id: _} => "MainArrival",
-            Self::Default => "Default",
         }
     }
 
@@ -129,7 +115,6 @@ impl NodeWeight {
             Self::Arrival {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
             Self::Transfer {time: _, station_id: _, station_name: _}  => None,
             Self::MainArrival {station_id: _} => None,
-            Self::Default => None,
         }
     }
 }
@@ -317,7 +302,6 @@ pub struct Model {
 
     // we need to store all transfer and arrival nodes for all stations at all times
     stations_transfers: HashMap<String, Vec<(u64, NodeIndex)>>,
-    stations_arrivals: HashMap<String, Vec<NodeIndex>>,
     stations_main_arrival: HashMap<String, NodeIndex>
 }
 
@@ -325,22 +309,22 @@ impl Model {
 
     pub fn with_stations_footpaths_and_trips(csv_folder_path: &str) -> Self {
 
-        let footpath_maps = csv_reader::read_to_maps(&format!("{}footpaths.csv", csv_folder_path));
+        let start = Instant::now();
+
         let station_maps = csv_reader::read_to_maps(&format!("{}stations.csv", csv_folder_path));
         let trip_maps = csv_reader::read_to_maps(&format!("{}trips.csv", csv_folder_path));
+        let footpath_maps = csv_reader::read_to_maps(&format!("{}footpaths.csv", csv_folder_path));
 
-        // convert each list of maps into a single map with multiple entries with id as key
-        let footpaths = footpath::Footpath::from_maps_to_vec(&footpath_maps);
-        let trips = trip::Trip::from_maps_to_vec(&trip_maps);
-
+        // create graph
         let mut graph = DiGraph::new();
-
 
         let mut stations = station::Station::from_maps_to_map(&station_maps, &mut graph);
         let mut stations_transfers = HashMap::with_capacity(stations.len());
         let mut stations_arrivals = HashMap::with_capacity(stations.len());
         let mut stations_main_arrival = HashMap::with_capacity(stations.len());
 
+        let trips = trip::Trip::from_maps_to_vec(&trip_maps);
+        let footpaths = footpath::Footpath::from_maps_to_vec(&footpath_maps);
 
         for trip in trips.iter() {
 
@@ -418,12 +402,16 @@ impl Model {
 
         println!("successful_footpaths: {}, failed_footpaths: {}", successful_footpath_counter, failed_footpath_counter);
 
-        println!("node_count={}, edge_count={}", graph.node_count(), graph.edge_count());
+        println!(
+            "[with_stations_footpaths_and_trips()]: done ({}ms), graph.node_count()={}, graph.edge_count()={}", 
+            start.elapsed().as_millis(),
+            graph.node_count(), 
+            graph.edge_count()
+        );
 
         Self {
             graph,
             stations_transfers,
-            stations_arrivals,
             stations_main_arrival
         }
     }
@@ -596,84 +584,6 @@ impl Model {
         )
     }
 
-    fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<NodeWeight, EdgeWeight>, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> impl Iterator<Item = (u64, Vec<EdgeIndex>)> {//Vec<(u64, Vec<EdgeIndex>)> {
-
-        // list of already visited nodes
-        let mut visited: IndexSet<EdgeIndex> = IndexSet::new();
-
-        // list of childs of currently exploring path nodes,
-        // last elem is list of childs of last visited node
-        let mut stack = vec![graph.neighbors_directed(from_node_index, Outgoing).detach()];
-        let mut durations: Vec<u64> = Vec::new();
-        let mut rides: Vec<u64> = vec![0];
-
-        //let mut bfs = self.graph.neighbors_directed(from_node_index, Outgoing).detach();
-        //let mut a = bfs.next(&self.graph);
-        let path_finder = from_fn(move || {
-            while let Some(children) = stack.last_mut() {
-                if let Some((child_edge_index, child_node_index)) = children.next(graph) {
-                    let mut duration = graph.edge_weight(child_edge_index).unwrap().get_duration();
-                    if durations.iter().sum::<u64>() + duration < max_duration && rides.iter().sum::<u64>() < max_rides {
-                        if child_node_index == to_node_index {
-                            let path = visited
-                                .iter()
-                                .cloned()
-                                .chain(Some(child_edge_index))
-                                .collect::<Vec<EdgeIndex>>();
-                            return Some((max_duration - durations.iter().sum::<u64>() - duration, path));
-                        } else if !visited.contains(&child_edge_index) {
-                            let edge_weight = graph.edge_weight(child_edge_index).unwrap();
-                            durations.push(edge_weight.get_duration());
-                            // only count ride to station and walk to station as limit factor
-                            // if edge_weight.is_ride_to_station() || edge_weight.is_walk_to_station() {
-                            //     rides.push(1);
-                            // } else {
-                            //     rides.push(0);
-                            // };
-                            //rides.push(1);
-                            visited.insert(child_edge_index);
-                            stack.push(graph.neighbors_directed(child_node_index, Outgoing).detach());
-                        }
-                    } else {
-                        let mut children_any_to_node_index = false;
-                        let mut edge_index = None;
-                        let mut children_cloned = children.clone();
-                        while let Some((c_edge_index, c_node_index)) = children_cloned.next(graph) {
-                            if c_node_index == to_node_index {
-                                children_any_to_node_index = true;
-                                edge_index = Some(c_edge_index);
-                                duration = graph.edge_weight(child_edge_index).unwrap().get_duration();
-                                break;
-                            }
-                        }
-                        if (child_node_index == to_node_index || children_any_to_node_index) 
-                            && (durations.iter().sum::<u64>() + duration >= max_duration || rides.iter().sum::<u64>() >= max_rides) {
-                            let path = visited
-                                .iter()
-                                .cloned()
-                                .chain(edge_index)
-                                .collect::<Vec<EdgeIndex>>();
-                            return Some((0, path));
-                        } 
-                        stack.pop();
-                        visited.pop();
-                        durations.pop();
-                        rides.pop();
-                    }
-                } else {
-                    stack.pop();
-                    visited.pop();
-                    durations.pop();
-                    rides.pop();
-                }
-            }   
-            None
-        });
-    
-        //path_finder.collect::<Vec<_>>()
-        path_finder
-    }
-
 
     // creates a subgraph of self with only the part of the graph of specified paths
     pub fn create_subgraph_with_nodes(&self, subgraph: &mut Graph<NodeWeight, EdgeWeight>, paths: Vec<Vec<NodeIndex>>, node_index_graph_subgraph_mapping: &mut HashMap<NodeIndex, NodeIndex>) -> Vec<Vec<ObjectIndex>> {
@@ -772,6 +682,9 @@ impl Model {
 
     /// Panics if invalid
     pub fn validate_graph_integrity(&self) {
+
+        let start = Instant::now();
+
         for node_a_index in self.graph.node_indices() {
             let node_a_weight = self.graph.node_weight(node_a_index).unwrap();
             
@@ -789,6 +702,8 @@ impl Model {
                 let edge_weight = self.graph.edge_weight(edge_index).unwrap();
                 let node_b_weight = self.graph.node_weight(child_b_index).unwrap();
 
+
+                // check node relation
                 match node_a_weight {
                     NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
 
@@ -898,16 +813,11 @@ impl Model {
                         
                         // Panic because MainArrival node has no outgoing edges
                         assert!(false, "MainArrival node has ougoing edge!")
-                    },
-                    NodeWeight::Default => {
-
-                        // Panic because Deafult node should have outgoing edges
-                        assert!(false, "Default node should not have outgoing edges!")
                     }
                 }
             }
 
-            // Check valid nodes
+            // check node on its own
             match node_a_weight {
                 NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
                     
@@ -940,13 +850,10 @@ impl Model {
                     // has no outgoing edges
                     let outoging_edge_count = self.graph.edges_directed(node_a_index, Outgoing).count();
                     assert!(outoging_edge_count == 0, format!("MainArrival node has {} outgoing Board edges instead of 0!", outoging_edge_count));
-                },
-                NodeWeight::Default => {
-
-                    // Panic because Deafult node should not be in graph
-                    assert!(false, "Default node should not be part of graph!")
                 }
             }
         }
+
+        println!("[validate_graph_integrity()]: passed ({}ms)", start.elapsed().as_millis());
     }
 }
