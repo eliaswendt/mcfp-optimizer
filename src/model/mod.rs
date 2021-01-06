@@ -680,15 +680,26 @@ impl Model {
         subgraph_paths
     }
 
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
     /// Panics if invalid
-    pub fn validate_graph_integrity(&self) {
+    #[test]
+    fn validate_graph_integrity() {
+
+        let mut model = Model::with_stations_footpaths_and_trips("real_data/");
+        let graph = model.graph;
 
         let start = Instant::now();
 
-        for node_a_index in self.graph.node_indices() {
-            let node_a_weight = self.graph.node_weight(node_a_index).unwrap();
+        for node_a_index in graph.node_indices() {
+            let node_a_weight = graph.node_weight(node_a_index).unwrap();
             
-            let mut children = self.graph.neighbors_directed(node_a_index, Outgoing).detach();
+            let mut children = graph.neighbors_directed(node_a_index, Outgoing).detach();
 
             // Number of MainArrival node found for Arrival node
             let mut num_main_arrival = 0;
@@ -697,10 +708,10 @@ impl Model {
             // Number of Board edges for Transfer node
             let mut num_board = 0;
 
-            while let Some((edge_index, child_b_index)) = children.next(&self.graph){
+            while let Some((edge_index, child_b_index)) = children.next(&graph){
                 // Check valid successor
-                let edge_weight = self.graph.edge_weight(edge_index).unwrap();
-                let node_b_weight = self.graph.node_weight(child_b_index).unwrap();
+                let edge_weight = graph.edge_weight(edge_index).unwrap();
+                let node_b_weight = graph.node_weight(child_b_index).unwrap();
 
 
                 // check node relation
@@ -720,7 +731,7 @@ impl Model {
                         assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
                         
                         // Departure node has only one outgoing edge
-                        let one_outgoing = self.graph.neighbors(node_a_index).enumerate().count();
+                        let one_outgoing = graph.neighbors(node_a_index).enumerate().count();
                         assert!(one_outgoing == 1, format!("Departure node has not one outgoing edge but {}", one_outgoing));
                     
                         // both nodes have same trip 
@@ -822,7 +833,7 @@ impl Model {
                 NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
                     
                     // Exactly one outgoing edge
-                    let num_edges = self.graph.edges_directed(node_a_index, Outgoing).count();
+                    let num_edges = graph.edges_directed(node_a_index, Outgoing).count();
                     assert!(num_edges == 1, format!("Departure node has {} outgoing edges instead of one!", num_edges));
                 },
                 NodeWeight::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
@@ -830,9 +841,9 @@ impl Model {
                     // Only one MainArrival node found
                     if num_main_arrival != 1 {
                         println!("Outgoing edges:");
-                        let mut children = self.graph.neighbors_directed(node_a_index, Outgoing).detach();
-                        while let Some((child_edge_index, child_node_index)) = children.next(&self.graph) {
-                            println!("{:?}", self.graph.edge_weight(child_edge_index).unwrap());
+                        let mut children = graph.neighbors_directed(node_a_index, Outgoing).detach();
+                        while let Some((child_edge_index, child_node_index)) = children.next(&graph) {
+                            println!("{:?}", graph.edge_weight(child_edge_index).unwrap());
                         }
                     }
                     assert!(num_main_arrival == 1, format!("Arrival node has {} MainArrival nodes instead of 1!", num_main_arrival));
@@ -848,7 +859,7 @@ impl Model {
                 NodeWeight::MainArrival {station_id: _} => {
                         
                     // has no outgoing edges
-                    let outoging_edge_count = self.graph.edges_directed(node_a_index, Outgoing).count();
+                    let outoging_edge_count = graph.edges_directed(node_a_index, Outgoing).count();
                     assert!(outoging_edge_count == 0, format!("MainArrival node has {} outgoing Board edges instead of 0!", outoging_edge_count));
                 }
             }

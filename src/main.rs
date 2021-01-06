@@ -26,6 +26,5 @@ fn main() {
         ).unwrap();
     }
 
-    model.validate_graph_integrity();
     model.find_solutions(&format!("{}groups.csv", &args[1]));
 }
