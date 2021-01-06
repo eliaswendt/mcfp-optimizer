@@ -1,4 +1,4 @@
-use std::iter::from_fn;
+use std::{collections::HashMap, iter::from_fn};
 
 use indexmap::IndexSet;
 use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}};
@@ -113,7 +113,7 @@ fn all_paths_dfs_recursive_helper(
 
             let edge_weight = &graph[next_edge];
             let edge_weight_duration = edge_weight.get_duration();
-            let edge_weight_cost = edge_weight.cost();
+            let edge_weight_cost = edge_weight.get_cost();
 
             if edge_weight_duration <= remaining_duration && edge_weight.get_remaining_capacity() >= min_capacity && edge_weight_cost <= remaining_budget {
                 // edge can handle the minium required capacity and does not take longer then the remaining duration
@@ -138,6 +138,73 @@ fn all_paths_dfs_recursive_helper(
         }
     }
 }
+
+
+// // currently not working (problems with last ancestor path element on stack (only first child works, siblings will have the same path))
+// pub fn all_paths_dfs_iterative(
+//     graph: &DiGraph<NodeWeight, EdgeWeight>,
+//     from: NodeIndex,
+//     to: NodeIndex, // condition that determines whether goal node was found
+
+//     min_capacity: u64,
+//     max_duration: u64,
+//     max_budget: u64,
+// ) -> Vec<Vec<EdgeIndex>> {
+//     // list of all found paths
+//     let mut paths = Vec::new();
+
+//     // maps every seen NodeIndex to its parent (NodeIndex, EdgeIndex)
+//     let mut parent: HashMap<NodeIndex, (NodeIndex, EdgeIndex)> = HashMap::with_capacity(graph.node_count());
+
+//     // (<nodes>, remaining duration, remaining budget)
+//     let mut to_visit: Vec<(NodeIndex, u64, u64)> = vec![(from, max_duration, max_budget)];
+
+//     while let Some((current, remaining_duration, remaining_budget)) = to_visit.pop() {
+
+//         if current == to {
+
+//             let mut path: Vec<EdgeIndex> = Vec::new();
+
+//             // collect all EdgeIndex until root
+//             let mut current = current;
+//             while let Some((parent_node, parent_edge)) = parent.get(&current) {
+//                 path.push(*parent_edge);
+//                 current = *parent_node;
+//             }
+
+//             path.reverse();
+//             paths.push(path);
+
+//         } else {
+
+//             // iterate over all outgoing edges
+//             let mut walker = graph.neighbors_directed(current, Outgoing).detach();
+//             while let Some((next_edge, next_node)) = walker.next(graph) {
+
+//                 let edge_weight = &graph[next_edge];
+//                 let edge_weight_duration = edge_weight.get_duration();
+//                 let edge_weight_cost = edge_weight.get_cost();
+
+//                 if edge_weight_duration <= remaining_duration && edge_weight.get_remaining_capacity() >= min_capacity && edge_weight_cost <= remaining_budget {
+
+//                     // add parent edge and node of current
+//                     match parent.insert(next_node, (current, next_edge)) {
+//                         Some(_) => {},
+//                         None => {}
+//                     };
+
+//                     to_visit.push((
+//                         next_node,
+//                         remaining_duration - edge_weight_duration,
+//                         remaining_budget - edge_weight_cost,
+//                     ));
+//                 }
+//             }
+//         }
+//     }
+
+//     paths
+// }
 
 
 fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<NodeWeight, EdgeWeight>, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> impl Iterator<Item = (u64, Vec<EdgeIndex>)> {//Vec<(u64, Vec<EdgeIndex>)> {
@@ -218,67 +285,3 @@ fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<NodeWeight, EdgeWeight>, 
     path_finder
 }
 
-
-
-// launcher of recursive implementation of dfs
-// currently not working (problems with last ancestor path element on stack (only first child works, siblings will have the same path))
-// pub fn all_paths_dfs_iterative(
-//     graph: &DiGraph<NodeWeight, EdgeWeight>,
-//     from: NodeIndex,
-//     to: NodeIndex, // condition that determines whether goal node was found
-//     min_capacity: u64,
-//     max_duration: u64,
-//     max_depth: u64
-// ) -> Vec<Vec<EdgeIndex>> {
-//     // list of all found paths
-//     let mut paths = Vec::new();
-
-//     // saves path from root to current node
-//     let mut ancestor_path: Vec<EdgeIndex> = Vec::with_capacity(max_depth as usize);
-
-
-//     // (<nodes>, remaining_duration, depth-level)
-//     let mut to_visit_children_groups: Vec<(Vec<NodeIndex>, u64, u64)> = vec![(vec![from], max_duration, 0)];
-
-
-//     // iterate over groups that share the same ancestor path (and therefore also same remaining duration)
-//     while let Some((children_nodes, remaining_duration, depth)) = to_visit_children_groups.pop() {
-
-//         // current ancestor path always has the length of current depth
-//         ancestor_path.truncate(depth as usize);
-
-//         for child_node in children_nodes.iter() {
-//             if *child_node == to {
-//                 //
-//             } else if depth < max_depth {
-
-//                 let children_group = Vec::with_capacity(2);
-//                 // iterate over all outgoing edges
-//                 let mut walker = graph.neighbors_directed(child_node, Outgoing).detach();
-//                 while let Some((next_edge, next_node)) = walker.next(graph) {
-//                     children_group.
-//                 }
-//             }
-//         }
-        
-
-
-//             } else if depth < max_depth {
-                
-//                 // println!("depth={} add edge={:?} to node={:?}", depth, next_edge, next_node);
-
-//                 let edge_weight = &graph[next_edge];
-//                 let edge_duration = edge_weight.get_duration();
-
-//                 if edge_weight.get_remaining_capacity() >= min_capacity && edge_duration <= remaining_duration {
-//                     // edge can handle the minium required capacity and does not take longer then the remaining duration        
-//                     to_visit_children_groups.push((next_node, remaining_duration - edge_duration, depth+1));
-//                     last_next_edge = Some(next_edge);
-//                 }
-//             }
-//         }            
-
-//     }
-
-//     paths
-// }

@@ -153,7 +153,7 @@ pub enum EdgeWeight {
 impl EdgeWeight {
 
     // maps every edge to some virtual cost for improved DFS (aka. effort/expense to "take" the edge)
-    pub fn cost(&self) -> u64 {
+    pub fn get_cost(&self) -> u64 {
         match self {
             Self::Ride {duration: _, capacity: _, utilization: _} => 2,
             Self::WaitInTrain {duration: _} => 1,
@@ -420,14 +420,12 @@ impl Model {
         format!("{:?}", Dot::with_config(&self.graph, &[]))
     }
 
-
     pub fn find_solutions(&mut self, groups_csv_filepath: &str) {
         // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
         // Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
         // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
         // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
-
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups_map = Group::from_maps_to_map(&group_maps);
@@ -437,7 +435,7 @@ impl Model {
         groups_sorted.sort_unstable_by_key(|group| group.passengers);
         groups_sorted.reverse();
 
-        for group_value in groups_sorted.into_iter(){
+        for group_value in groups_sorted.into_iter() {
 
             let from_node_index = self.find_start_node_index(&group_value.start, group_value.departure).expect("Could not find departure at from_station");
             let to_node_index = self.find_end_node_index(&group_value.destination).expect("Could not find destination station");
@@ -449,7 +447,7 @@ impl Model {
             let start = Instant::now();
             print!("[group={}]: {} -> {} with {} passenger(s) in {} min(s) ... ", group_value.id, group_value.start, group_value.destination, group_value.passengers, max_duration);
 
-            let mut paths_recursive = path_finder::all_paths_dfs_recursive(
+            let mut paths = path_finder::all_paths_dfs_recursive(
                 &self.graph, 
                 from_node_index, 
                 to_node_index, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
@@ -458,7 +456,7 @@ impl Model {
                 max_duration, 
                 100 // initial budget for cost (each edge has individual search cost)
             );
-            
+
             //let mut paths_recursive = Self::all_simple_paths_dfs_dorian(&self.graph, from_node_index, to_node_index, max_duration, 25).collect::<Vec<_>>();
 
             print!("done in {}ms ... ", start.elapsed().as_millis());
@@ -471,10 +469,10 @@ impl Model {
             //         other => other, 
             //     }
             // });
-            paths_recursive.sort_unstable_by_key(|(remaining_duration, _)| *remaining_duration);
-            paths_recursive.reverse();
+            paths.sort_unstable_by_key(|(remaining_duration, _)| *remaining_duration);
+            paths.reverse();
 
-            let output = match paths_recursive.first() {
+            let output = match paths.first() {
                 Some((remaining_duration, path)) => {
 
                     for edge_index in path.iter() {
@@ -482,7 +480,7 @@ impl Model {
                         self.graph.edge_weight_mut(*edge_index).unwrap().increase_utilization(group_value.passengers as u64);
                     }
 
-                    format!("augmenting best path (remaining_duration={}, len={}, total_number_paths={})", remaining_duration, path.len(), paths_recursive.len()).green()
+                    format!("augmenting best path (remaining_duration={}, len={}, total_number_paths={})", remaining_duration, path.len(), paths.len()).green()
                 },
 
                 None => {
