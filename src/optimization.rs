@@ -34,10 +34,6 @@ pub fn calculate_intersection_sets(tagged_paths: &Vec<(u64, Path)>) -> HashMap<V
         }
     }
 
-
-
-
-
     intersection_sets
 }
 
