@@ -4,9 +4,11 @@ pub mod group;
 pub mod footpath;
 pub mod station;
 pub mod trip;
-mod path;
+pub mod path;
 
 use group::Group;
+
+use crate::optimization::recursive_path_straining;
 
 use petgraph::{
     EdgeDirection::Outgoing, 
@@ -52,6 +54,7 @@ pub enum NodeWeight {
 
 impl NodeWeight {
 
+    #[inline]
     pub fn get_time(&self) -> Option<u64> {
         match self {
             Self::Departure {trip_id: _, time, station_id: _, station_name: _} => Some(*time),
@@ -61,6 +64,7 @@ impl NodeWeight {
         }
     }
 
+    #[inline]
     pub fn get_station_id(&self) -> Option<String> {
         match self {
             Self::Departure {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
@@ -71,6 +75,7 @@ impl NodeWeight {
         }
     }
 
+    #[inline]
     pub fn is_arrival_at_station(&self, target_station_id: &str) -> bool {
         match self {
             Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => station_id == target_station_id,
@@ -78,6 +83,7 @@ impl NodeWeight {
         }
     }
 
+    #[inline]
     pub fn is_departure(&self) -> bool {
         match self {
             Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => true,
@@ -85,6 +91,7 @@ impl NodeWeight {
         }
     }
 
+    #[inline]
     pub fn is_arrival(&self) -> bool {
         match self {
             Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => true,
@@ -92,6 +99,7 @@ impl NodeWeight {
         }
     }
 
+    #[inline]
     pub fn is_transfer(&self) -> bool {
         match self {
             Self::Transfer {time: _, station_id: _, station_name: _}  => true,
@@ -99,6 +107,7 @@ impl NodeWeight {
         }
     }
 
+    #[inline]
     pub fn is_main_arrival(&self) -> bool {
         match self {
             Self::MainArrival {station_id: _} => true,
@@ -106,6 +115,7 @@ impl NodeWeight {
         }
     }
 
+    #[inline]
     pub fn get_kind(&self) -> &str {
         match self {
             Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
@@ -115,6 +125,7 @@ impl NodeWeight {
         }
     }
 
+    #[inline]
     pub fn get_trip_id(&self) -> Option<u64> {
         match self {
             Self::Departure {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
@@ -159,6 +170,7 @@ pub enum EdgeWeight {
 impl EdgeWeight {
 
     // maps every edge to some virtual cost for improved DFS (aka. effort/expense to "take" the edge)
+    #[inline]
     pub fn get_cost(&self) -> u64 {
         match self {
             Self::Ride {duration: _, capacity: _, utilization: _} => 2,
@@ -173,6 +185,7 @@ impl EdgeWeight {
 
 
     /// is RideToStation Edge
+    #[inline]
     pub fn is_ride(&self) -> bool {
         match self {
             Self::Ride {
@@ -185,6 +198,7 @@ impl EdgeWeight {
     }
 
     /// is WaitInTrain Edge
+    #[inline]
     pub fn is_wait_in_train(&self) -> bool {
         match self {
             Self::WaitInTrain {
@@ -195,6 +209,7 @@ impl EdgeWeight {
     }
 
     /// is Footpath Edge
+    #[inline]
     pub fn is_walk(&self) -> bool {
         match self {
             Self::Walk {
@@ -204,6 +219,7 @@ impl EdgeWeight {
         }
     }
 
+    #[inline]
     pub fn is_alight(&self) -> bool {
         match self {
             Self::Alight {
@@ -213,6 +229,7 @@ impl EdgeWeight {
         }
     }
 
+    #[inline]
     pub fn is_wait_at_station(&self) -> bool {
         match self {
             Self::WaitAtStation {
@@ -222,6 +239,7 @@ impl EdgeWeight {
         }
     }
 
+    #[inline]
     pub fn is_board(&self) -> bool {
         match self {
             Self::Board => true,
@@ -229,6 +247,7 @@ impl EdgeWeight {
         }
     }
     
+    #[inline]
     pub fn is_main_arrival_relation(&self) -> bool {
         match self {
             Self::MainArrivalRelation => true,
@@ -237,6 +256,7 @@ impl EdgeWeight {
     }
 
     /// get duration of self, defaults to 0
+    #[inline]
     pub fn get_duration(&self) -> u64 {
         match self {
             Self::Ride{duration, capacity: _, utilization: _} => *duration,
@@ -249,6 +269,7 @@ impl EdgeWeight {
     }
 
     /// get capacity of self, defaults to MAX
+    #[inline]
     pub fn get_capacity(&self) -> u64 {
         match self {
             Self::Ride{duration: _, capacity, utilization: _} => *capacity,
@@ -256,6 +277,7 @@ impl EdgeWeight {
         }
     }
 
+    #[inline]
     pub fn increase_utilization(&mut self, addend: u64) {
         match self {
             Self::Ride{duration: _, capacity: _, utilization} => *utilization += addend,
@@ -263,6 +285,7 @@ impl EdgeWeight {
         }
     }
 
+    #[inline]
     pub fn decrease_utilization(&mut self, subtrahend: u64) {
         match self {
             Self::Ride{duration: _, capacity: _, utilization} => *utilization -= subtrahend,
@@ -271,6 +294,7 @@ impl EdgeWeight {
     }
 
     /// get utilization of self, defaults to 0
+    #[inline]
     pub fn get_utilization(&self) -> u64 {
         match self {
             Self::Ride{duration: _, capacity: _, utilization} => *utilization,
@@ -278,6 +302,7 @@ impl EdgeWeight {
         }
     }
 
+    #[inline]
     pub fn get_remaining_capacity(&self) -> u64 {
         match self {
             Self::Ride{duration: _, capacity, utilization} => *capacity - *utilization,
@@ -285,6 +310,7 @@ impl EdgeWeight {
         }
     }
 
+    #[inline]
     pub fn get_kind_as_str(&self) -> &str {
         match self {
             Self::Ride {duration: _, capacity: _, utilization: _}  => "Ride",
@@ -314,6 +340,7 @@ impl Model {
 
         let start = Instant::now();
 
+        // read all CSVs
         let station_maps = csv_reader::read_to_maps(&format!("{}stations.csv", csv_folder_path));
         let trip_maps = csv_reader::read_to_maps(&format!("{}trips.csv", csv_folder_path));
         let footpath_maps = csv_reader::read_to_maps(&format!("{}footpaths.csv", csv_folder_path));
@@ -412,68 +439,6 @@ impl Model {
         self.stations_main_arrival.get(station_id).map(|main_arrival| *main_arrival)
     }
 
-    /// returns (remaining_duration, path)
-    fn search_paths_for_group(&self, group: &Group, budget: u64, duration_factor: f64) -> Vec<(u64, Path)> {
-
-        let from = self.find_start_node_index(&group.start, group.departure).expect("Could not find departure at from_station");
-        let to = self.find_end_node_index(&group.destination).expect("Could not find destination station");
-
-        // max duration should depend on the original travel time
-        let travel_time = group.arrival - group.departure;
-        let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
-
-        let start = Instant::now();
-        print!("[group={}]: {} -> {} with {} passenger(s) in {} min(s) ... ", group.id, group.start, group.destination, group.passengers, max_duration);
-        let mut paths = path::all_paths_dfs_recursive(
-            &self.graph, 
-            from, 
-            to, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
-
-            group.passengers as u64, 
-            max_duration, 
-            100 // initial budget for cost (each edge has individual search cost)
-        );
-        print!("done in {}ms ... ", start.elapsed().as_millis());
-
-        // sort by remaining_duration (highest first)
-        paths.sort_unstable_by_key(|(remaining_duration, _)| *remaining_duration);
-        paths.reverse();
-
-        let output = if paths.len() == 0 {
-            format!("no path found").red()
-        } else {
-            format!("augmenting best path (best_remaining_duration={}, best_len={}, number_paths={})", paths[0].0, paths[0].1.len(), paths.len()).green()
-        };
-        println!("{}", output);
-
-        paths
-    }
-
-    /// calculates if graph could be strained with path
-    fn path_fits(&self, path: Path, utilization: u64) -> bool {
-        for edge_index in path {
-            if self.graph[edge_index].get_remaining_capacity() < utilization {
-                return false
-            }
-        }
-
-        true
-    }
-
-    /// add path to graph (add utilization to edges)
-    fn strain_path(&mut self, path: Path, utilization: u64) {
-        for edge_index in path {
-            self.graph[edge_index].increase_utilization(utilization)
-        }
-    }
-
-    /// remove path from graph (remove utilization from edges)
-    fn relieve_path(&mut self, path: Path, utilization: u64) {
-        for edge_index in path {
-            self.graph[edge_index].decrease_utilization(utilization)
-        }
-    }
-
 
     pub fn find_solutions(&mut self, groups_csv_filepath: &str) {
         // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
@@ -485,27 +450,39 @@ impl Model {
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
         let groups = Group::from_maps_to_vec(&group_maps);
 
-        let mut groups_paths: HashMap<u64, Vec<(u64, Path)>> = HashMap::with_capacity(groups.len());
+        // (group.id, paths)
+        let mut groups_paths: Vec<(u64, Vec<Path>)> = Vec::with_capacity(group_maps.len());
                     
-        for group in groups.iter() {
+        let mut n_successful_groups: u64 = 0;
+        for (index, group) in groups.iter().enumerate() {
 
-            let paths = self.search_paths_for_group(group, 100, 2.0);
+            print!("[group={}/{}]: ", index+1, groups.len());
+            let paths = group.search_paths(&self, 50, 2.0);
 
             if !paths.is_empty() {
+
+                n_successful_groups += 1;
+
                 // only insert paths if not empty
-                groups_paths.insert(
+                groups_paths.push((
                     group.id,
                     paths
-                );
+                ));
             }
         }
 
-
-
-
-
-
-
+        println!(
+            "Found at least one path for {}/{} groups ({}%)", 
+            n_successful_groups, groups.len(),
+            (100 * n_successful_groups) / groups.len() as u64
+        );
+        
+        // HIER BEGINNT DER EIGENTLICHE OPTIMIERUNGSALGORITHMUS
+        recursive_path_straining(
+            &mut self.graph,
+            &mut groups_paths,
+            &mut Vec::new()
+        );
 
 
         // // create a HashSet of all EdgeIndices from all group's paths

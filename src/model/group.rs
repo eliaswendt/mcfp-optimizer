@@ -1,4 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
+
+use colored::Colorize;
+
+use super::{Model, path::{self, Path}};
 
 /// travel group
 pub struct Group {
@@ -16,6 +20,8 @@ pub struct Group {
     // Wenn der Wert leer ist, befindet sich die Gruppe am Start-Halt.
     // Wenn der Wert nicht leer ist, gibt er die Trip ID (Integer) der Fahrt an, in der sich die Gruppe befindet.
     pub in_trip: Option<usize>,
+
+    paths: Vec<Path> // possible paths for this group
 }
 
 impl Group {
@@ -42,10 +48,50 @@ impl Group {
                 departure: group_map.get("departure").unwrap().parse().unwrap(),
                 arrival: group_map.get("arrival").unwrap().parse().unwrap(),
                 passengers: group_map.get("passengers").unwrap().parse().unwrap(),
-                in_trip
+                in_trip,
+                paths: Vec::new()
             });
         } 
 
         groups
     }
+
+
+    /// returns (remaining_duration, path)
+    pub fn search_paths(&self, model: &Model, budget: u64, duration_factor: f64) -> Vec<Path> {
+
+        let from = model.find_start_node_index(&self.start, self.departure).expect("Could not find departure at from_station");
+        let to = model.find_end_node_index(&self.destination).expect("Could not find destination station");
+
+        // max duration should depend on the original travel time
+        let travel_time = self.arrival - self.departure;
+        let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
+
+        let start = Instant::now();
+        print!("{} -> {} with {} passenger(s) in {} min(s) ... ", self.start, self.destination, self.passengers, max_duration);
+        let mut paths = path::Path::search_recursive_dfs(
+            &model.graph, 
+            from,
+            to, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
+
+            self.passengers as u64, 
+            max_duration, 
+            budget // initial budget for cost (each edge has individual search cost)
+        );
+        print!("done in {}ms, ", start.elapsed().as_millis());
+
+        // sort by remaining_duration (highest first)
+        paths.sort_unstable();
+        paths.reverse();
+
+        let output = if paths.len() == 0 {
+            format!("no path found").red()
+        } else {
+            format!("{} paths, best={{duration={}, len={}}}", paths.len(), paths[0].duration(), paths[0].len()).green()
+        };
+        println!("{}", output);
+
+        paths
+    }
+
 }

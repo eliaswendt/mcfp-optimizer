@@ -6,6 +6,7 @@ use std::{
 
 mod csv_reader;
 mod model;
+pub mod optimization;
 
 fn main() {
 

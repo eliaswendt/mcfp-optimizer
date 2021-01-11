@@ -1,141 +1,212 @@
-use std::{collections::{HashMap, HashSet}, iter::from_fn};
-
+use std::{collections::{HashMap, HashSet}, iter::from_fn, cmp::Ordering};
 use indexmap::IndexSet;
 use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}};
 
 use super::{EdgeWeight, NodeWeight};
 
-pub type Path = Vec<EdgeIndex>;
 
-/// iterative deeping depth-first-search (IDDFS)
-fn all_paths_iddfs(
-    graph: &DiGraph<NodeWeight, EdgeWeight>,
-    from: NodeIndex,
-    to: NodeIndex, // condition that determines whether goal node was found
-    
-    min_capacity: u64,
-    max_duration: u64,
 
-    n_steps: u64, 
-    min_budget: u64,
-    max_budget: u64 // maximum number of transfers to follow
-) -> Vec<(u64, Path)> {
+#[derive(Eq)]
+pub struct Path {
+    metric: u64, // metric that defines the order of paths
+    utilization: u64,
+    duration: u64,
+    edges: Vec<EdgeIndex>
+}
 
-    // increase depth in 4 steps
-    let depth_step = (max_budget - min_budget) / n_steps;
+impl Path {
 
-    for i in 0..n_steps+1 {
+    pub fn len(&self) -> usize {
+        self.edges.len()
+    }
 
-        let current_budget = min_budget + i * depth_step;
 
-        println!("[iddfs()] trying with budget={}", current_budget);
+    pub fn duration(&self) -> u64 {
+        self.duration
+    }
 
-        let result = all_paths_dfs_recursive(
-            graph, 
-            from, 
-            to, 
 
-            min_capacity, 
-            max_duration, 
-            current_budget
-        );
+    /// calculates if graph could be strained with path
+    pub fn fits(&self, graph: &DiGraph<NodeWeight, EdgeWeight>) -> bool {
 
-        if result.len() > 0 {
-            return result;
+        for edge_index in self.edges.iter() {
+            if graph[*edge_index].get_remaining_capacity() < self.utilization {
+                return false
+            }
+        }
+
+        true
+    }
+
+    /// add path to graph (add utilization to edges)
+    pub fn strain(&self, graph: &mut DiGraph<NodeWeight, EdgeWeight>) {
+        for edge_index in self.edges.iter() {
+            graph[*edge_index].increase_utilization(self.utilization)
         }
     }
 
-    println!("[iddfs()] giving up...");
-    Vec::new()
-}
-
-// launcher of recursive implementation of dfs
-// returns a vec of paths along with their remaining_duration
-pub fn all_paths_dfs_recursive(
-    graph: &DiGraph<NodeWeight, EdgeWeight>,
-    from: NodeIndex,
-    to: NodeIndex, // condition that determines whether goal node was found
-    
-    min_capacity: u64,
-    max_duration: u64,
-    max_budget: u64, // initial search budget (each edge has cost that needs to be payed)
-) -> Vec<(u64, Path)> {
-
-    // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
-
-    let mut paths = Vec::new();
-    let mut visited = Vec::new();
-
-    all_paths_dfs_recursive_helper(
-        graph, 
-        &mut paths,
-        from, 
-        to, 
-        &mut visited, 
-
-        min_capacity, 
-        max_duration, 
-        max_budget,
-    );
-
-    paths
-}
+    /// remove path from graph (remove utilization from edges)
+    pub fn relieve(&self, graph: &mut DiGraph<NodeWeight, EdgeWeight>) {
+        for edge_index in self.edges.iter() {
+            graph[*edge_index].decrease_utilization(self.utilization)
+        }
+    }
 
 
-fn all_paths_dfs_recursive_helper(
-    graph: &DiGraph<NodeWeight, EdgeWeight>,
-    paths: &mut Vec<(u64, Path)>, // paths found until now
-    current: NodeIndex, 
-    to: NodeIndex, 
-    visited: &mut Vec<EdgeIndex>, // vec of visited edges (in order of visit)
-
-    // recursion anchors (if zero)
-    min_capacity: u64,
-    remaining_duration: u64,
-    remaining_budget: u64,
-) {
-
-    // println!("all_paths_dfs_recursive(current={:?}, goal={:?}, visited.len()={}, min_capacity={}, remaining_duration={})", current, to, visited.len(), min_capacity, remaining_duration);
-    // println!("remaining_duration: {}", remaining_duration);
-
-    if current == to {
+    /// iterative deeping depth-first-search (IDDFS)
+    fn all_paths_iddfs(
+        graph: &DiGraph<NodeWeight, EdgeWeight>,
+        from: NodeIndex,
+        to: NodeIndex, // condition that determines whether goal node was found
         
-        // take all edge indices (in order of visit) and insert them into a vec
-        paths.push(
-            (remaining_duration, visited.iter().cloned().collect())
-        );
+        min_capacity: u64,
+        max_duration: u64,
 
-    } else {
-        let mut walker = graph.neighbors_directed(current, Outgoing).detach();
+        n_steps: u64, 
+        min_budget: u64,
+        max_budget: u64 // maximum number of transfers to follow
+    ) -> Vec<Path> {
 
-        // iterate over all outgoing edges
-        while let Some((next_edge, next_node)) = walker.next(graph) {
+        // increase depth in 4 steps
+        let depth_step = (max_budget - min_budget) / n_steps;
 
-            let edge_weight = &graph[next_edge];
-            let edge_weight_duration = edge_weight.get_duration();
-            let edge_weight_cost = edge_weight.get_cost();
+        for i in 0..n_steps+1 {
 
-            if edge_weight_duration <= remaining_duration && edge_weight.get_remaining_capacity() >= min_capacity && edge_weight_cost <= remaining_budget {
-                // edge can handle the minium required capacity and does not take longer then the remaining duration
+            let current_budget = min_budget + i * depth_step;
 
-                // add next_edge for next call
-                visited.push(next_edge);
+            println!("[iddfs()] trying with budget={}", current_budget);
 
-                &mut all_paths_dfs_recursive_helper(
-                    graph, 
-                    paths,
-                    next_node, 
-                    to, 
-                    visited, 
-                    min_capacity, 
-                    remaining_duration - edge_weight_duration,
-                    remaining_budget - edge_weight_cost,
-                );
+            let result = Self::search_recursive_dfs(
+                graph, 
+                from, 
+                to, 
 
-                // remove next_edge from visited
-                visited.pop();
+                min_capacity, 
+                max_duration, 
+                current_budget
+            );
+
+            if result.len() > 0 {
+                return result;
             }
         }
+
+        println!("[iddfs()] giving up...");
+        Vec::new()
+    }
+
+    // launcher of recursive implementation of dfs
+    // returns a vec of paths along with their remaining_duration
+    pub fn search_recursive_dfs(
+        graph: &DiGraph<NodeWeight, EdgeWeight>,
+        from: NodeIndex,
+        to: NodeIndex, // condition that determines whether goal node was found
+        
+        min_capacity: u64,
+        max_duration: u64,
+        budget: u64, // initial search budget (each edge has cost that needs to be payed)
+    ) -> Vec<Self> {
+
+        // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
+
+        let mut paths = Vec::new();
+        let mut visited = Vec::new();
+
+        Self::search_recursive_dfs_helper(
+            graph, 
+            &mut paths,
+            from, 
+            to, 
+            &mut visited, 
+
+            min_capacity, 
+            max_duration, 
+            budget,
+        );
+
+        paths.into_iter().map(|(remaining_duration, edges)| Self {
+            metric: 0,
+            utilization: min_capacity,
+            duration: max_duration - remaining_duration,
+            edges
+        }).collect()
+    }
+
+
+    fn search_recursive_dfs_helper(
+        graph: &DiGraph<NodeWeight, EdgeWeight>,
+        paths: &mut Vec<(u64, Vec<EdgeIndex>)>, // paths found until now
+        current: NodeIndex, 
+        to: NodeIndex, 
+        visited: &mut Vec<EdgeIndex>, // vec of visited edges (in order of visit)
+
+        // recursion anchors (if zero)
+        min_capacity: u64,
+        remaining_duration: u64,
+        remaining_budget: u64,
+    ) {
+
+        // println!("all_paths_dfs_recursive(current={:?}, goal={:?}, visited.len()={}, min_capacity={}, remaining_duration={})", current, to, visited.len(), min_capacity, remaining_duration);
+        // println!("remaining_duration: {}", remaining_duration);
+
+        if current == to {
+            
+            // take all edge indices (in order of visit) and insert them into a vec
+            paths.push(
+                (remaining_duration, visited.iter().cloned().collect())
+            );
+
+        } else {
+            let mut walker = graph.neighbors_directed(current, Outgoing).detach();
+
+            // iterate over all outgoing edges
+            while let Some((next_edge, next_node)) = walker.next(graph) {
+
+                let edge_weight = &graph[next_edge];
+                let edge_weight_duration = edge_weight.get_duration();
+                let edge_weight_cost = edge_weight.get_cost();
+
+                if edge_weight_duration <= remaining_duration && edge_weight.get_capacity() >= min_capacity && edge_weight_cost <= remaining_budget {
+                    // edge can handle the minium required capacity and does not take longer then the remaining duration
+
+                    // add next_edge for next call
+                    visited.push(next_edge);
+
+                    &mut Self::search_recursive_dfs_helper(
+                        graph, 
+                        paths,
+                        next_node, 
+                        to, 
+                        visited, 
+                        min_capacity, 
+                        remaining_duration - edge_weight_duration,
+                        remaining_budget - edge_weight_cost,
+                    );
+
+                    // remove next_edge from visited
+                    visited.pop();
+                }
+            }
+        }
+    }
+
+}
+
+impl Ord for Path {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.metric.cmp(&other.metric)
+    }
+}
+
+impl PartialOrd for Path {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Path {
+    fn eq(&self, other: &Self) -> bool {
+        self.metric == other.metric
     }
 }
 
