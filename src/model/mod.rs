@@ -326,23 +326,8 @@ impl Model {
         let mut stations_arrivals = HashMap::with_capacity(stations.len());
         let mut stations_main_arrival = HashMap::with_capacity(stations.len());
 
-        let trips = trip::Trip::from_maps_to_vec(&trip_maps);
-        let footpaths = footpath::Footpath::from_maps_to_vec(&footpath_maps);
-
-        for trip in trips {
-
-            let from_station = stations.get_mut(&trip.from_station).unwrap();
-            let departure = from_station.add_departure(&mut graph, trip.id, trip.departure);
-
-            let to_station = stations.get_mut(&trip.to_station).unwrap();
-            let arrival = to_station.add_arrival(&mut graph, trip.id, trip.arrival);
-
-            // connect start and end of this ride
-            graph.add_edge(departure, arrival, EdgeWeight::Ride {
-                capacity: trip.capacity,
-                duration: trip.arrival - trip.departure,
-                utilization: 0
-            });
+        for trip in trip::Trip::from_maps_to_vec(&trip_maps) {
+            trip.connect(&mut graph, &mut stations);
         }
 
         for (station_id, station) in stations.into_iter() {
@@ -370,7 +355,7 @@ impl Model {
         let mut failed_footpath_counter = 0;
 
         // iterate over all footpaths
-        for footpath in footpaths {
+        for footpath in footpath::Footpath::from_maps_to_vec(&footpath_maps) {
 
             let from_station_arrivals = stations_arrivals.get(&footpath.from_station).unwrap();
             let to_station_transfers = stations_transfers.get(&footpath.to_station).unwrap();
@@ -384,8 +369,6 @@ impl Model {
             failed_footpath_counter += failed_footpaths;
         }
         println!("successful_footpaths: {}, failed_footpaths: {}", successful_footpath_counter, failed_footpath_counter);
-
-
 
 
         println!(
