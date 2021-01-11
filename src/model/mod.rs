@@ -4,8 +4,7 @@ pub mod group;
 pub mod footpath;
 pub mod station;
 pub mod trip;
-pub mod algo;
-mod path_finder;
+mod path;
 
 use group::Group;
 
@@ -286,15 +285,7 @@ impl EdgeWeight {
     }
 }
 
-pub enum Object {
-    Edge(EdgeWeight),
-    Node(NodeWeight)
-}
 
-pub enum ObjectIndex {
-    EdgeIndex(EdgeIndex),
-    NodeIndex(NodeIndex),
-}
 
 /// entire combined data model
 pub struct Model {
@@ -416,10 +407,6 @@ impl Model {
         }
     }
 
-    pub fn to_dot(&self) -> String {
-        format!("{:?}", Dot::with_config(&self.graph, &[]))
-    }
-
     pub fn find_solutions(&mut self, groups_csv_filepath: &str) {
         // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
@@ -447,7 +434,7 @@ impl Model {
             let start = Instant::now();
             print!("[group={}]: {} -> {} with {} passenger(s) in {} min(s) ... ", group_value.id, group_value.start, group_value.destination, group_value.passengers, max_duration);
 
-            let mut paths = path_finder::all_paths_dfs_recursive(
+            let mut paths = path::all_paths_dfs_recursive(
                 &self.graph, 
                 from_node_index, 
                 to_node_index, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
@@ -555,131 +542,10 @@ impl Model {
     }
 
 
-    /// builds subgraph that only contains nodes connected by edges
-    pub fn build_subgraph_with_edges(&self, edges: &HashSet<EdgeIndex>) -> DiGraph<NodeWeight, EdgeWeight> {
-
-        self.graph.filter_map(
-            |node_index, node_weight| {
-
-                // check if at least one incoming/outgoing edge of current node is in HashSet of edges
-                let mut walker = self.graph.neighbors_undirected(node_index).detach();
-                while let Some((current_edge, _)) = walker.next(&self.graph) {
-                    if edges.contains(&current_edge) {
-                        return Some(node_weight.clone());
-                    }
-                }
-
-                // no edge in set -> do not include node in graph
-                None
-            },
-            |edge_index, edge_weight| {
-                if edges.contains(&edge_index) {
-                    Some(edge_weight.clone())
-                } else {
-                    None
-                }
-            }
-        )
+    pub fn to_dot(&self) -> String {
+        format!("{:?}", Dot::with_config(&self.graph, &[]))
     }
-
-
-    // creates a subgraph of self with only the part of the graph of specified paths
-    pub fn create_subgraph_with_nodes(&self, subgraph: &mut Graph<NodeWeight, EdgeWeight>, paths: Vec<Vec<NodeIndex>>, node_index_graph_subgraph_mapping: &mut HashMap<NodeIndex, NodeIndex>) -> Vec<Vec<ObjectIndex>> {
-        //let mut subgraph = DiGraph::new();
-        let mut subgraph_paths: Vec<Vec<ObjectIndex>> = Vec::new();
-
-        // iterate all paths in graph
-        for path in paths {
-
-            let mut subgraph_path_indices: Vec<ObjectIndex> = Vec::new();
-            let mut path_max_flow: u64 = std::u64::MAX;
-            let mut path_edge_indices: Vec<EdgeIndex> = Vec::new();
-
-            // iterate over all NodeIndex pairs in this path
-            for graph_node_index_pair in path.windows(2) {
-
-                // check if the first node already exists in subgraph
-                let subgraph_node_a_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[0]) {
-                    Some(subgraph_node_index) => *subgraph_node_index,
-                    None => {
-                        // clone NodeWeight from graph
-                        let node_weight = self.graph.node_weight(graph_node_index_pair[0]).unwrap().clone();
-
-                        // create new node in subgraph
-                        let subgraph_node_index = subgraph.add_node(node_weight);
-                        
-                        // insert mapping into HashMap
-                        node_index_graph_subgraph_mapping.insert(graph_node_index_pair[0], subgraph_node_index.clone());
-
-                        subgraph_node_index
-                    }
-                };
-                    
-                // check if the second node already exists in subgraph
-                let subgraph_node_b_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[1]) {
-                    Some(subgraph_node_index) => *subgraph_node_index,
-                    None => {
-                        // clone NodeWeight from graph
-                        let node_weight = self.graph.node_weight(graph_node_index_pair[1]).unwrap().clone();
-
-                        // create new node in subgraph
-                        let subgraph_node_index = subgraph.add_node(node_weight);
-                        
-                        // insert mapping into HashMap
-                        node_index_graph_subgraph_mapping.insert(graph_node_index_pair[1], subgraph_node_index);
-
-                        subgraph_node_index
-                    }
-                };
-                
-                // add outgoing node to path if path is empty
-                if subgraph_path_indices.is_empty() {
-                    subgraph_path_indices.push(ObjectIndex::NodeIndex(subgraph_node_a_index));
-                };
-
-                // create edge if there was created at least one new node
-                let subgraph_edge_weight = match subgraph.find_edge(subgraph_node_a_index, subgraph_node_b_index) {
-                    Some(subgraph_edge_index) => {
-                        // add edge to path
-                        subgraph_path_indices.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
-                        path_edge_indices.push(subgraph_edge_index);
-                        subgraph.edge_weight(subgraph_edge_index).unwrap()
-                    },
-                    None => {
-                        let graph_edge_index = self.graph.find_edge(graph_node_index_pair[0], graph_node_index_pair[1]).unwrap();
-                        let subgraph_edge_weight = self.graph.edge_weight(graph_edge_index).unwrap().clone();
-
-                        let subgraph_edge_index = subgraph.add_edge(subgraph_node_a_index, subgraph_node_b_index, subgraph_edge_weight);
-                        // add edge to path
-                        subgraph_path_indices.push(ObjectIndex::EdgeIndex(subgraph_edge_index));
-                        path_edge_indices.push(subgraph_edge_index);
-                        subgraph.edge_weight(subgraph_edge_index).unwrap()
-                    }
-                };
-
-                // update max_flow if edge capacity is smaller current path_max_flow
-                let edge_remaining_flow = subgraph_edge_weight.get_capacity() - subgraph_edge_weight.get_utilization();
-                if edge_remaining_flow < path_max_flow {
-                    path_max_flow = edge_remaining_flow;
-                };
-                
-                subgraph_path_indices.push(ObjectIndex::NodeIndex(subgraph_node_b_index));
-            };
-
-            subgraph_paths.push(subgraph_path_indices);
-
-            // set utilization to all edges of path
-            for path_edge_index in path_edge_indices {
-                subgraph.edge_weight_mut(path_edge_index).unwrap().increase_utilization(path_max_flow);
-                //println!("{}, {}", path_max_flow, subgraph.edge_weight(path_edge_index).unwrap().get_utilization())
-            }
-        }
-
-        subgraph_paths
-    }
-
 }
-
 
 #[cfg(test)]
 mod tests {
