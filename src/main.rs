@@ -1,10 +1,11 @@
-use std::{env, io::{prelude::*, BufWriter}, fs::File};
+use std::{
+    env, 
+    io::{prelude::*, BufWriter}, 
+    fs::File
+};
 
-use petgraph::dot::{Dot, Config};
 mod csv_reader;
-
 mod model;
-
 
 fn main() {
 
@@ -14,7 +15,7 @@ fn main() {
         return;
     }
 
-    let mut model = model::Model::with_stations_footpaths_and_trips(&args[1]);
+    let mut model = model::Model::with_stations_trips_and_footpaths(&args[1]);
 
     if args[1].contains("sample") {
         // create dot code only for sample data

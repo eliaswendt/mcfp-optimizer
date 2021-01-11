@@ -1,4 +1,7 @@
-use std::{collections::{HashSet, HashMap}, iter::{from_fn}, time::Instant};
+use std::{
+    collections::{HashMap}, 
+    time::Instant
+};
 
 pub mod group;
 pub mod footpath;
@@ -8,13 +11,19 @@ mod path;
 
 use group::Group;
 
-use petgraph::{EdgeDirection::{Outgoing}, Graph, dot::{Dot}, graph::{NodeIndex, EdgeIndex, DiGraph}};
+use petgraph::{
+    EdgeDirection::Outgoing, 
+    Graph, dot::{Dot}, 
+    graph::{
+        NodeIndex, 
+        EdgeIndex, 
+        DiGraph
+    }
+};
+
 use colored::*;
 
-
 use crate::csv_reader;
-use indexmap::IndexSet;
-
 /// Node Type of the DiGraph
 #[derive(Debug, Clone)]
 pub enum NodeWeight {
@@ -286,7 +295,6 @@ impl EdgeWeight {
 }
 
 
-
 /// entire combined data model
 pub struct Model {
     pub graph: DiGraph<NodeWeight, EdgeWeight>,
@@ -298,7 +306,7 @@ pub struct Model {
 
 impl Model {
 
-    pub fn with_stations_footpaths_and_trips(csv_folder_path: &str) -> Self {
+    pub fn with_stations_trips_and_footpaths(csv_folder_path: &str) -> Self {
 
         let start = Instant::now();
 
@@ -394,7 +402,7 @@ impl Model {
         println!("successful_footpaths: {}, failed_footpaths: {}", successful_footpath_counter, failed_footpath_counter);
 
         println!(
-            "[with_stations_footpaths_and_trips()]: done ({}ms), graph.node_count()={}, graph.edge_count()={}", 
+            "[with_stations_trips_and_footpaths()]: done ({}ms), graph.node_count()={}, graph.edge_count()={}", 
             start.elapsed().as_millis(),
             graph.node_count(), 
             graph.edge_count()
@@ -555,7 +563,7 @@ mod tests {
     #[test]
     fn validate_graph_integrity() {
 
-        let mut model = Model::with_stations_footpaths_and_trips("real_data/");
+        let mut model = Model::with_stations_trips_and_footpaths("real_data/");
         let graph = model.graph;
 
         let start = Instant::now();
