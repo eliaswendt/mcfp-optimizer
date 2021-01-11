@@ -329,7 +329,7 @@ impl Model {
         let trips = trip::Trip::from_maps_to_vec(&trip_maps);
         let footpaths = footpath::Footpath::from_maps_to_vec(&footpath_maps);
 
-        for trip in trips.iter() {
+        for trip in trips {
 
             let from_station = stations.get_mut(&trip.from_station).unwrap();
             let departure = from_station.add_departure(&mut graph, trip.id, trip.departure);
@@ -366,44 +366,27 @@ impl Model {
         }
 
 
-        let mut successful_footpath_counter: u64 = 0;
-        let mut failed_footpath_counter: u64 = 0;
+        let mut successful_footpath_counter = 0;
+        let mut failed_footpath_counter = 0;
 
         // iterate over all footpaths
-        for footpath in footpaths.iter() {
+        for footpath in footpaths {
+
             let from_station_arrivals = stations_arrivals.get(&footpath.from_station).unwrap();
             let to_station_transfers = stations_transfers.get(&footpath.to_station).unwrap();
 
-            // for every arrival at the from_station try to find the next transfer node at the to_station
-            for arrival in from_station_arrivals.iter() {
-                let arrival_time = graph[*arrival].get_time().unwrap();
+            let (
+                successful_footpaths,
+                failed_footpaths
+            ) = footpath.connect(&mut graph, from_station_arrivals, to_station_transfers);
 
-                // timestamp of arrival at the footpaths to_station
-                let earliest_transfer_time = arrival_time + footpath.duration;
-
-                let mut edge_added = false;
-
-                // try to find next transfer node at to_station (requires transfers to be sorted, earliest first)
-                for (transfer_time, transfer) in to_station_transfers.iter() {
-
-                    if earliest_transfer_time <= *transfer_time {
-                        graph.add_edge(*arrival, *transfer, EdgeWeight::Walk {
-                            duration: footpath.duration
-                        });
-                        edge_added = true;
-                        successful_footpath_counter += 1;
-                        break // the inner loop
-                    }
-                }
-
-                if !edge_added {
-                    failed_footpath_counter += 1;
-                    //println!("There couldn't be found any valid (time) transfer node for footpath from {} -> {}", footpath.from_station, footpath.to_station);
-                }
-            }
+            successful_footpath_counter += successful_footpaths;
+            failed_footpath_counter += failed_footpaths;
         }
-
         println!("successful_footpaths: {}, failed_footpaths: {}", successful_footpath_counter, failed_footpath_counter);
+
+
+
 
         println!(
             "[with_stations_trips_and_footpaths()]: done ({}ms), graph.node_count()={}, graph.edge_count()={}", 
@@ -534,7 +517,7 @@ impl Model {
             }
         }
 
-        
+
 
 
 
