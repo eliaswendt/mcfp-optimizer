@@ -6,7 +6,7 @@ use super::{EdgeWeight, NodeWeight};
 
 
 
-#[derive(Eq)]
+#[derive(Eq, Clone, Debug)]
 pub struct Path {
     metric: u64, // metric that defines the order of paths
     utilization: u64,
@@ -25,6 +25,9 @@ impl Path {
         self.duration
     }
 
+    pub fn edges_as_hash_set(&self) -> HashSet<EdgeIndex> {
+        self.edges.iter().cloned().collect()
+    }
 
     /// calculates if graph could be strained with path
     pub fn fits(&self, graph: &DiGraph<NodeWeight, EdgeWeight>) -> bool {

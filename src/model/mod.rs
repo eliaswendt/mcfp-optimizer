@@ -8,7 +8,7 @@ pub mod path;
 
 use group::Group;
 
-use crate::optimization::recursive_path_straining;
+use crate::optimization;
 
 use petgraph::{
     EdgeDirection::Outgoing, 
@@ -447,42 +447,47 @@ impl Model {
         // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
         // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
 
-        let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
-        let groups = Group::from_maps_to_vec(&group_maps);
+        let groups = Group::from_maps_to_vec(
+            &csv_reader::read_to_maps(groups_csv_filepath)
+        );
 
-        // (group.id, paths)
-        let mut groups_paths: Vec<(u64, Vec<Path>)> = Vec::with_capacity(group_maps.len());
+        // vec of (group.id, path)
+        let mut flat_paths: Vec<(u64, Path)> = Vec::with_capacity(groups.len());
                     
         let mut n_successful_groups: u64 = 0;
         for (index, group) in groups.iter().enumerate() {
 
             print!("[group={}/{}]: ", index+1, groups.len());
-            let paths = group.search_paths(&self, 50, 2.0);
+            let paths = group.search_paths(&self, 70, 2.0);
 
             if !paths.is_empty() {
-
                 n_successful_groups += 1;
 
-                // only insert paths if not empty
-                groups_paths.push((
-                    group.id,
-                    paths
-                ));
+                for path in paths.into_iter() {
+                    flat_paths.push((
+                        group.id,
+                        path
+                    ));
+                }
             }
         }
 
         println!(
             "Found at least one path for {}/{} groups ({}%)", 
             n_successful_groups, groups.len(),
-            (100 * n_successful_groups) / groups.len() as u64
+            (100 * n_successful_groups) / groups.len() as u64,
         );
         
-        // HIER BEGINNT DER EIGENTLICHE OPTIMIERUNGSALGORITHMUS
-        recursive_path_straining(
-            &mut self.graph,
-            &mut groups_paths,
-            &mut Vec::new()
-        );
+        let intersection_sets = optimization::calculate_intersection_sets(&flat_paths);
+        for (intersecting_path, groups) in intersection_sets.iter() {
+            println!("groups={:?}", groups.iter().map(|(id, _)| id).collect::<Vec<_>>());
+        }
+
+        // recursive_path_straining(
+        //     &mut self.graph,
+        //     &mut groups_paths,
+        //     &mut Vec::new(),
+        // );
 
 
         // // create a HashSet of all EdgeIndices from all group's paths
