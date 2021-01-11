@@ -12,7 +12,6 @@ pub struct Group {
 
     pub passengers: usize, // Größe der Gruppe (Integer)
 
-
     // Hier gibt es zwei Möglichkeiten (siehe auch unten):
     // Wenn der Wert leer ist, befindet sich die Gruppe am Start-Halt.
     // Wenn der Wert nicht leer ist, gibt er die Trip ID (Integer) der Fahrt an, in der sich die Gruppe befindet.
@@ -20,11 +19,11 @@ pub struct Group {
 }
 
 impl Group {
-    pub fn from_maps_to_map(group_maps: &Vec<HashMap<String, String>>) -> HashMap<u64, Self> {
+    pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
 
         println!("parsing {} group(s)", group_maps.len());
 
-        let mut groups_map = HashMap::with_capacity(group_maps.len());
+        let mut groups = Vec::with_capacity(group_maps.len());
 
         for group_map in group_maps.iter() {
             let id = group_map.get("id").unwrap().parse().unwrap();
@@ -36,7 +35,7 @@ impl Group {
                 Some(in_trip_value.parse().unwrap())
             };
 
-            groups_map.insert(id, Self {
+            groups.push(Self {
                 id,
                 start: group_map.get("start").unwrap().clone(),
                 destination: group_map.get("destination").unwrap().clone(),
@@ -47,6 +46,6 @@ impl Group {
             });
         } 
 
-        groups_map
+        groups
     }
 }

@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap}, 
-    time::Instant
-};
+use std::{collections::{HashMap, HashSet}, time::Instant};
 
 pub mod group;
 pub mod footpath;
@@ -22,6 +19,7 @@ use petgraph::{
 };
 
 use colored::*;
+use path::Path;
 
 use crate::csv_reader;
 /// Node Type of the DiGraph
@@ -258,10 +256,16 @@ impl EdgeWeight {
         }
     }
 
-    /// increase utilization of this edge by <addend>
     pub fn increase_utilization(&mut self, addend: u64) {
         match self {
             Self::Ride{duration: _, capacity: _, utilization} => *utilization += addend,
+            _ => {} // no need to track utilization on other edges, as they have unlimited capacity
+        }
+    }
+
+    pub fn decrease_utilization(&mut self, subtrahend: u64) {
+        match self {
+            Self::Ride{duration: _, capacity: _, utilization} => *utilization -= subtrahend,
             _ => {} // no need to track utilization on other edges, as they have unlimited capacity
         }
     }
@@ -415,6 +419,96 @@ impl Model {
         }
     }
 
+
+    /// find next start node at this station
+    pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
+        match self.stations_transfers.get(station_id) {
+            Some(station_departures) => {
+                
+                // iterate until we find a departure time >= the time we want to start
+                for (departure_time, departure_node_index) in station_departures.iter() {
+                    if start_time <= *departure_time {
+                        return Some(*departure_node_index);
+                    }
+                }
+
+                // no departure >= start_time found
+                None
+            },
+
+            // station not found
+            None => None
+        }
+    }
+
+
+    pub fn find_end_node_index(&self, station_id: &str) -> Option<NodeIndex> {
+        self.stations_main_arrival.get(station_id).map(|main_arrival| *main_arrival)
+    }
+
+    /// returns (remaining_duration, path)
+    fn search_paths_for_group(&self, group: &Group, budget: u64, duration_factor: f64) -> Vec<(u64, Path)> {
+
+        let from = self.find_start_node_index(&group.start, group.departure).expect("Could not find departure at from_station");
+        let to = self.find_end_node_index(&group.destination).expect("Could not find destination station");
+
+        // max duration should depend on the original travel time
+        let travel_time = group.arrival - group.departure;
+        let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
+
+        let start = Instant::now();
+        print!("[group={}]: {} -> {} with {} passenger(s) in {} min(s) ... ", group.id, group.start, group.destination, group.passengers, max_duration);
+        let mut paths = path::all_paths_dfs_recursive(
+            &self.graph, 
+            from, 
+            to, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
+
+            group.passengers as u64, 
+            max_duration, 
+            100 // initial budget for cost (each edge has individual search cost)
+        );
+        print!("done in {}ms ... ", start.elapsed().as_millis());
+
+        // sort by remaining_duration (highest first)
+        paths.sort_unstable_by_key(|(remaining_duration, _)| *remaining_duration);
+        paths.reverse();
+
+        let output = if paths.len() == 0 {
+            format!("no path found").red()
+        } else {
+            format!("augmenting best path (best_remaining_duration={}, best_len={}, number_paths={})", paths[0].0, paths[0].1.len(), paths.len()).green()
+        };
+        println!("{}", output);
+
+        paths
+    }
+
+    /// calculates if graph could be strained with path
+    fn path_fits(&self, path: Path, utilization: u64) -> bool {
+        for edge_index in path {
+            if self.graph[edge_index].get_remaining_capacity() < utilization {
+                return false
+            }
+        }
+
+        true
+    }
+
+    /// add path to graph (add utilization to edges)
+    fn strain_path(&mut self, path: Path, utilization: u64) {
+        for edge_index in path {
+            self.graph[edge_index].increase_utilization(utilization)
+        }
+    }
+
+    /// remove path from graph (remove utilization from edges)
+    fn relieve_path(&mut self, path: Path, utilization: u64) {
+        for edge_index in path {
+            self.graph[edge_index].decrease_utilization(utilization)
+        }
+    }
+
+
     pub fn find_solutions(&mut self, groups_csv_filepath: &str) {
         // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
@@ -423,38 +517,46 @@ impl Model {
         // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
 
         let group_maps = csv_reader::read_to_maps(groups_csv_filepath);
-        let groups_map = Group::from_maps_to_map(&group_maps);
+        let groups = Group::from_maps_to_vec(&group_maps);
 
-        // create vector of groups and sort them (highest passenger count first)
-        let mut groups_sorted: Vec<&Group> = groups_map.values().collect();
-        groups_sorted.sort_unstable_by_key(|group| group.passengers);
-        groups_sorted.reverse();
+        let mut groups_paths: HashMap<u64, Vec<(u64, Path)>> = HashMap::with_capacity(groups.len());
+                    
+        for group in groups.iter() {
 
-        for group_value in groups_sorted.into_iter() {
+            let paths = self.search_paths_for_group(group, 100, 2.0);
 
-            let from_node_index = self.find_start_node_index(&group_value.start, group_value.departure).expect("Could not find departure at from_station");
-            let to_node_index = self.find_end_node_index(&group_value.destination).expect("Could not find destination station");
+            if !paths.is_empty() {
+                // only insert paths if not empty
+                groups_paths.insert(
+                    group.id,
+                    paths
+                );
+            }
+        }
 
-            // max duration should depend on the original travel time
-            let travel_time = group_value.arrival - group_value.departure;
-            let max_duration = (travel_time as f64 * 2.0) as u64; // todo: factor to modify later if not a path could be found for all groups
+        
 
-            let start = Instant::now();
-            print!("[group={}]: {} -> {} with {} passenger(s) in {} min(s) ... ", group_value.id, group_value.start, group_value.destination, group_value.passengers, max_duration);
 
-            let mut paths = path::all_paths_dfs_recursive(
-                &self.graph, 
-                from_node_index, 
-                to_node_index, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
 
-                group_value.passengers as u64, 
-                max_duration, 
-                100 // initial budget for cost (each edge has individual search cost)
-            );
 
-            //let mut paths_recursive = Self::all_simple_paths_dfs_dorian(&self.graph, from_node_index, to_node_index, max_duration, 25).collect::<Vec<_>>();
 
-            print!("done in {}ms ... ", start.elapsed().as_millis());
+
+
+        // // create a HashSet of all EdgeIndices from all group's paths
+        // let mut all_edges: HashSet<EdgeIndex> = HashSet::new();
+        // for group_paths in groups_paths.values() {
+        //     for (_, path) in group_paths.iter() {
+        //         for edge_index in path.iter() {
+        //             all_edges.insert(*edge_index);
+        //         }
+        //     }
+        // }
+
+        // let subgraph = path::create_subgraph_from_edges(&self.graph, &all_edges);
+
+
+
+
 
             // sort by remaining time and number of edges
             // sort paths by remaining duration (highest first)
@@ -464,26 +566,7 @@ impl Model {
             //         other => other, 
             //     }
             // });
-            paths.sort_unstable_by_key(|(remaining_duration, _)| *remaining_duration);
-            paths.reverse();
 
-            let output = match paths.first() {
-                Some((remaining_duration, path)) => {
-
-                    for edge_index in path.iter() {
-                        
-                        self.graph.edge_weight_mut(*edge_index).unwrap().increase_utilization(group_value.passengers as u64);
-                    }
-
-                    format!("augmenting best path (remaining_duration={}, len={}, total_number_paths={})", remaining_duration, path.len(), paths.len()).green()
-                },
-
-                None => {
-                    "no path to augment".red()
-                }
-            };
-
-            println!("{}", output);
             
             //let paths_recursive = self.all_simple_paths_dfs_dorian(from_node_index, to_node_index, max_duration, 5);
 
@@ -511,7 +594,7 @@ impl Model {
             // BufWriter::new(File::create(format!("graphs/subgraph_group_{}.dot", group_key)).unwrap()).write(
             //     dot_code.as_bytes()
             // ).unwrap();
-        }
+        // }
 
         // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
     
@@ -521,32 +604,6 @@ impl Model {
 
 
         // todo: iterate groups, augment routes ... return solutions
-    }
-
-
-    pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
-        match self.stations_transfers.get(station_id) {
-            Some(station_departures) => {
-                
-                // iterate until we find a departure time >= the time we want to start
-                for (departure_time, departure_node_index) in station_departures.iter() {
-                    if start_time <= *departure_time {
-                        return Some(*departure_node_index);
-                    }
-                }
-
-                // no departure >= start_time found
-                None
-            },
-
-            // station not found
-            None => None
-        }
-    }
-
-
-    pub fn find_end_node_index(&self, station_id: &str) -> Option<NodeIndex> {
-        self.stations_main_arrival.get(station_id).map(|main_arrival| *main_arrival)
     }
 
 
