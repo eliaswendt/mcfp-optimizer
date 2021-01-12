@@ -447,28 +447,18 @@ impl Model {
         // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
         // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
 
-        let groups = Group::from_maps_to_vec(
+        let mut groups = Group::from_maps_to_vec(
             &csv_reader::read_to_maps(groups_csv_filepath)
         );
 
-        // vec of (group.id, path)
-        let mut flat_paths: Vec<(u64, Path)> = Vec::with_capacity(groups.len());
-                    
+        let groups_len = groups.len();
+
         let mut n_successful_groups: u64 = 0;
-        for (index, group) in groups.iter().enumerate() {
+        for (index, group) in groups.iter_mut().enumerate() {
 
-            print!("[group={}/{}]: ", index+1, groups.len());
-            let paths = group.search_paths(&self, 70, 2.0);
-
-            if !paths.is_empty() {
+            print!("[group={}/{}]: ", index+1, groups_len);
+            if group.search_paths(&self, 70, 2.0) {
                 n_successful_groups += 1;
-
-                for (index, path) in paths.into_iter().enumerate() {
-                    flat_paths.push((
-                        group.id,
-                        path
-                    ));
-                }
             }
         }
 
@@ -478,7 +468,7 @@ impl Model {
             (100 * n_successful_groups) / groups.len() as u64,
         );
         
-        let intersection_sets = optimization::calculate_intersection_sets(&flat_paths);
+        // let intersection_sets = optimization::calculate_intersection_sets(&flat_paths);
 
 
         // recursive_path_straining(
@@ -487,69 +477,6 @@ impl Model {
         //     &mut Vec::new(),
         // );
 
-
-        // // create a HashSet of all EdgeIndices from all group's paths
-        // let mut all_edges: HashSet<EdgeIndex> = HashSet::new();
-        // for group_paths in groups_paths.values() {
-        //     for (_, path) in group_paths.iter() {
-        //         for edge_index in path.iter() {
-        //             all_edges.insert(*edge_index);
-        //         }
-        //     }
-        // }
-
-        // let subgraph = path::create_subgraph_from_edges(&self.graph, &all_edges);
-
-
-
-
-
-            // sort by remaining time and number of edges
-            // sort paths by remaining duration (highest first)
-            // paths_recursive.sort_by(|(x_remaining_duration, x_path), (y_remaining_duration, y_path)| {
-            //     match x_remaining_duration.cmp(y_remaining_duration).reverse() {
-            //         std::cmp::Ordering::Equal => x_path.len().cmp(&y_path.len()), // prefer less edges -> should be less transfers
-            //         other => other, 
-            //     }
-            // });
-
-            
-            //let paths_recursive = self.all_simple_paths_dfs_dorian(from_node_index, to_node_index, max_duration, 5);
-
-            // let mut only_paths = Vec::new();
-            // for (_, path) in paths_recursive {
-            //     only_paths.push(path.clone())
-            // }
-
-            
-
-            // let all_edges_in_paths_recursive: HashSet<EdgeIndex> = only_paths.iter().flatten().cloned().collect();
-            // if all_edges_in_paths_recursive.len() > 0 {
-            //     let subgraph = self.build_subgraph_with_edges(&all_edges_in_paths_recursive);
-            //     println!("node_count_subgraph={}, edge_count_subgraph={}", subgraph.node_count(), subgraph.edge_count());
-
-            //     BufWriter::new(File::create(format!("graphs/groups/{}.dot", group_value.id)).unwrap()).write(
-            //         format!("{:?}", Dot::with_config(&subgraph, &[])).as_bytes()
-            //     ).unwrap();
-            // }
-
-            // let subgraph_paths = self.create_subgraph_with_nodes(&mut subgraph, paths_recursive, &mut node_index_graph_subgraph_mapping);
-    
-            // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
-    
-            // BufWriter::new(File::create(format!("graphs/subgraph_group_{}.dot", group_key)).unwrap()).write(
-            //     dot_code.as_bytes()
-            // ).unwrap();
-        // }
-
-        // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
-    
-        // BufWriter::new(File::create(format!("graphs/subgraph_complete.dot")).unwrap()).write(
-        //     dot_code.as_bytes()
-        // ).unwrap();
-
-
-        // todo: iterate groups, augment routes ... return solutions
     }
 
 
@@ -743,3 +670,71 @@ mod tests {
         println!("[validate_graph_integrity()]: passed ({}ms)", start.elapsed().as_millis());
     }
 }
+
+
+
+// unused code from previous version of find_solutions()
+
+
+        // // create a HashSet of all EdgeIndices from all group's paths
+        // let mut all_edges: HashSet<EdgeIndex> = HashSet::new();
+        // for group_paths in groups_paths.values() {
+        //     for (_, path) in group_paths.iter() {
+        //         for edge_index in path.iter() {
+        //             all_edges.insert(*edge_index);
+        //         }
+        //     }
+        // }
+
+        // let subgraph = path::create_subgraph_from_edges(&self.graph, &all_edges);
+
+
+
+
+
+            // sort by remaining time and number of edges
+            // sort paths by remaining duration (highest first)
+            // paths_recursive.sort_by(|(x_remaining_duration, x_path), (y_remaining_duration, y_path)| {
+            //     match x_remaining_duration.cmp(y_remaining_duration).reverse() {
+            //         std::cmp::Ordering::Equal => x_path.len().cmp(&y_path.len()), // prefer less edges -> should be less transfers
+            //         other => other, 
+            //     }
+            // });
+
+            
+            //let paths_recursive = self.all_simple_paths_dfs_dorian(from_node_index, to_node_index, max_duration, 5);
+
+            // let mut only_paths = Vec::new();
+            // for (_, path) in paths_recursive {
+            //     only_paths.push(path.clone())
+            // }
+
+            
+
+            // let all_edges_in_paths_recursive: HashSet<EdgeIndex> = only_paths.iter().flatten().cloned().collect();
+            // if all_edges_in_paths_recursive.len() > 0 {
+            //     let subgraph = self.build_subgraph_with_edges(&all_edges_in_paths_recursive);
+            //     println!("node_count_subgraph={}, edge_count_subgraph={}", subgraph.node_count(), subgraph.edge_count());
+
+            //     BufWriter::new(File::create(format!("graphs/groups/{}.dot", group_value.id)).unwrap()).write(
+            //         format!("{:?}", Dot::with_config(&subgraph, &[])).as_bytes()
+            //     ).unwrap();
+            // }
+
+            // let subgraph_paths = self.create_subgraph_with_nodes(&mut subgraph, paths_recursive, &mut node_index_graph_subgraph_mapping);
+    
+            // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
+    
+            // BufWriter::new(File::create(format!("graphs/subgraph_group_{}.dot", group_key)).unwrap()).write(
+            //     dot_code.as_bytes()
+            // ).unwrap();
+        // }
+
+        // let dot_code = format!("{:?}", Dot::with_config(&subgraph, &[]));
+    
+        // BufWriter::new(File::create(format!("graphs/subgraph_complete.dot")).unwrap()).write(
+        //     dot_code.as_bytes()
+        // ).unwrap();
+
+
+        // todo: iterate groups, augment routes ... return solutions

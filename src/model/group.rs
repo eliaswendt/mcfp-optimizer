@@ -57,8 +57,8 @@ impl Group {
     }
 
 
-    /// returns (remaining_duration, path)
-    pub fn search_paths(&self, model: &Model, budget: u64, duration_factor: f64) -> Vec<Path> {
+    /// returns (remaining_duration, path), returns true if there was at least one path found
+    pub fn search_paths(&mut self, model: &Model, max_budget: u64, duration_factor: f64) -> bool {
 
         let from = model.find_start_node_index(&self.start, self.departure).expect("Could not find departure at from_station");
         let to = model.find_end_node_index(&self.destination).expect("Could not find destination station");
@@ -69,29 +69,28 @@ impl Group {
 
         let start = Instant::now();
         print!("{} -> {} with {} passenger(s) in {} min(s) ... ", self.start, self.destination, self.passengers, max_duration);
-        let mut paths = path::Path::search_recursive_dfs(
+        self.paths = path::Path::search_recursive_dfs(
             &model.graph, 
             from,
             to, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
 
             self.passengers as u64, 
             max_duration, 
-            budget // initial budget for cost (each edge has individual search cost)
+            max_budget // initial budget for cost (each edge has individual search cost)
         );
         print!("done in {}ms, ", start.elapsed().as_millis());
 
         // sort by remaining_duration (highest first)
-        paths.sort_unstable();
-        paths.reverse();
+        self.paths.sort_unstable();
+        self.paths.reverse();
 
-        let output = if paths.len() == 0 {
-            format!("no path found").red()
+        if self.paths.len() == 0 {
+            println!("{}", format!("no path found").red());
+            false
         } else {
-            format!("{} paths, best={{duration={}, len={}}}", paths.len(), paths[0].duration(), paths[0].len()).green()
-        };
-        println!("{}", output);
-
-        paths
+            println!("{}", format!("{} paths, best={{duration={}, len={}}}", self.paths.len(), self.paths[0].duration(), self.paths[0].len()).green());
+            true
+        }
     }
 
 }

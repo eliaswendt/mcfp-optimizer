@@ -1,5 +1,5 @@
 use std::{collections::{HashMap, HashSet}, iter::from_fn, cmp::Ordering};
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}};
 
 use super::{TimetableEdge, TimetableNode};
@@ -7,37 +7,53 @@ use super::{TimetableEdge, TimetableNode};
 
 #[derive(Eq, Clone, Debug)]
 pub struct Path {
-    metric: u64, // metric that defines the order of paths
+    cost: u64, // cost for this path
+    duration: u64, // duration of this path
+
     utilization: u64,
-    duration: u64,
+
     edges: IndexSet<EdgeIndex>
 }
 
 impl Path {
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.edges.len()
     }
 
-
+    #[inline]
     pub fn duration(&self) -> u64 {
         self.duration
     }
 
-    pub fn intersection(&self, other: &Self) -> Vec<EdgeIndex> {
+    pub fn intersecting_edges(&self, other: &Self) -> Vec<EdgeIndex> {
         self.edges.intersection(&other.edges).cloned().collect()
     }
 
-    /// calculates if graph could be strained with path
-    pub fn fits(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> bool {
+    // calculates a score that will be useful for heuristic search
+    #[inline]
+    pub fn score(&self) -> u64 {
+        (self.cost + self.duration) / 2
+    }
+
+    /// returns a Vec(missing capacity, edge)> that do not have enough capacity left for this path
+    /// if Vec empty -> all edges fit
+    pub fn colliding_edges(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> Vec<(u64, EdgeIndex)> {
+
+        let mut colliding = Vec::new();
 
         for edge_index in self.edges.iter() {
-            if graph[*edge_index].get_remaining_capacity() < self.utilization {
-                return false
+            let remaining_capacity = graph[*edge_index].get_remaining_capacity();
+            if remaining_capacity < self.utilization {
+                colliding.push((
+                    self.utilization - remaining_capacity,
+                    *edge_index
+                ));
             }
         }
 
-        true
+        colliding
     }
 
     /// add path to graph (add utilization to edges)
@@ -104,15 +120,15 @@ impl Path {
         from: NodeIndex,
         to: NodeIndex, // condition that determines whether goal node was found
         
-        min_capacity: u64,
+        utilization: u64, // number of passengers, weight of load, etc.
         max_duration: u64,
-        budget: u64, // initial search budget (each edge has cost that needs to be payed)
+        max_budget: u64, // initial search budget (each edge has cost that needs to be payed)
     ) -> Vec<Self> {
 
         // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
 
         let mut paths = Vec::new();
-        let mut visited = Vec::new();
+        let mut visited = IndexSet::new();
 
         Self::search_recursive_dfs_helper(
             graph, 
@@ -121,15 +137,17 @@ impl Path {
             to, 
             &mut visited, 
 
-            min_capacity, 
+            utilization, 
             max_duration, 
-            budget,
+            max_budget,
         );
 
-        paths.into_iter().map(|(remaining_duration, edges)| Self {
-            metric: 0,
-            utilization: min_capacity,
+        paths.into_iter().map(|(remaining_duration, remaining_budget, edges)| Self {
+            cost: max_budget - remaining_budget,
             duration: max_duration - remaining_duration,
+
+            utilization,
+
             edges: edges.into_iter().collect()
         }).collect()
     }
@@ -137,10 +155,10 @@ impl Path {
 
     fn search_recursive_dfs_helper(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
-        paths: &mut Vec<(u64, Vec<EdgeIndex>)>, // paths found until now
+        paths: &mut Vec<(u64, u64, IndexSet<EdgeIndex>)>, // paths found until now
         current: NodeIndex, 
         to: NodeIndex, 
-        visited: &mut Vec<EdgeIndex>, // vec of visited edges (in order of visit)
+        visited: &mut IndexSet<EdgeIndex>, // vec of visited edges (in order of visit)
 
         // recursion anchors (if zero)
         min_capacity: u64,
@@ -154,9 +172,11 @@ impl Path {
         if current == to {
             
             // take all edge indices (in order of visit) and insert them into a vec
-            paths.push(
-                (remaining_duration, visited.iter().cloned().collect())
-            );
+            paths.push((
+                remaining_duration, 
+                remaining_budget,
+                visited.clone()
+            ));
 
         } else {
             let mut walker = graph.neighbors_directed(current, Outgoing).detach();
@@ -172,7 +192,7 @@ impl Path {
                     // edge can handle the minium required capacity and does not take longer then the remaining duration
 
                     // add next_edge for next call
-                    visited.push(next_edge);
+                    visited.insert(next_edge);
 
                     &mut Self::search_recursive_dfs_helper(
                         graph, 
@@ -196,7 +216,7 @@ impl Path {
 
 impl Ord for Path {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.metric.cmp(&other.metric)
+        self.score().cmp(&other.score())
     }
 }
 
@@ -208,7 +228,7 @@ impl PartialOrd for Path {
 
 impl PartialEq for Path {
     fn eq(&self, other: &Self) -> bool {
-        self.metric == other.metric
+        self.score() == other.score()
     }
 }
 
