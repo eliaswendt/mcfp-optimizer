@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use petgraph::graph::{DiGraph, NodeIndex};
 
-use super::{EdgeWeight, NodeWeight};
+use super::{TimetableEdge, TimetableNode};
 pub struct Station {
     pub id: String,
     pub transfer_time: u64, // transfer time (minutes) at this station
@@ -13,7 +13,7 @@ pub struct Station {
 }
 
 impl Station {
-    pub fn from_maps_to_map(station_maps: &Vec<HashMap<String, String>>, graph: &mut DiGraph<NodeWeight, EdgeWeight>) -> HashMap<String, Self> {
+    pub fn from_maps_to_map(station_maps: &Vec<HashMap<String, String>>, graph: &mut DiGraph<TimetableNode, TimetableEdge>) -> HashMap<String, Self> {
 
         println!("parsing {} station(s)", station_maps.len());
 
@@ -41,13 +41,13 @@ impl Station {
     /// add departure to station
     pub fn add_departure(
         &mut self, 
-        graph: &mut DiGraph<NodeWeight, EdgeWeight>, 
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>, 
         trip_id: u64,
         time: u64
     ) -> NodeIndex {
 
         // create departure node
-        let departure = graph.add_node(NodeWeight::Departure {
+        let departure = graph.add_node(TimetableNode::Departure {
             trip_id,
             time,
             station_id: self.id.clone(),
@@ -58,14 +58,14 @@ impl Station {
         self.departures.entry(trip_id).or_insert(Vec::new()).push(departure);
 
         // create departure transfer node (each departure also induces a corresponding departure node at the station)
-        let departure_transfer = graph.add_node(NodeWeight::Transfer {
+        let departure_transfer = graph.add_node(TimetableNode::Transfer {
             time,
             station_id: self.id.clone(),
             station_name: self.name.clone()
         });
 
         // add edge between transfer of this station to departure
-        graph.add_edge(departure_transfer, departure, EdgeWeight::Board);
+        graph.add_edge(departure_transfer, departure, TimetableEdge::Board);
 
         // add transfer node to list of transfer nodes of this station
         self.transfers.push(
@@ -78,13 +78,13 @@ impl Station {
     /// add arrival to station
     pub fn add_arrival(
         &mut self, 
-        graph: &mut DiGraph<NodeWeight, EdgeWeight>, 
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>, 
         trip_id: u64,
         time: u64
     ) -> NodeIndex {
 
         // create node
-        let arrival = graph.add_node(NodeWeight::Arrival {
+        let arrival = graph.add_node(TimetableNode::Arrival {
             trip_id,
             time,
             station_id: self.id.clone(),
@@ -105,7 +105,7 @@ impl Station {
     /// returns the transfer nodes (for departure) and the main arrival nodes
     pub fn connect(
         mut self, 
-        graph: &mut DiGraph<NodeWeight, EdgeWeight>
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>
     ) -> (Vec<(u64, NodeIndex)>, Vec<NodeIndex>) {
 
         // FIRST: sort transfers list by time (first tuple element)
@@ -113,7 +113,7 @@ impl Station {
 
         // SECOND: connect each transfer to the next (time)
         for transfer_slice in self.transfers.windows(2) {
-            graph.add_edge(transfer_slice[0].1, transfer_slice[1].1, EdgeWeight::WaitAtStation {
+            graph.add_edge(transfer_slice[0].1, transfer_slice[1].1, TimetableEdge::WaitAtStation {
                 duration: transfer_slice[1].0 - transfer_slice[0].0
             });
         }
@@ -128,7 +128,7 @@ impl Station {
             for (transfer_time, transfer) in self.transfers.iter() {
 
                 if earliest_transfer_time <= *transfer_time {
-                    graph.add_edge(*arrival, *transfer, EdgeWeight::Alight {
+                    graph.add_edge(*arrival, *transfer, TimetableEdge::Alight {
                         duration: self.transfer_time
                     });
                     break // the loop
@@ -152,7 +152,7 @@ impl Station {
                 // only create edge between arrival and departure only if arrival is before (time) departure
                 // this is required, as it otherwise would also connect start-/end station of a trip with equal start/destination
                 if arrival_time <= departure_time {
-                    graph.add_edge(*arrival, *departure, EdgeWeight::WaitInTrain {
+                    graph.add_edge(*arrival, *departure, TimetableEdge::WaitInTrain {
                         duration: departure_time - arrival_time
                     });
                 }

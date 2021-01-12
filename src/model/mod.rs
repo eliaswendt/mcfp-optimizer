@@ -26,7 +26,7 @@ use path::Path;
 use crate::csv_reader;
 /// Node Type of the DiGraph
 #[derive(Debug, Clone)]
-pub enum NodeWeight {
+pub enum TimetableNode {
     Departure { // departure of a train ride
         trip_id: u64,
         time: u64,
@@ -52,7 +52,7 @@ pub enum NodeWeight {
     }
 }
 
-impl NodeWeight {
+impl TimetableNode {
 
     #[inline]
     pub fn get_time(&self) -> Option<u64> {
@@ -138,7 +138,7 @@ impl NodeWeight {
 
 /// Edge Type of the DiGraph
 #[derive(Debug, Clone)]
-pub enum EdgeWeight {
+pub enum TimetableEdge {
     Ride { // edge between departure and arrival
         duration: u64,
         capacity: u64,
@@ -167,7 +167,7 @@ pub enum EdgeWeight {
 }
 
 
-impl EdgeWeight {
+impl TimetableEdge {
 
     // maps every edge to some virtual cost for improved DFS (aka. effort/expense to "take" the edge)
     #[inline]
@@ -327,7 +327,7 @@ impl EdgeWeight {
 
 /// entire combined data model
 pub struct Model {
-    pub graph: DiGraph<NodeWeight, EdgeWeight>,
+    pub graph: DiGraph<TimetableNode, TimetableEdge>,
 
     // we need to store all transfer and arrival nodes for all stations at all times
     stations_transfers: HashMap<String, Vec<(u64, NodeIndex)>>,
@@ -361,14 +361,14 @@ impl Model {
             let (transfers, arrivals) = station.connect(&mut graph);
 
             // create main arrival node
-            let main_arrival = graph.add_node(NodeWeight::MainArrival {
+            let main_arrival = graph.add_node(TimetableNode::MainArrival {
                 station_id: station_id.clone()            
             });
 
             // connect all arrival nodes to the main arrival
             for arrival in arrivals.iter() {
                 // connect arrival to station's main node
-                graph.add_edge(*arrival, main_arrival, EdgeWeight::MainArrivalRelation);
+                graph.add_edge(*arrival, main_arrival, TimetableEdge::MainArrivalRelation);
             }
 
             // save references to all transfers and to arrival_main
@@ -463,7 +463,7 @@ impl Model {
             if !paths.is_empty() {
                 n_successful_groups += 1;
 
-                for path in paths.into_iter() {
+                for (index, path) in paths.into_iter().enumerate() {
                     flat_paths.push((
                         group.id,
                         path
@@ -479,9 +479,7 @@ impl Model {
         );
         
         let intersection_sets = optimization::calculate_intersection_sets(&flat_paths);
-        for (intersecting_path, groups) in intersection_sets.iter() {
-            println!("groups={:?}", groups.iter().map(|(id, _)| id).collect::<Vec<_>>());
-        }
+
 
         // recursive_path_straining(
         //     &mut self.graph,
@@ -593,7 +591,7 @@ mod tests {
 
                 // check node relation
                 match node_a_weight {
-                    NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
+                    TimetableNode::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
 
                         // Departure outgoing edge is ride
                         let edge_is_ride = edge_weight.is_ride();
@@ -616,7 +614,7 @@ mod tests {
                         assert!(same_trip == true, format!("Departure node has not the same trip as Arrival node! {} vs {}", node_a_weight.get_trip_id().unwrap(), node_b_weight.get_trip_id().unwrap()));
                     },
 
-                    NodeWeight::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
+                    TimetableNode::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
 
                         // Outgoing edge is WaitInTrain, Alight, Walk, or MainArrivalRelation
                         let edge_is_correct = edge_weight.is_wait_in_train() || edge_weight.is_alight()
@@ -667,7 +665,7 @@ mod tests {
                             assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station_id().unwrap(), node_b_weight.get_station_id().unwrap()));
                         }
                     },
-                    NodeWeight::Transfer {time: _, station_id: _, station_name: _} => {
+                    TimetableNode::Transfer {time: _, station_id: _, station_name: _} => {
 
                         // Outgoing edge is Board or WaitAtStation
                         let edge_is_correct = edge_weight.is_board() || edge_weight.is_wait_at_station();
@@ -697,7 +695,7 @@ mod tests {
                         let same_stations = node_a_weight.get_station_id().unwrap() == node_b_weight.get_station_id().unwrap();
                         assert!(same_stations, format!("Transfer node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station_id().unwrap(), node_b_weight.get_station_id().unwrap()));                   
                     },
-                    NodeWeight::MainArrival {station_id: _} => {
+                    TimetableNode::MainArrival {station_id: _} => {
                         
                         // todo: Panic because MainArrival node has no outgoing edges
                         assert!(false, "MainArrival node has outgoing edge!")
@@ -707,13 +705,13 @@ mod tests {
 
             // check node on its own
             match node_a_weight {
-                NodeWeight::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
+                TimetableNode::Departure {trip_id: _, time: _, station_id: _, station_name: _} => {
                     
                     // Exactly one outgoing edge
                     let num_edges = graph.edges_directed(node_a_index, Outgoing).count();
                     assert!(num_edges == 1, format!("Departure node has {} outgoing edges instead of one!", num_edges));
                 },
-                NodeWeight::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
+                TimetableNode::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
                     
                     // Only one MainArrival node found
                     if num_main_arrival != 1 {
@@ -728,12 +726,12 @@ mod tests {
                     // Max one WaitInTrain outgoing edge per Arrival
                     assert!(num_wait_in_train <= 1, format!("Arrival node has {} outgoing WaitInTrain edges instead of 0 or 1!", num_wait_in_train));
                 },
-                NodeWeight::Transfer {time: _, station_id: _, station_name: _} => {
+                TimetableNode::Transfer {time: _, station_id: _, station_name: _} => {
 
                     // Only one outoging board edge
                     assert!(num_board == 1, format!("Transfer node has {} outgoing Board edges instead of 1!", num_board));
                 },
-                NodeWeight::MainArrival {station_id: _} => {
+                TimetableNode::MainArrival {station_id: _} => {
                         
                     // has no outgoing edges
                     let outoging_edge_count = graph.edges_directed(node_a_index, Outgoing).count();

@@ -1,45 +1,81 @@
 use std::{collections::HashMap, sync::atomic::AtomicU64};
 
-use petgraph::graph::{DiGraph, EdgeIndex};
+use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
 
-use crate::model::{EdgeWeight, NodeWeight, path::Path};
+use crate::model::{TimetableEdge, TimetableNode, path::Path};
+
+
+
+enum OptimizationNode {
+    Intersection,
+    Path {
+        group_id: u64,
+        path: Path
+    }
+}
+
+
+
 
 /// try to split main path set into many tiny disjunct subsets
-pub fn calculate_intersection_sets(tagged_paths: &Vec<(u64, Path)>) -> HashMap<Vec<EdgeIndex>, Vec<(u64, Path)>> {
+pub fn calculate_intersection_sets(tagged_paths: &Vec<(u64, Path)>) {
+
+    // create new graph for efficiently storing intersection relations between many paths
+    let mut intersection_graph: DiGraph<OptimizationNode, ()> = DiGraph::new();
+
+    // hashmap for efficient NodeIndex lookup (use collection of intersectiong edge indices as key)
+    let mut intersection_graph_nodes: HashMap<Vec<EdgeIndex>, NodeIndex> = HashMap::new();
+    
 
     // hashmap with a vec of intersection edges as key and the tagged_paths as values sharing this intersection
-    let mut intersection_sets: HashMap<Vec<EdgeIndex>, Vec<(u64, Path)>> = HashMap::new();
+    let mut intersection_sets = HashMap::new();
 
     // iterate over all tagged_paths
     for (cursor, (current_group_id, current_path)) in tagged_paths.iter().enumerate() {
         println!("comparing tagged_path {}/{} to all subsequent ones", cursor, tagged_paths.len());
 
-        let current_paths_edges = current_path.edges_as_hash_set();
+        let current_path_node = intersection_graph.add_node(OptimizationNode::Path {
+            group_id: *current_group_id,
+            path: current_path.clone()
+        });
 
         // and comapre it to itself and all remaining tagged_paths in the vector (start is after current cursor position)
         for (other_group_id, other_path) in &tagged_paths[cursor+1..] {
 
-            let intersecting_edges: Vec<EdgeIndex> = current_paths_edges
-                .intersection(&other_path.edges_as_hash_set())
-                .cloned()
-                .collect();
+            let mut intersection = current_path.intersection(other_path);
+            intersection.sort_unstable(); // important because different ordering derives completely other key in HashMap
 
             // if not empty add intersection to hashmap
-            if !intersecting_edges.is_empty() {
-                intersection_sets
-                    .entry(intersecting_edges)
-                    .or_insert(vec![(*current_group_id, current_path.clone())]) // intersection is new -> initialize with current
-                    .push((*other_group_id, other_path.clone())); // then also push other
+            if !intersection.is_empty() {
+                let node = match intersection_graph_nodes.get(&intersection) {
+                    Some(node) => node,
+                    None => {
+                        let node = intersection_graph_nodes.insert(
+                            intersection.clone(), 
+                            intersection_graph.add_node(OptimizationNode::Intersection)
+                        );
+
+                        // now also connect current_path_node to intersection_node
+
+                    }
+                }
+
+
+                let intersection_node = intersection_graph_nodes
+                    .entry(intersection.clone())
+                    .or_insert(intersection_graph.add_node(OptimizationNode::Intersection {
+                        edges: intersection
+                    }));
+
+                
             }
         }
     }
-
-    intersection_sets
 }
 
 
 pub fn recursive_path_straining(
-    graph: &mut DiGraph<NodeWeight, EdgeWeight>, 
+    graph: &mut DiGraph<TimetableNode, TimetableEdge>, 
     groups_paths: &[(u64, Vec<Path>)], 
     inserted_groups: &mut Vec<u64>,
     n_solutions: &u128,

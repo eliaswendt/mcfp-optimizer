@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use petgraph::graph::DiGraph;
 
-use super::{EdgeWeight, NodeWeight, station::Station};
+use super::{TimetableEdge, TimetableNode, station::Station};
 
 pub struct Trip {
     pub id: u64,
@@ -43,7 +43,7 @@ impl Trip {
 
     pub fn connect(
         self,
-        graph: &mut DiGraph<NodeWeight, EdgeWeight>,
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         stations: &mut HashMap<String, Station>
     ) {
         
@@ -54,7 +54,7 @@ impl Trip {
         let arrival = to_station.add_arrival(graph, self.id, self.arrival);
 
         // connect start and end of this ride
-        graph.add_edge(departure, arrival, EdgeWeight::Ride {
+        graph.add_edge(departure, arrival, TimetableEdge::Ride {
             capacity: self.capacity,
             duration: self.arrival - self.departure,
             utilization: 0

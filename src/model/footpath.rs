@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use petgraph::graph::{DiGraph, NodeIndex};
 
-use super::{EdgeWeight, NodeWeight};
+use super::{TimetableEdge, TimetableNode};
 
 pub struct Footpath {
     pub from_station: String,
@@ -31,7 +31,7 @@ impl Footpath {
 
     pub fn connect(
         self, 
-        graph: &mut DiGraph<NodeWeight, EdgeWeight>, 
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>, 
         from_station_arrivals: &Vec<NodeIndex>,
         to_station_transfers: &Vec<(u64, NodeIndex)>
     ) -> (u64, u64) {
@@ -52,7 +52,7 @@ impl Footpath {
             for (transfer_time, transfer) in to_station_transfers.iter() {
 
                 if earliest_transfer_time <= *transfer_time {
-                    graph.add_edge(*arrival, *transfer, EdgeWeight::Walk {
+                    graph.add_edge(*arrival, *transfer, TimetableEdge::Walk {
                         duration: self.duration
                     });
                     edge_added = true;

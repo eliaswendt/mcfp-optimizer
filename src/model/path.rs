@@ -2,8 +2,7 @@ use std::{collections::{HashMap, HashSet}, iter::from_fn, cmp::Ordering};
 use indexmap::IndexSet;
 use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}};
 
-use super::{EdgeWeight, NodeWeight};
-
+use super::{TimetableEdge, TimetableNode};
 
 
 #[derive(Eq, Clone, Debug)]
@@ -11,7 +10,7 @@ pub struct Path {
     metric: u64, // metric that defines the order of paths
     utilization: u64,
     duration: u64,
-    edges: Vec<EdgeIndex>
+    edges: IndexSet<EdgeIndex>
 }
 
 impl Path {
@@ -25,12 +24,12 @@ impl Path {
         self.duration
     }
 
-    pub fn edges_as_hash_set(&self) -> HashSet<EdgeIndex> {
-        self.edges.iter().cloned().collect()
+    pub fn intersection(&self, other: &Self) -> Vec<EdgeIndex> {
+        self.edges.intersection(&other.edges).cloned().collect()
     }
 
     /// calculates if graph could be strained with path
-    pub fn fits(&self, graph: &DiGraph<NodeWeight, EdgeWeight>) -> bool {
+    pub fn fits(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> bool {
 
         for edge_index in self.edges.iter() {
             if graph[*edge_index].get_remaining_capacity() < self.utilization {
@@ -42,14 +41,14 @@ impl Path {
     }
 
     /// add path to graph (add utilization to edges)
-    pub fn strain(&self, graph: &mut DiGraph<NodeWeight, EdgeWeight>) {
+    pub fn strain(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
         for edge_index in self.edges.iter() {
             graph[*edge_index].increase_utilization(self.utilization)
         }
     }
 
     /// remove path from graph (remove utilization from edges)
-    pub fn relieve(&self, graph: &mut DiGraph<NodeWeight, EdgeWeight>) {
+    pub fn relieve(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
         for edge_index in self.edges.iter() {
             graph[*edge_index].decrease_utilization(self.utilization)
         }
@@ -58,7 +57,7 @@ impl Path {
 
     /// iterative deeping depth-first-search (IDDFS)
     fn all_paths_iddfs(
-        graph: &DiGraph<NodeWeight, EdgeWeight>,
+        graph: &DiGraph<TimetableNode, TimetableEdge>,
         from: NodeIndex,
         to: NodeIndex, // condition that determines whether goal node was found
         
@@ -68,7 +67,7 @@ impl Path {
         n_steps: u64, 
         min_budget: u64,
         max_budget: u64 // maximum number of transfers to follow
-    ) -> Vec<Path> {
+    ) -> Vec<Self> {
 
         // increase depth in 4 steps
         let depth_step = (max_budget - min_budget) / n_steps;
@@ -101,7 +100,7 @@ impl Path {
     // launcher of recursive implementation of dfs
     // returns a vec of paths along with their remaining_duration
     pub fn search_recursive_dfs(
-        graph: &DiGraph<NodeWeight, EdgeWeight>,
+        graph: &DiGraph<TimetableNode, TimetableEdge>,
         from: NodeIndex,
         to: NodeIndex, // condition that determines whether goal node was found
         
@@ -131,13 +130,13 @@ impl Path {
             metric: 0,
             utilization: min_capacity,
             duration: max_duration - remaining_duration,
-            edges
+            edges: edges.into_iter().collect()
         }).collect()
     }
 
 
     fn search_recursive_dfs_helper(
-        graph: &DiGraph<NodeWeight, EdgeWeight>,
+        graph: &DiGraph<TimetableNode, TimetableEdge>,
         paths: &mut Vec<(u64, Vec<EdgeIndex>)>, // paths found until now
         current: NodeIndex, 
         to: NodeIndex, 
@@ -214,7 +213,7 @@ impl PartialEq for Path {
 }
 
 /// builds subgraph that only contains nodes connected by edges
-pub fn create_subgraph_from_edges(graph: &DiGraph<NodeWeight, EdgeWeight>, edges: &HashSet<EdgeIndex>) -> DiGraph<NodeWeight, EdgeWeight> {
+pub fn create_subgraph_from_edges(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: &HashSet<EdgeIndex>) -> DiGraph<TimetableNode, TimetableEdge> {
 
     graph.filter_map(
         |node_index, node_weight| {
@@ -242,7 +241,7 @@ pub fn create_subgraph_from_edges(graph: &DiGraph<NodeWeight, EdgeWeight>, edges
 
 
 
-fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<NodeWeight, EdgeWeight>, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> impl Iterator<Item = (u64, Vec<EdgeIndex>)> {//Vec<(u64, Vec<EdgeIndex>)> {
+fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableEdge>, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> impl Iterator<Item = (u64, Vec<EdgeIndex>)> {//Vec<(u64, Vec<EdgeIndex>)> {
 
     // list of already visited nodes
     let mut visited: IndexSet<EdgeIndex> = IndexSet::new();
