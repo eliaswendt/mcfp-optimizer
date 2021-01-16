@@ -495,13 +495,13 @@ impl Model {
 
     }
 
-    pub fn to_dot(&self) -> String {
-        format!("{:?}", Dot::with_config(&self.graph, &[]))
+    pub fn to_dot(model: &Self) -> String {
+        format!("{:?}", Dot::with_config(&model.graph, &[]))
     }
 
-    pub fn dump_model(&mut self, model_folder_path: &str) {
+    pub fn dump_model(model: &Self, model_folder_path: &str) {
         println!("Dumping model...");
-        let serialized_model = serde_json::to_string(&self).unwrap();
+        let serialized_model = serde_json::to_string(model).unwrap();
         let mut file = std::fs::File::create(&format!("{}model.json", model_folder_path)).expect("File creation failed!");
         file.write_all(serialized_model.as_bytes()).expect("Could not write graph in file!")
     }

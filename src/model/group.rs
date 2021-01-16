@@ -109,7 +109,7 @@ impl Group {
         }
     }
 
-    pub fn dump_groups(groups: Vec<Group>, group_folder_path: &str) {
+    pub fn dump_groups(groups: &Vec<Group>, group_folder_path: &str) {
         println!("Dumping groups...");
         let serialized_groups = serde_json::to_string(&groups).unwrap();
         let mut file = std::fs::File::create(&format!("{}groups.json", group_folder_path)).expect("File creation failed!");
