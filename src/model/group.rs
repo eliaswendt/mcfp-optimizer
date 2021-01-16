@@ -124,15 +124,4 @@ impl Group {
         let groups: Vec<Group> = serde_json::from_str(&serialized_groups).expect("Could not create graph from file!");
         groups
     }
-
-    /// converts the list of list of edges to a list of lists of strings
-    pub fn paths_to_string(&self) -> Vec<Vec<String>> {
-        let mut paths = Vec::with_capacity(self.paths.len());
-
-        for path in self.paths.iter() {
-            paths.push(path.edges.iter().map(|edge| edge.index().to_string()).collect())
-        }
-
-        paths
-    }
 }
