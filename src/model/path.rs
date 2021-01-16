@@ -1,18 +1,19 @@
 use std::{collections::{HashMap, HashSet}, iter::from_fn, cmp::Ordering};
 use indexmap::{IndexMap, IndexSet};
 use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}};
+use serde::{Deserialize, Serialize};
 
 use super::{TimetableEdge, TimetableNode};
 
 
-#[derive(Eq, Clone, Debug)]
+#[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
     cost: u64, // cost for this path
     duration: u64, // duration of this path
 
     utilization: u64,
 
-    edges: IndexSet<EdgeIndex>
+    pub edges: HashSet<EdgeIndex>
 }
 
 impl Path {
@@ -70,9 +71,29 @@ impl Path {
         }
     }
 
+    /// get index of path with minimal cost from a list of paths
+    pub fn get_best_path(paths: &Vec<Self>) -> Option<usize> {
+        let mut score = 0;
+        let mut index = None;
+        for (i, path) in paths.iter().enumerate() {
+            match index {
+                Some(j) => {
+                    if path.score() < score {
+                        score = path.score();
+                        index = Some(i)
+                    }
+                },
+                None => {
+                    score = path.score();
+                    index = Some(i)
+                }
+            }
+        }
+        index
+    }
 
     /// iterative deeping depth-first-search (IDDFS)
-    fn all_paths_iddfs(
+    pub fn all_paths_iddfs(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         from: NodeIndex,
         to: NodeIndex, // condition that determines whether goal node was found

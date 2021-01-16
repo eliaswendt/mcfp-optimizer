@@ -1,4 +1,7 @@
 use std::{collections::{HashMap, HashSet}, time::Instant};
+use serde::{Deserialize, Serialize};
+use std::io::Write;
+use std::io::Read;
 
 pub mod group;
 pub mod footpath;
@@ -7,6 +10,7 @@ pub mod trip;
 pub mod path;
 
 use group::Group;
+use optimization::select_path_per_group;
 
 use crate::optimization;
 
@@ -24,8 +28,9 @@ use colored::*;
 use path::Path;
 
 use crate::csv_reader;
+
 /// Node Type of the DiGraph
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TimetableNode {
     Departure { // departure of a train ride
         trip_id: u64,
@@ -137,7 +142,7 @@ impl TimetableNode {
 }
 
 /// Edge Type of the DiGraph
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TimetableEdge {
     Ride { // edge between departure and arrival
         duration: u64,
@@ -326,6 +331,7 @@ impl TimetableEdge {
 
 
 /// entire combined data model
+#[derive(Serialize, Deserialize)]
 pub struct Model {
     pub graph: DiGraph<TimetableNode, TimetableEdge>,
 
@@ -439,8 +445,7 @@ impl Model {
         self.stations_main_arrival.get(station_id).map(|main_arrival| *main_arrival)
     }
 
-
-    pub fn find_solutions(&mut self, groups_csv_filepath: &str) {
+    pub fn find_paths(&mut self, groups_csv_filepath: &str, model_folder_path: &str) -> Vec<Group> {
         // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
         // Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
@@ -467,21 +472,47 @@ impl Model {
             n_successful_groups, groups.len(),
             (100 * n_successful_groups) / groups.len() as u64,
         );
-        
-        // let intersection_sets = optimization::calculate_intersection_sets(&flat_paths);
 
+        groups
+    }
+
+
+    pub fn find_solutions(&mut self, mut groups: Vec<Group>, groups_csv_filepath: &str, model_folder_path: &str) {
+
+        // let intersection_sets = optimization::calculate_intersection_sets(&flat_paths);
+        // let selected_paths = select_path_per_group(
+        //     &mut self.graph, 
+        //     &mut groups_paths
+        // );
+        // println!("Number of groups succesfully fit in graph: {}", selected_paths.len());
 
         // recursive_path_straining(
         //     &mut self.graph,
         //     &mut groups_paths,
         //     &mut Vec::new(),
         // );
+        //select_path_per_group(&mut self.graph, &groups);
 
     }
 
-
     pub fn to_dot(&self) -> String {
         format!("{:?}", Dot::with_config(&self.graph, &[]))
+    }
+
+    pub fn dump_model(&mut self, model_folder_path: &str) {
+        println!("Dumping model...");
+        let serialized_model = serde_json::to_string(&self).unwrap();
+        let mut file = std::fs::File::create(&format!("{}model.json", model_folder_path)).expect("File creation failed!");
+        file.write_all(serialized_model.as_bytes()).expect("Could not write graph in file!")
+    }
+
+    pub fn load_model(model_folder_path: &str) -> Self {
+        println!("Loading model...");
+        let mut file = std::fs::File::open(&format!("{}model.json", model_folder_path)).expect("File opening failed!");
+        let mut serialized_model = String::new();
+        file.read_to_string(&mut serialized_model).unwrap();
+        let model: Self = serde_json::from_str(&serialized_model).expect("Could not create graph from file!");
+        model
     }
 }
 

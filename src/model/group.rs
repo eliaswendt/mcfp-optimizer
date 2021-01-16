@@ -1,10 +1,15 @@
 use std::{collections::HashMap, time::Instant};
+use serde::{Deserialize, Serialize};
+use std::io::Write;
+use std::io::Read;
 
 use colored::Colorize;
+use petgraph::graph::{DiGraph, EdgeIndex};
 
-use super::{Model, path::{self, Path}};
+use super::{Model, TimetableEdge, TimetableNode, path::{self, Path}};
 
 /// travel group
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Group {
     pub id: u64,
     
@@ -21,7 +26,7 @@ pub struct Group {
     // Wenn der Wert nicht leer ist, gibt er die Trip ID (Integer) der Fahrt an, in der sich die Gruppe befindet.
     pub in_trip: Option<usize>,
 
-    paths: Vec<Path> // possible paths for this group
+    pub paths: Vec<Path> // possible paths for this group
 }
 
 impl Group {
@@ -69,15 +74,26 @@ impl Group {
 
         let start = Instant::now();
         print!("{} -> {} with {} passenger(s) in {} min(s) ... ", self.start, self.destination, self.passengers, max_duration);
-        self.paths = path::Path::search_recursive_dfs(
-            &model.graph, 
-            from,
-            to, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
+        // self.paths = path::Path::search_recursive_dfs(
+        //     &model.graph, 
+        //     from,
+        //     to, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
 
+        //     self.passengers as u64, 
+        //     max_duration, 
+        //     max_budget // initial budget for cost (each edge has individual search cost)
+        // );
+        self.paths = path::Path::all_paths_iddfs(
+            &model.graph,
+            from,
+            to,
             self.passengers as u64, 
-            max_duration, 
-            max_budget // initial budget for cost (each edge has individual search cost)
+            max_duration,
+            5,
+            50,
+            100,
         );
+
         print!("done in {}ms, ", start.elapsed().as_millis());
 
         // sort by remaining_duration (highest first)
@@ -93,4 +109,30 @@ impl Group {
         }
     }
 
+    pub fn dump_groups(groups: Vec<Group>, group_folder_path: &str) {
+        println!("Dumping groups...");
+        let serialized_groups = serde_json::to_string(&groups).unwrap();
+        let mut file = std::fs::File::create(&format!("{}groups.json", group_folder_path)).expect("File creation failed!");
+        file.write_all(serialized_groups.as_bytes()).expect("Could not write graph in file!")
+    }
+
+    pub fn load_groups(group_folder_path: &str) -> Vec<Group> {
+        println!("Loading groups...");
+        let mut file = std::fs::File::open(&format!("{}groups.json", group_folder_path)).expect("File opening failed!");
+        let mut serialized_groups = String::new();
+        file.read_to_string(&mut serialized_groups).unwrap();
+        let groups: Vec<Group> = serde_json::from_str(&serialized_groups).expect("Could not create graph from file!");
+        groups
+    }
+
+    /// converts the list of list of edges to a list of lists of strings
+    pub fn paths_to_string(&self) -> Vec<Vec<String>> {
+        let mut paths = Vec::with_capacity(self.paths.len());
+
+        for path in self.paths.iter() {
+            paths.push(path.edges.iter().map(|edge| edge.index().to_string()).collect())
+        }
+
+        paths
+    }
 }
