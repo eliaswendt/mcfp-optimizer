@@ -113,7 +113,7 @@ impl Group {
         println!("Dumping groups...");
         let serialized_groups = serde_json::to_string(&groups).unwrap();
         let mut file = std::fs::File::create(&format!("{}groups.json", group_folder_path)).expect("File creation failed!");
-        file.write_all(serialized_groups.as_bytes()).expect("Could not write graph in file!")
+        file.write_all(serialized_groups.as_bytes()).expect("Could not dump groups!")
     }
 
     pub fn load_groups(group_folder_path: &str) -> Vec<Group> {
@@ -121,7 +121,7 @@ impl Group {
         let mut file = std::fs::File::open(&format!("{}groups.json", group_folder_path)).expect("File opening failed!");
         let mut serialized_groups = String::new();
         file.read_to_string(&mut serialized_groups).unwrap();
-        let groups: Vec<Group> = serde_json::from_str(&serialized_groups).expect("Could not create graph from file!");
+        let groups: Vec<Group> = serde_json::from_str(&serialized_groups).expect("Could not load groups from file!");
         groups
     }
 }

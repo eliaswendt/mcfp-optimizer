@@ -503,7 +503,7 @@ impl Model {
         println!("Dumping model...");
         let serialized_model = serde_json::to_string(model).unwrap();
         let mut file = std::fs::File::create(&format!("{}model.json", model_folder_path)).expect("File creation failed!");
-        file.write_all(serialized_model.as_bytes()).expect("Could not write graph in file!")
+        file.write_all(serialized_model.as_bytes()).expect("Could not dump model!")
     }
 
     pub fn load_model(model_folder_path: &str) -> Self {
@@ -511,7 +511,7 @@ impl Model {
         let mut file = std::fs::File::open(&format!("{}model.json", model_folder_path)).expect("File opening failed!");
         let mut serialized_model = String::new();
         file.read_to_string(&mut serialized_model).unwrap();
-        let model: Self = serde_json::from_str(&serialized_model).expect("Could not create graph from file!");
+        let model: Self = serde_json::from_str(&serialized_model).expect("Could not load model from file!");
         model
     }
 }

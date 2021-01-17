@@ -23,7 +23,7 @@ fn main() {
     let create_new_graph = false;
     let dump_model = false;
 
-    let mut model_option = None;
+    let model_option;
     if create_new_graph {
         model_option = Some(Model::with_stations_trips_and_footpaths(&args[1]));
     } else {
@@ -46,14 +46,14 @@ fn main() {
         ).unwrap();
     }
 
-    let mut groups_option = None;
+    let groups_option;
     if create_new_graph {
         groups_option = Some(model.find_paths(&format!("{}groups.csv", &args[1]), model_folder_path));
     } else {
         groups_option = Some(Group::load_groups(model_folder_path));
     }
 
-    let mut groups = groups_option.unwrap();
+    let groups = groups_option.unwrap();
 
     if dump_model {
         Group::dump_groups(&groups, model_folder_path);
