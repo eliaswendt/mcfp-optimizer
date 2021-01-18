@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashMap, fs::File, io::{BufReader, BufWriter}, time::Instant};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::io::Read;
@@ -111,17 +111,21 @@ impl Group {
 
     pub fn dump_groups(groups: &Vec<Group>, group_folder_path: &str) {
         println!("Dumping groups...");
+        let mut writer = BufWriter::new(
+            File::create(&format!("{}groups.json", group_folder_path)).expect(&format!("Could not open file {}groups.json", group_folder_path))
+        );
         let serialized_groups = serde_json::to_string(&groups).unwrap();
-        let mut file = std::fs::File::create(&format!("{}groups.json", group_folder_path)).expect("File creation failed!");
-        file.write_all(serialized_groups.as_bytes()).expect("Could not dump groups!")
+        writer.write_all(serialized_groups.as_bytes()).expect("Could not dump groups!")
     }
 
     pub fn load_groups(group_folder_path: &str) -> Vec<Group> {
         println!("Loading groups...");
-        let mut file = std::fs::File::open(&format!("{}groups.json", group_folder_path)).expect("File opening failed!");
+        let mut reader = BufReader::new(
+            File::open(&format!("{}groups.json", group_folder_path)).expect(&format!("Could not open file {}model.json", group_folder_path))
+        );
         let mut serialized_groups = String::new();
-        file.read_to_string(&mut serialized_groups).unwrap();
-        let groups: Vec<Group> = serde_json::from_str(&serialized_groups).expect("Could not load groups from file!");
+        reader.read_to_string(&mut serialized_groups).unwrap();
+        let groups: Vec<Group> = serde_json::from_str::<Vec<Group>>(&serialized_groups).expect("Could not load groups from file!");
         groups
     }
 }

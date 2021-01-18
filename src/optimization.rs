@@ -12,7 +12,6 @@ use crate::model::{TimetableEdge, TimetableNode, group::Group, path::{self}};
 
 // use crate::model::{TimetableEdge, TimetableNode, group::Group, path::Path};
 
-
 pub fn optimize_overloaded_graph(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &Vec<Group>,
@@ -23,31 +22,46 @@ pub fn optimize_overloaded_graph(
     // select a path for each group and occupy edge with group
     let (mut group_2_path_index, mut edges_2_groups) = select_path_per_group(graph, groups);
     
+    // -------------- Step 1: Initialisation --------------
+
     // a list of overcrowded edges
-    let mut overcrowded_edges = Vec::new();
+    let mut overcrowded_edges = HashMap::new();
 
     // get all overcrowded edges
     for (edge_index, occupying_groups)  in edges_2_groups.iter() {
         let timetable_edge = graph.edge_weight(*edge_index).unwrap();
         if timetable_edge.get_utilization() > timetable_edge.get_capacity() {
             println!("Overcrowded edge found: capacity={}, utilization={}, groups={:?}", timetable_edge.get_capacity(), timetable_edge.get_utilization(), occupying_groups);
-            overcrowded_edges.push(*edge_index)
+            overcrowded_edges.insert(*edge_index, timetable_edge.get_utilization() - timetable_edge.get_capacity());
         }
     }
 
     // create random number generator
     let mut rng = rand::thread_rng();
 
+    // step t of optimization
+    let mut t = 0;
+    // max steps
+    let mut t_max = 1000;
+
+    // set current best solution
+    let mut best_solution = overcrowded_edges.clone();
+
+    println!("Initial solution: overcrowing_rating={}", rate_overcrowding(&best_solution));
+
     // improve occupying
-    loop {
+    while t < t_max {
+
         // break if no edge is overcrowded
         if overcrowded_edges.len() == 0 {
             break
         }
 
+        // -------------- Step 2: Local change --------------
+
         let r = rng.gen_range(0..overcrowded_edges.len());
-        // find one overcrowded edge that will be improved this iteration
-        let overcrowded_edge = *overcrowded_edges.get(r).unwrap();
+        // find one overcrowded edge that may improve the current best solution
+        let overcrowded_edge = **overcrowded_edges.keys().collect::<Vec<_>>().get(r).unwrap();
 
         // get occupying groups of the edge
         let mut occupying_groups = edges_2_groups.get(&overcrowded_edge).unwrap().to_vec();
@@ -66,11 +80,11 @@ pub fn optimize_overloaded_graph(
 
         // remove from overcrowded edges if utilization <= capacity
         for edge_index in path.edges.iter() {
-            if overcrowded_edges.contains(edge_index) {
-                let k = overcrowded_edges.iter().position(|&r| r == *edge_index).unwrap();
+            let collected_keys = overcrowded_edges.keys().collect::<Vec<_>>();
+            if collected_keys.contains(&edge_index) {
                 let timetable_edge = graph[*edge_index].clone();
                 if timetable_edge.get_utilization() <= timetable_edge.get_capacity() {
-                    overcrowded_edges.remove(k);
+                    overcrowded_edges.remove(edge_index);
                 }
             }
         }
@@ -79,18 +93,19 @@ pub fn optimize_overloaded_graph(
         let next_path_index = rng.gen_range(0..group.paths.len());
         let next_path = group.paths.get(next_path_index).unwrap();
 
-        println!("Group: {}", group_index);
-        let mut in_all_paths = true;
-        for path in group.paths.iter() {
-            if !path.edges.contains(&overcrowded_edge.clone()) {
-                in_all_paths = false
-            }
-        }
+        // println!("Group: {}", group_index);
+        // let mut in_all_paths = true;
+        // for path in group.paths.iter() {
+        //     if !path.edges.contains(&overcrowded_edge.clone()) {
+        //         in_all_paths = false
+        //     }
+        // }
         
-        println!("In all paths: {} {} {:?}", in_all_paths, group_index, graph[overcrowded_edge]);
-        if !in_all_paths {
-            break
-        }
+        // println!("In all paths: {} {} {:?}", in_all_paths, group_index, graph[overcrowded_edge]);
+        // if !in_all_paths {
+        //     break
+        // }
+
         // strain edges of new path 
         next_path.strain(graph);
 
@@ -106,14 +121,54 @@ pub fn optimize_overloaded_graph(
                 edge_groups.push((group_index, group.id));
                 edges_2_groups.insert(*edge_index, edge_groups);
             }
-            let overcrowded = is_overcrowded_edge(graph, *edge_index, edges_2_groups.get(&edge_index).unwrap());
-            if overcrowded {
-                overcrowded_edges.push(*edge_index);
+            let overcrowded = edge_overcrowding(graph, *edge_index, edges_2_groups.get(&edge_index).unwrap());
+            if overcrowded > 0{
+                overcrowded_edges.insert(*edge_index, overcrowded as u64);
             }
         }
+
+        // -------------- Step 3: Selection --------------
+
+        // check if overloading is smaller than previous overloading
+        if rate_overcrowding(&overcrowded_edges) < rate_overcrowding(&best_solution) {
+            best_solution = overcrowded_edges.clone();
+        } else {
+            let probability = (- ((rate_overcrowding(&overcrowded_edges) - rate_overcrowding(&best_solution)) as f64) / next_temperature(t, t_max)).exp();
+            let r = rng.gen_range(0.0..1.0);
+            println!("{}, {}, {}", next_temperature(t, t_max), r, probability);
+            if r < probability {
+                best_solution = overcrowded_edges.clone();
+            } else {
+                // undo changes in graph
+                next_path.relieve(graph);
+                path.strain(graph);
+                overcrowded_edges = best_solution.clone();
+            }
+        }
+
+        println!("Intermediate solution: overcrowing_rating={}", rate_overcrowding(&best_solution));
+
+        t += 1;
     }
 
+    println!("Final solution: overcrowing_rating={}", rate_overcrowding(&best_solution));
+
     group_2_path_index
+}
+
+/// rates overcrowding
+pub fn rate_overcrowding(overcrowded_edges: &HashMap<EdgeIndex, u64>) -> u64 {
+    let mut rating: u64 = 0;
+    for (_, overcrowding) in overcrowded_edges.iter() {
+        rating += overcrowding;
+    }
+    rating
+}
+
+/// calculates the next temperature for simulated annealing based on step t
+pub fn next_temperature(t: u64, t_max: u64) -> f64 {
+    let temperature = (t_max as f64) - ((t as f64) + 1.0)/(t_max as f64);
+    temperature
 }
 
 pub fn select_path_per_group(
@@ -151,13 +206,13 @@ pub fn select_path_per_group(
     (group_2_path_index, edges_2_groups)
 }
 
-fn is_overcrowded_edge(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: EdgeIndex, occupying_groups: &Vec<(usize, u64)>) -> bool {
+fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: EdgeIndex, occupying_groups: &Vec<(usize, u64)>) -> i64 {
     let timetable_edge = graph.edge_weight(edge_index).unwrap();
-    if timetable_edge.get_utilization() > timetable_edge.get_capacity() {
+    let overcrowding = timetable_edge.get_utilization() as i64 - timetable_edge.get_capacity() as i64;
+    if overcrowding > 0 {
         //println!("Overcrowded edge found: edge={:?}, capacity={}, utilization={}, groups={:?}", edge_index, timetable_edge.get_capacity(), timetable_edge.get_utilization(), occupying_groups);
-        return true
     } 
-    return false
+    return overcrowding
 }
 
 // pub fn select_path_per_group(

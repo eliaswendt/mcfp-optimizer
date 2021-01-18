@@ -1,7 +1,7 @@
-use std::{collections::{HashMap, HashSet}, time::Instant};
+use std::{collections::{HashMap, HashSet}, fs::File, time::Instant};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use std::io::Read;
+use std::io::{BufWriter, Write};
+use std::io::{BufReader, Read};
 
 pub mod group;
 pub mod footpath;
@@ -10,7 +10,7 @@ pub mod trip;
 pub mod path;
 
 use group::Group;
-use optimization::select_path_per_group;
+use optimization::optimize_overloaded_graph;
 
 use crate::optimization;
 
@@ -491,7 +491,8 @@ impl Model {
         //     &mut groups_paths,
         //     &mut Vec::new(),
         // );
-        //select_path_per_group(&mut self.graph, &groups);
+        
+        optimize_overloaded_graph(&mut self.graph, &groups);
 
     }
 
@@ -501,16 +502,20 @@ impl Model {
 
     pub fn dump_model(model: &Self, model_folder_path: &str) {
         println!("Dumping model...");
+        let mut writer = BufWriter::new(
+            File::create(&format!("{}model.json", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
+        );
         let serialized_model = serde_json::to_string(model).unwrap();
-        let mut file = std::fs::File::create(&format!("{}model.json", model_folder_path)).expect("File creation failed!");
-        file.write_all(serialized_model.as_bytes()).expect("Could not dump model!")
+        writer.write_all(serialized_model.as_bytes()).expect("Could not dump model!")
     }
 
     pub fn load_model(model_folder_path: &str) -> Self {
         println!("Loading model...");
-        let mut file = std::fs::File::open(&format!("{}model.json", model_folder_path)).expect("File opening failed!");
+        let mut reader = BufReader::new(
+            File::open(&format!("{}model.json", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
+        );
         let mut serialized_model = String::new();
-        file.read_to_string(&mut serialized_model).unwrap();
+        reader.read_to_string(&mut serialized_model).unwrap();
         let model: Self = serde_json::from_str(&serialized_model).expect("Could not load model from file!");
         model
     }
