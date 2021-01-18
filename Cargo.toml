@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 petgraph = { version = "0.5", features = ["serde-1"] }
 csv = "1.1"
-indexmap = "1.6.1"
+indexmap = { version = "1.6.1", features = ["serde-1"] }
 colored = "2.0.0"
 rand = "0.8.2"
 serde = { version = "1.0", features = ["derive"] }

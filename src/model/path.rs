@@ -1,5 +1,5 @@
 use std::{collections::{HashMap, HashSet}, iter::from_fn, cmp::Ordering};
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexSet;
 use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}};
 use serde::{Deserialize, Serialize};
 
