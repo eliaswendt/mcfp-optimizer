@@ -13,7 +13,7 @@ pub struct Path {
 
     utilization: u64,
 
-    pub edges: HashSet<EdgeIndex>
+    pub edges: IndexSet<EdgeIndex>
 }
 
 impl Path {
@@ -232,7 +232,6 @@ impl Path {
             }
         }
     }
-
 }
 
 impl Ord for Path {
