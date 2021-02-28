@@ -61,8 +61,9 @@ impl Trip {
             departure,
             arrival,
             TimetableEdge::Ride {
-                capacity: self.capacity,
                 duration: self.arrival - self.departure,
+                capacity_soft_limit: (self.capacity as f64 * 0.75) as u64,
+                capacity_hard_limit: self.capacity,
                 utilization: 0,
             },
         );

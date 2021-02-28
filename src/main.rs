@@ -58,5 +58,6 @@ fn main() {
         Group::dump_groups(&groups, model_folder_path);
     }
 
-    optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
+    // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
+    optimization::genetic_algorithm::beam_search(&mut model.graph, &groups, 3);
 }

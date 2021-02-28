@@ -14,8 +14,8 @@ use super::{TimetableEdge, TimetableNode};
 
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
-    cost: u64,     // cost for this path
-    duration: u64, // duration of this path
+    cost: u64,        // cost for this path
+    duration: u64,    // duration of this path
     utilization: u64, // number of passengers
 
     pub edges: IndexSet<EdgeIndex>,
@@ -42,23 +42,23 @@ impl Path {
         (self.cost + self.duration) / 2
     }
 
-    /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
-    /// if Vec empty -> all edges fit
-    pub fn colliding_edges(
-        &self,
-        graph: &DiGraph<TimetableNode, TimetableEdge>,
-    ) -> Vec<(u64, EdgeIndex)> {
-        let mut colliding = Vec::new();
+    // /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
+    // /// if Vec empty -> all edges fit
+    // pub fn colliding_edges(
+    //     &self,
+    //     graph: &DiGraph<TimetableNode, TimetableEdge>,
+    // ) -> Vec<(u64, EdgeIndex)> {
+    //     let mut colliding = Vec::new();
 
-        for edge_index in self.edges.iter() {
-            let remaining_capacity = graph[*edge_index].get_remaining_capacity();
-            if remaining_capacity < self.utilization {
-                colliding.push((self.utilization - remaining_capacity, *edge_index));
-            }
-        }
+    //     for edge_index in self.edges.iter() {
+    //         let remaining_capacity = graph[*edge_index].get_remaining_capacity();
+    //         if remaining_capacity < self.utilization {
+    //             colliding.push((self.utilization - remaining_capacity, *edge_index));
+    //         }
+    //     }
 
-        colliding
-    }
+    //     colliding
+    // }
 
     /// occupy self to graph (add utilization to edges)
     pub fn strain(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
@@ -199,10 +199,10 @@ impl Path {
             while let Some((next_edge, next_node)) = walker.next(graph) {
                 let edge_weight = &graph[next_edge];
                 let edge_weight_duration = edge_weight.get_duration();
-                let edge_weight_cost = edge_weight.get_cost();
+                let edge_weight_cost = edge_weight.get_travel_cost();
 
                 if edge_weight_duration <= remaining_duration
-                    && edge_weight.get_capacity() >= min_capacity
+                    && edge_weight.get_capacity_hard_limit() >= min_capacity
                     && edge_weight_cost <= remaining_budget
                 {
                     // edge can handle the minium required capacity and does not take longer then the remaining duration
