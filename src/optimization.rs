@@ -40,7 +40,7 @@ pub fn optimize_overloaded_graph(
     let mut rng = rand::thread_rng();
 
     // step t of optimization
-    let mut t = 0;
+    let mut t = 1;
     // max steps
     let mut t_max = 1000;
 
@@ -50,7 +50,7 @@ pub fn optimize_overloaded_graph(
     println!("Initial solution: overcrowding_rating={}", rate_overcrowding(&best_solution));
 
     // improve occupying
-    while t < t_max {
+    while t <= t_max {
 
         // break if no edge is overcrowded
         if overcrowded_edges.len() == 0 {
@@ -133,9 +133,11 @@ pub fn optimize_overloaded_graph(
         if rate_overcrowding(&overcrowded_edges) < rate_overcrowding(&best_solution) {
             best_solution = overcrowded_edges.clone();
         } else {
-            let probability = (- ((rate_overcrowding(&overcrowded_edges) - rate_overcrowding(&best_solution)) as f64) / next_temperature(t, t_max)).exp();
+            let temperature = next_temperature(t, t_max);
+            let numerator = rate_overcrowding(&best_solution) as f64 - rate_overcrowding(&overcrowded_edges) as f64;
+            let probability = (numerator / temperature).exp();
             let r = rng.gen_range(0.0..1.0);
-            println!("{}, {}, {}", next_temperature(t, t_max), r, probability);
+            //println!("numerator={}, temp={}, r={}, prob={}", numerator, temperature, r, probability);
             if r < probability {
                 best_solution = overcrowded_edges.clone();
             } else {
@@ -167,7 +169,7 @@ pub fn rate_overcrowding(overcrowded_edges: &HashMap<EdgeIndex, u64>) -> u64 {
 
 /// calculates the next temperature for simulated annealing based on step t
 pub fn next_temperature(t: u64, t_max: u64) -> f64 {
-    let temperature = (t_max as f64) - ((t as f64) + 1.0)/(t_max as f64);
+    let temperature = 1.0/((t as f64).ln());
     temperature
 }
 
