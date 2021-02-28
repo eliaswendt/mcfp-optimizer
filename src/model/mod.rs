@@ -336,6 +336,7 @@ pub struct Model {
     pub graph: DiGraph<TimetableNode, TimetableEdge>,
 
     // we need to store all transfer and arrival nodes for all stations at all times
+    // required as entry-/endpoints for search
     stations_transfers: HashMap<String, Vec<(u64, NodeIndex)>>,
     stations_main_arrival: HashMap<String, NodeIndex>
 }

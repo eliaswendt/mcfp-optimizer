@@ -47,7 +47,7 @@ pub fn optimize_overloaded_graph(
     // set current best solution
     let mut best_solution = overcrowded_edges.clone();
 
-    println!("Initial solution: overcrowing_rating={}", rate_overcrowding(&best_solution));
+    println!("Initial solution: overcrowding_rating={}", rate_overcrowding(&best_solution));
 
     // improve occupying
     while t < t_max {
@@ -146,12 +146,12 @@ pub fn optimize_overloaded_graph(
             }
         }
 
-        println!("Intermediate solution: overcrowing_rating={}", rate_overcrowding(&best_solution));
+        println!("Intermediate solution: overcrowding_rating={}", rate_overcrowding(&best_solution));
 
         t += 1;
     }
 
-    println!("Final solution: overcrowing_rating={}", rate_overcrowding(&best_solution));
+    println!("Final solution: overcrowding_rating={}", rate_overcrowding(&best_solution));
 
     group_2_path_index
 }

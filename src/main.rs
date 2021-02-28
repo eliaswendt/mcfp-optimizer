@@ -19,24 +19,25 @@ fn main() {
         return;
     }
 
+    let csv_folder_path = &args[1];
     let model_folder_path = "dump/";
-    let create_new_graph = false;
-    let dump_model = false;
+    let create_new_graph = true;
+    let dump_model = true;
 
-    let model_option;
-    if create_new_graph {
-        model_option = Some(Model::with_stations_trips_and_footpaths(&args[1]));
+    let mut model = if create_new_graph {
+        println!("creating new model with_stations_trips_and_footpaths({})",csv_folder_path);
+        Model::with_stations_trips_and_footpaths(csv_folder_path)
     } else {
-        model_option = Some(Model::load_model(model_folder_path));
-    }
-
-    let mut model = model_option.unwrap();
+        println!("loading model from {}", model_folder_path);
+        Model::load_model(model_folder_path)
+    };
 
     if dump_model {
+        println!("dumping model to {}", model_folder_path);
         Model::dump_model(&model, model_folder_path);
     }
 
-    if args[1].contains("sample") {
+    if csv_folder_path.contains("sample") {
         // create dot code only for sample data
 
         let dot_code = Model::to_dot(&model);
@@ -46,18 +47,15 @@ fn main() {
         ).unwrap();
     }
 
-    let groups_option;
-    if create_new_graph {
-        groups_option = Some(model.find_paths(&format!("{}groups.csv", &args[1]), model_folder_path));
+    let groups = if create_new_graph {
+        model.find_paths(&format!("{}groups.csv", csv_folder_path), model_folder_path)
     } else {
-        groups_option = Some(Group::load_groups(model_folder_path));
-    }
-
-    let groups = groups_option.unwrap();
+        Group::load_groups(model_folder_path)
+    };
 
     if dump_model {
         Group::dump_groups(&groups, model_folder_path);
     }
 
-    model.find_solutions(groups, &format!("{}groups.csv", &args[1]), &args[1]);
+    model.find_solutions(groups, &format!("{}groups.csv", csv_folder_path), model_folder_path);
 }
