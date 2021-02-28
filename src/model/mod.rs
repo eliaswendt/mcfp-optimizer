@@ -10,7 +10,6 @@ pub mod trip;
 pub mod path;
 
 use group::Group;
-use optimization::optimize_overloaded_graph;
 
 use crate::optimization;
 
@@ -478,27 +477,6 @@ impl Model {
     }
 
 
-    pub fn find_solutions(&mut self, mut groups: Vec<Group>, groups_csv_filepath: &str, model_folder_path: &str) {
-
-        println!("find_solutions()");
-
-        // let intersection_sets = optimization::calculate_intersection_sets(&flat_paths);
-        // let selected_paths = select_path_per_group(
-        //     &mut self.graph, 
-        //     &mut groups_paths
-        // );
-        // println!("Number of groups succesfully fit in graph: {}", selected_paths.len());
-
-        // recursive_path_straining(
-        //     &mut self.graph,
-        //     &mut groups_paths,
-        //     &mut Vec::new(),
-        // );
-        
-        optimize_overloaded_graph(&mut self.graph, &groups);
-
-    }
-
     pub fn to_dot(model: &Self) -> String {
         format!("{:?}", Dot::with_config(&model.graph, &[]))
     }
@@ -532,7 +510,7 @@ mod tests {
     #[test]
     fn validate_graph_integrity() {
 
-        let mut model = Model::with_stations_trips_and_footpaths("real_data");
+        let model = Model::with_stations_trips_and_footpaths("real_data");
         let graph = model.graph;
 
         let start = Instant::now();

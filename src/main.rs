@@ -1,18 +1,16 @@
 use std::{
-    env, 
-    io::{prelude::*, BufWriter}, 
-    fs::File
+    env,
+    fs::File,
+    io::{prelude::*, BufWriter},
 };
 
-use model::{Model, group::Group};
+use model::{group::Group, Model};
 
 mod csv_reader;
-
 mod model;
-pub mod optimization;
+mod optimization;
 
 fn main() {
-
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         println!("run with {} <csv_folder_path>", args[0]);
@@ -25,7 +23,10 @@ fn main() {
     let dump_model = true;
 
     let mut model = if create_new_graph {
-        println!("creating new model with_stations_trips_and_footpaths({})",csv_folder_path);
+        println!(
+            "creating new model with_stations_trips_and_footpaths({})",
+            csv_folder_path
+        );
         Model::with_stations_trips_and_footpaths(csv_folder_path)
     } else {
         println!("loading model from {}", model_folder_path);
@@ -42,9 +43,9 @@ fn main() {
 
         let dot_code = Model::to_dot(&model);
 
-        BufWriter::new(File::create("graph.dot").unwrap()).write(
-            dot_code.as_bytes()
-        ).unwrap();
+        BufWriter::new(File::create("graph.dot").unwrap())
+            .write(dot_code.as_bytes())
+            .unwrap();
     }
 
     let groups = if create_new_graph {
@@ -57,5 +58,5 @@ fn main() {
         Group::dump_groups(&groups, model_folder_path);
     }
 
-    model.find_solutions(groups, &format!("{}/groups.csv", csv_folder_path), model_folder_path);
+    optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
 }

@@ -1,23 +1,28 @@
-use std::{collections::{HashMap, HashSet}, iter::from_fn, cmp::Ordering};
 use indexmap::IndexSet;
-use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}};
+use petgraph::{
+    graph::{DiGraph, EdgeIndex, NodeIndex},
+    EdgeDirection::Outgoing,
+};
 use serde::{Deserialize, Serialize};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    iter::from_fn,
+};
 
 use super::{TimetableEdge, TimetableNode};
 
-
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
-    cost: u64, // cost for this path
+    cost: u64,     // cost for this path
     duration: u64, // duration of this path
 
     utilization: u64,
 
-    pub edges: IndexSet<EdgeIndex>
+    pub edges: IndexSet<EdgeIndex>,
 }
 
 impl Path {
-
     #[inline]
     pub fn len(&self) -> usize {
         self.edges.len()
@@ -40,17 +45,16 @@ impl Path {
 
     /// returns a Vec(missing capacity, edge)> that do not have enough capacity left for this path
     /// if Vec empty -> all edges fit
-    pub fn colliding_edges(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> Vec<(u64, EdgeIndex)> {
-
+    pub fn colliding_edges(
+        &self,
+        graph: &DiGraph<TimetableNode, TimetableEdge>,
+    ) -> Vec<(u64, EdgeIndex)> {
         let mut colliding = Vec::new();
 
         for edge_index in self.edges.iter() {
             let remaining_capacity = graph[*edge_index].get_remaining_capacity();
             if remaining_capacity < self.utilization {
-                colliding.push((
-                    self.utilization - remaining_capacity,
-                    *edge_index
-                ));
+                colliding.push((self.utilization - remaining_capacity, *edge_index));
             }
         }
 
@@ -82,7 +86,7 @@ impl Path {
                         score = path.score();
                         index = Some(i)
                     }
-                },
+                }
                 None => {
                     score = path.score();
                     index = Some(i)
@@ -97,32 +101,29 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         from: NodeIndex,
         to: NodeIndex, // condition that determines whether goal node was found
-        
+
         min_capacity: u64,
         max_duration: u64,
 
-        n_steps: u64, 
+        n_steps: u64,
         min_budget: u64,
-        max_budget: u64 // maximum number of transfers to follow
+        max_budget: u64, // maximum number of transfers to follow
     ) -> Vec<Self> {
-
         // increase depth in 4 steps
         let depth_step = (max_budget - min_budget) / n_steps;
 
-        for i in 0..n_steps+1 {
-
+        for i in 0..n_steps + 1 {
             let current_budget = min_budget + i * depth_step;
 
             println!("[iddfs()] trying with budget={}", current_budget);
 
             let result = Self::search_recursive_dfs(
-                graph, 
-                from, 
-                to, 
-
-                min_capacity, 
-                max_duration, 
-                current_budget
+                graph,
+                from,
+                to,
+                min_capacity,
+                max_duration,
+                current_budget,
             );
 
             if result.len() > 0 {
@@ -140,45 +141,45 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         from: NodeIndex,
         to: NodeIndex, // condition that determines whether goal node was found
-        
+
         utilization: u64, // number of passengers, weight of load, etc.
         max_duration: u64,
         max_budget: u64, // initial search budget (each edge has cost that needs to be payed)
     ) -> Vec<Self> {
-
         // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
 
         let mut paths = Vec::new();
         let mut visited = IndexSet::new();
 
         Self::search_recursive_dfs_helper(
-            graph, 
+            graph,
             &mut paths,
-            from, 
-            to, 
-            &mut visited, 
-
-            utilization, 
-            max_duration, 
+            from,
+            to,
+            &mut visited,
+            utilization,
+            max_duration,
             max_budget,
         );
 
-        paths.into_iter().map(|(remaining_duration, remaining_budget, edges)| Self {
-            cost: max_budget - remaining_budget,
-            duration: max_duration - remaining_duration,
+        paths
+            .into_iter()
+            .map(|(remaining_duration, remaining_budget, edges)| Self {
+                cost: max_budget - remaining_budget,
+                duration: max_duration - remaining_duration,
 
-            utilization,
+                utilization,
 
-            edges: edges.into_iter().collect()
-        }).collect()
+                edges: edges.into_iter().collect(),
+            })
+            .collect()
     }
-
 
     fn search_recursive_dfs_helper(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         paths: &mut Vec<(u64, u64, IndexSet<EdgeIndex>)>, // paths found until now
-        current: NodeIndex, 
-        to: NodeIndex, 
+        current: NodeIndex,
+        to: NodeIndex,
         visited: &mut IndexSet<EdgeIndex>, // vec of visited edges (in order of visit)
 
         // recursion anchors (if zero)
@@ -186,42 +187,37 @@ impl Path {
         remaining_duration: u64,
         remaining_budget: u64,
     ) {
-
         // println!("all_paths_dfs_recursive(current={:?}, goal={:?}, visited.len()={}, min_capacity={}, remaining_duration={})", current, to, visited.len(), min_capacity, remaining_duration);
         // println!("remaining_duration: {}", remaining_duration);
 
         if current == to {
-            
             // take all edge indices (in order of visit) and insert them into a vec
-            paths.push((
-                remaining_duration, 
-                remaining_budget,
-                visited.clone()
-            ));
-
+            paths.push((remaining_duration, remaining_budget, visited.clone()));
         } else {
             let mut walker = graph.neighbors_directed(current, Outgoing).detach();
 
             // iterate over all outgoing edges
             while let Some((next_edge, next_node)) = walker.next(graph) {
-
                 let edge_weight = &graph[next_edge];
                 let edge_weight_duration = edge_weight.get_duration();
                 let edge_weight_cost = edge_weight.get_cost();
 
-                if edge_weight_duration <= remaining_duration && edge_weight.get_capacity() >= min_capacity && edge_weight_cost <= remaining_budget {
+                if edge_weight_duration <= remaining_duration
+                    && edge_weight.get_capacity() >= min_capacity
+                    && edge_weight_cost <= remaining_budget
+                {
                     // edge can handle the minium required capacity and does not take longer then the remaining duration
 
                     // add next_edge for next call
                     visited.insert(next_edge);
 
                     &mut Self::search_recursive_dfs_helper(
-                        graph, 
+                        graph,
                         paths,
-                        next_node, 
-                        to, 
-                        visited, 
-                        min_capacity, 
+                        next_node,
+                        to,
+                        visited,
+                        min_capacity,
                         remaining_duration - edge_weight_duration,
                         remaining_budget - edge_weight_cost,
                     );
@@ -253,11 +249,12 @@ impl PartialEq for Path {
 }
 
 /// builds subgraph that only contains nodes connected by edges
-pub fn create_subgraph_from_edges(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: &HashSet<EdgeIndex>) -> DiGraph<TimetableNode, TimetableEdge> {
-
+pub fn create_subgraph_from_edges(
+    graph: &DiGraph<TimetableNode, TimetableEdge>,
+    edges: &HashSet<EdgeIndex>,
+) -> DiGraph<TimetableNode, TimetableEdge> {
     graph.filter_map(
         |node_index, node_weight| {
-
             // check if at least one incoming/outgoing edge of current node is in HashSet of edges
             let mut walker = graph.neighbors_undirected(node_index).detach();
             while let Some((current_edge, _)) = walker.next(graph) {
@@ -275,13 +272,18 @@ pub fn create_subgraph_from_edges(graph: &DiGraph<TimetableNode, TimetableEdge>,
             } else {
                 None
             }
-        }
+        },
     )
 }
 
-
-
-fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableEdge>, from_node_index: NodeIndex, to_node_index: NodeIndex, max_duration: u64, max_rides: u64) -> impl Iterator<Item = (u64, Vec<EdgeIndex>)> {//Vec<(u64, Vec<EdgeIndex>)> {
+fn all_simple_paths_dfs_dorian(
+    graph: &'static DiGraph<TimetableNode, TimetableEdge>,
+    from_node_index: NodeIndex,
+    to_node_index: NodeIndex,
+    max_duration: u64,
+    max_rides: u64,
+) -> impl Iterator<Item = (u64, Vec<EdgeIndex>)> {
+    //Vec<(u64, Vec<EdgeIndex>)> {
 
     // list of already visited nodes
     let mut visited: IndexSet<EdgeIndex> = IndexSet::new();
@@ -298,14 +300,19 @@ fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableE
         while let Some(children) = stack.last_mut() {
             if let Some((child_edge_index, child_node_index)) = children.next(graph) {
                 let mut duration = graph.edge_weight(child_edge_index).unwrap().get_duration();
-                if durations.iter().sum::<u64>() + duration < max_duration && rides.iter().sum::<u64>() < max_rides {
+                if durations.iter().sum::<u64>() + duration < max_duration
+                    && rides.iter().sum::<u64>() < max_rides
+                {
                     if child_node_index == to_node_index {
                         let path = visited
                             .iter()
                             .cloned()
                             .chain(Some(child_edge_index))
                             .collect::<Vec<EdgeIndex>>();
-                        return Some((max_duration - durations.iter().sum::<u64>() - duration, path));
+                        return Some((
+                            max_duration - durations.iter().sum::<u64>() - duration,
+                            path,
+                        ));
                     } else if !visited.contains(&child_edge_index) {
                         let edge_weight = graph.edge_weight(child_edge_index).unwrap();
                         durations.push(edge_weight.get_duration());
@@ -317,7 +324,11 @@ fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableE
                         // };
                         //rides.push(1);
                         visited.insert(child_edge_index);
-                        stack.push(graph.neighbors_directed(child_node_index, Outgoing).detach());
+                        stack.push(
+                            graph
+                                .neighbors_directed(child_node_index, Outgoing)
+                                .detach(),
+                        );
                     }
                 } else {
                     let mut children_any_to_node_index = false;
@@ -331,15 +342,17 @@ fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableE
                             break;
                         }
                     }
-                    if (child_node_index == to_node_index || children_any_to_node_index) 
-                        && (durations.iter().sum::<u64>() + duration >= max_duration || rides.iter().sum::<u64>() >= max_rides) {
+                    if (child_node_index == to_node_index || children_any_to_node_index)
+                        && (durations.iter().sum::<u64>() + duration >= max_duration
+                            || rides.iter().sum::<u64>() >= max_rides)
+                    {
                         let path = visited
                             .iter()
                             .cloned()
                             .chain(edge_index)
                             .collect::<Vec<EdgeIndex>>();
                         return Some((0, path));
-                    } 
+                    }
                     stack.pop();
                     visited.pop();
                     durations.pop();
@@ -351,7 +364,7 @@ fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableE
                 durations.pop();
                 rides.pop();
             }
-        }   
+        }
         None
     });
 
@@ -396,14 +409,14 @@ fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableE
 
 //                     // create new node in subgraph
 //                     let subgraph_node_index = subgraph.add_node(node_weight);
-                    
+
 //                     // insert mapping into HashMap
 //                     node_index_graph_subgraph_mapping.insert(graph_node_index_pair[0], subgraph_node_index.clone());
 
 //                     subgraph_node_index
 //                 }
 //             };
-                
+
 //             // check if the second node already exists in subgraph
 //             let subgraph_node_b_index = match node_index_graph_subgraph_mapping.get(&graph_node_index_pair[1]) {
 //                 Some(subgraph_node_index) => *subgraph_node_index,
@@ -413,14 +426,14 @@ fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableE
 
 //                     // create new node in subgraph
 //                     let subgraph_node_index = subgraph.add_node(node_weight);
-                    
+
 //                     // insert mapping into HashMap
 //                     node_index_graph_subgraph_mapping.insert(graph_node_index_pair[1], subgraph_node_index);
 
 //                     subgraph_node_index
 //                 }
 //             };
-            
+
 //             // add outgoing node to path if path is empty
 //             if subgraph_path_indices.is_empty() {
 //                 subgraph_path_indices.push(ObjectIndex::NodeIndex(subgraph_node_a_index));
@@ -451,7 +464,7 @@ fn all_simple_paths_dfs_dorian(graph: &'static DiGraph<TimetableNode, TimetableE
 //             if edge_remaining_flow < path_max_flow {
 //                 path_max_flow = edge_remaining_flow;
 //             };
-            
+
 //             subgraph_path_indices.push(ObjectIndex::NodeIndex(subgraph_node_b_index));
 //         };
 

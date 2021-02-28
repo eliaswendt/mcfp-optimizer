@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 
-use petgraph::{graph::{DiGraph, EdgeIndex}};
+use petgraph::graph::{DiGraph, EdgeIndex};
 
 use rand::Rng;
 
-use crate::model::{TimetableEdge, TimetableNode, group::Group, path::{self}};
+use crate::model::{
+    group::Group,
+    path::{self},
+    TimetableEdge, TimetableNode,
+};
 
 // use std::{collections::HashMap, sync::atomic::AtomicU64};
 
@@ -16,23 +20,30 @@ pub fn optimize_overloaded_graph(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &Vec<Group>,
 ) -> HashMap<u64, usize> {
-
-    // group_2_path_index:      mapping from group ids to selected path (identified by index in group's path list)
-    // edges_2_groups:          mapping from edge indices to a list of group touples (index in group list, group ids) that occupy the edge
+    // group_2_path_index:      mapping from group ids to selected path (identified by index in group's path vec)
+    // edges_2_groups:          mapping from edge indices to a list of group tuples (index in group list, group ids) that occupy the edge
     // select a path for each group and occupy edge with group
     let (mut group_2_path_index, mut edges_2_groups) = select_path_per_group(graph, groups);
-    
-    // -------------- Step 1: Initialisation --------------
+
+    // -------------- Step 1: Initialization --------------
 
     // a list of overcrowded edges
     let mut overcrowded_edges = HashMap::new();
 
     // get all overcrowded edges
-    for (edge_index, occupying_groups)  in edges_2_groups.iter() {
+    for (edge_index, occupying_groups) in edges_2_groups.iter() {
         let timetable_edge = graph.edge_weight(*edge_index).unwrap();
         if timetable_edge.get_utilization() > timetable_edge.get_capacity() {
-            println!("Overcrowded edge found: capacity={}, utilization={}, groups={:?}", timetable_edge.get_capacity(), timetable_edge.get_utilization(), occupying_groups);
-            overcrowded_edges.insert(*edge_index, timetable_edge.get_utilization() - timetable_edge.get_capacity());
+            println!(
+                "Overcrowded edge found: capacity={}, utilization={}, groups={:?}",
+                timetable_edge.get_capacity(),
+                timetable_edge.get_utilization(),
+                occupying_groups
+            );
+            overcrowded_edges.insert(
+                *edge_index,
+                timetable_edge.get_utilization() - timetable_edge.get_capacity(),
+            );
         }
     }
 
@@ -47,14 +58,16 @@ pub fn optimize_overloaded_graph(
     // set current best solution
     let mut best_solution = overcrowded_edges.clone();
 
-    println!("Initial solution: overcrowding_rating={}", rate_overcrowding(&best_solution));
+    println!(
+        "Initial solution: overcrowding_rating={}",
+        rate_overcrowding(&best_solution)
+    );
 
     // improve occupying
     while t <= t_max {
-
         // break if no edge is overcrowded
         if overcrowded_edges.len() == 0 {
-            break
+            break;
         }
 
         // -------------- Step 2: Local change --------------
@@ -67,7 +80,7 @@ pub fn optimize_overloaded_graph(
         let mut occupying_groups = edges_2_groups.get(&overcrowded_edge).unwrap().to_vec();
 
         //let overcrowding = timetable_edge.get_utilization() - timetable_edge.get_capacity();
-        
+
         // find one group randomly
         let j = rng.gen_range(0..occupying_groups.len());
         let group_index = occupying_groups.remove(j).0;
@@ -100,13 +113,13 @@ pub fn optimize_overloaded_graph(
         //         in_all_paths = false
         //     }
         // }
-        
+
         // println!("In all paths: {} {} {:?}", in_all_paths, group_index, graph[overcrowded_edge]);
         // if !in_all_paths {
         //     break
         // }
 
-        // strain edges of new path 
+        // strain edges of new path
         next_path.strain(graph);
 
         // set path as new path of group
@@ -121,8 +134,9 @@ pub fn optimize_overloaded_graph(
                 edge_groups.push((group_index, group.id));
                 edges_2_groups.insert(*edge_index, edge_groups);
             }
-            let overcrowded = edge_overcrowding(graph, *edge_index, edges_2_groups.get(&edge_index).unwrap());
-            if overcrowded > 0{
+            let overcrowded =
+                edge_overcrowding(graph, *edge_index, edges_2_groups.get(&edge_index).unwrap());
+            if overcrowded > 0 {
                 overcrowded_edges.insert(*edge_index, overcrowded as u64);
             }
         }
@@ -134,7 +148,8 @@ pub fn optimize_overloaded_graph(
             best_solution = overcrowded_edges.clone();
         } else {
             let temperature = next_temperature(t, t_max);
-            let numerator = rate_overcrowding(&best_solution) as f64 - rate_overcrowding(&overcrowded_edges) as f64;
+            let numerator = rate_overcrowding(&best_solution) as f64
+                - rate_overcrowding(&overcrowded_edges) as f64;
             let probability = (numerator / temperature).exp();
             let r = rng.gen_range(0.0..1.0);
             //println!("numerator={}, temp={}, r={}, prob={}", numerator, temperature, r, probability);
@@ -148,12 +163,18 @@ pub fn optimize_overloaded_graph(
             }
         }
 
-        println!("Intermediate solution: overcrowding_rating={}", rate_overcrowding(&best_solution));
+        println!(
+            "Intermediate solution: overcrowding_rating={}",
+            rate_overcrowding(&best_solution)
+        );
 
         t += 1;
     }
 
-    println!("Final solution: overcrowding_rating={}", rate_overcrowding(&best_solution));
+    println!(
+        "Final solution: overcrowding_rating={}",
+        rate_overcrowding(&best_solution)
+    );
 
     group_2_path_index
 }
@@ -169,7 +190,7 @@ pub fn rate_overcrowding(overcrowded_edges: &HashMap<EdgeIndex, u64>) -> u64 {
 
 /// calculates the next temperature for simulated annealing based on step t
 pub fn next_temperature(t: u64, t_max: u64) -> f64 {
-    let temperature = 1.0/((t as f64).ln());
+    let temperature = 1.0 / ((t as f64).ln());
     temperature
 }
 
@@ -177,9 +198,8 @@ pub fn select_path_per_group(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &Vec<Group>,
 ) -> (HashMap<u64, usize>, HashMap<EdgeIndex, Vec<(usize, u64)>>) {
-
     // mapping from group ids to selected path (identified by index in group's path list)
-    let mut group_2_path_index: HashMap<u64, usize> =  HashMap::with_capacity(groups.len());
+    let mut group_2_path_index: HashMap<u64, usize> = HashMap::with_capacity(groups.len());
 
     // mapping from edge indices to a list of group touples (index in group list, group ids) that occupy the edge
     let mut edges_2_groups: HashMap<EdgeIndex, Vec<(usize, u64)>> = HashMap::new();
@@ -196,11 +216,11 @@ pub fn select_path_per_group(
                     } else {
                         let mut groups = edges_2_groups.get(edge_index).unwrap().to_vec();
                         groups.push((i, group.id));
-                        edges_2_groups.insert(*edge_index,groups);
+                        edges_2_groups.insert(*edge_index, groups);
                     }
                 }
                 group_2_path_index.insert(group.id, index);
-            },
+            }
             None => {}
         }
     }
@@ -208,13 +228,18 @@ pub fn select_path_per_group(
     (group_2_path_index, edges_2_groups)
 }
 
-fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: EdgeIndex, occupying_groups: &Vec<(usize, u64)>) -> i64 {
+fn edge_overcrowding(
+    graph: &DiGraph<TimetableNode, TimetableEdge>,
+    edge_index: EdgeIndex,
+    occupying_groups: &Vec<(usize, u64)>,
+) -> i64 {
     let timetable_edge = graph.edge_weight(edge_index).unwrap();
-    let overcrowding = timetable_edge.get_utilization() as i64 - timetable_edge.get_capacity() as i64;
+    let overcrowding =
+        timetable_edge.get_utilization() as i64 - timetable_edge.get_capacity() as i64;
     if overcrowding > 0 {
         //println!("Overcrowded edge found: edge={:?}, capacity={}, utilization={}, groups={:?}", edge_index, timetable_edge.get_capacity(), timetable_edge.get_utilization(), occupying_groups);
-    } 
-    return overcrowding
+    }
+    return overcrowding;
 }
 
 // pub fn select_path_per_group(
@@ -255,7 +280,7 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 //                 if new_path.len() > best_selected_path.len() {
 //                     best_selected_path = new_path;
 //                 } else if new_path.len() == best_selected_path.len() {
-//                     continue; // todo: check which variant has more passengers 
+//                     continue; // todo: check which variant has more passengers
 //                 }
 //             }
 //         }
@@ -264,8 +289,8 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 // }
 
 // pub fn recursive_path_straining(
-//     graph: &mut DiGraph<NodeWeight, EdgeWeight>, 
-//     groups_paths: &[(u64, Vec<Path>)], 
+//     graph: &mut DiGraph<NodeWeight, EdgeWeight>,
+//     groups_paths: &[(u64, Vec<Path>)],
 //     inserted_groups: &mut Vec<u64>
 // ) {
 //     if groups_paths.len() == 0 {
@@ -273,9 +298,6 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 //         println!("inserted_groups.len()={}", inserted_groups.len());
 //     } else {
 //         println!("remaining_depth={}", groups_paths.len());
-
-
-
 
 // // /// try to split main path set into many tiny disjunct subsets
 // // pub fn calculate_intersection_sets(tagged_paths: &Vec<(u64, Path)>) {
@@ -285,7 +307,6 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 
 // //     // hashmap for efficient NodeIndex lookup (use collection of intersectiong edge indices as key)
 // //     let mut intersection_graph_nodes: HashMap<Vec<EdgeIndex>, NodeIndex> = HashMap::new();
-    
 
 // //     // hashmap with a vec of intersection edges as key and the tagged_paths as values sharing this intersection
 // //     let mut intersection_sets = HashMap::new();
@@ -311,7 +332,7 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 // //                     Some(node) => node,
 // //                     None => {
 // //                         let node = intersection_graph_nodes.insert(
-// //                             intersection.clone(), 
+// //                             intersection.clone(),
 // //                             intersection_graph.add_node(OptimizationNode::Intersection)
 // //                         );
 
@@ -320,14 +341,12 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 // //                     }
 // //                 }
 
-
 // //                 let intersection_node = intersection_graph_nodes
 // //                     .entry(intersection.clone())
 // //                     .or_insert(intersection_graph.add_node(OptimizationNode::Intersection {
 // //                         edges: intersection
 // //                     }));
 
-                
 // //             }
 // //         }
 // //     }
@@ -336,7 +355,7 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 // /// abstraction of a solution for our problem
 // struct Solution {
 //     groups: Vec<Option<Path>>, // group.id as index, path as element
-//     score: u64 // 
+//     score: u64 //
 // }
 // impl Solution {
 //     pub fn new(len: usize) -> Self {
@@ -359,10 +378,9 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 //     }
 
 //     pub fn simulate_insert(group_index: usize, path: Path) -> {
-        
+
 //     }
 // }
-
 
 // // returns Vec<group_id, path> as solution
 // pub fn simulated_annealing(
@@ -372,18 +390,12 @@ fn edge_overcrowding(graph: &DiGraph<TimetableNode, TimetableEdge>, edge_index: 
 
 //     let mut solution = Solution::new(groups.len());
 
-
-
-
-
 //     solution
 // }
 
-
-
 // pub fn recursive_path_straining(
-//     graph: &mut DiGraph<TimetableNode, TimetableEdge>, 
-//     groups_paths: &[(u64, Vec<Path>)], 
+//     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
+//     groups_paths: &[(u64, Vec<Path>)],
 //     inserted_groups: &mut Vec<u64>,
 //     n_solutions: &u128,
 //     n_solutions_tried: &mut u128,
