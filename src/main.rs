@@ -48,7 +48,7 @@ fn main() {
     }
 
     let groups = if create_new_graph {
-        model.find_paths(&format!("{}groups.csv", csv_folder_path), model_folder_path)
+        model.find_paths_for_groups(&format!("{}/groups.csv", csv_folder_path))
     } else {
         Group::load_groups(model_folder_path)
     };
@@ -57,5 +57,5 @@ fn main() {
         Group::dump_groups(&groups, model_folder_path);
     }
 
-    model.find_solutions(groups, &format!("{}groups.csv", csv_folder_path), model_folder_path);
+    model.find_solutions(groups, &format!("{}/groups.csv", csv_folder_path), model_folder_path);
 }

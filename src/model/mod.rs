@@ -348,9 +348,9 @@ impl Model {
         let start = Instant::now();
 
         // read all CSVs
-        let station_maps = csv_reader::read_to_maps(&format!("{}stations.csv", csv_folder_path));
-        let trip_maps = csv_reader::read_to_maps(&format!("{}trips.csv", csv_folder_path));
-        let footpath_maps = csv_reader::read_to_maps(&format!("{}footpaths.csv", csv_folder_path));
+        let station_maps = csv_reader::read_to_maps(&format!("{}/stations.csv", csv_folder_path));
+        let trip_maps = csv_reader::read_to_maps(&format!("{}/trips.csv", csv_folder_path));
+        let footpath_maps = csv_reader::read_to_maps(&format!("{}/footpaths.csv", csv_folder_path));
 
         // create graph
         let mut graph = DiGraph::new();
@@ -446,7 +446,7 @@ impl Model {
         self.stations_main_arrival.get(station_id).map(|main_arrival| *main_arrival)
     }
 
-    pub fn find_paths(&mut self, groups_csv_filepath: &str, model_folder_path: &str) -> Vec<Group> {
+    pub fn find_paths_for_groups(&mut self, groups_csv_filepath: &str) -> Vec<Group> {
         // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
         // Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
@@ -479,6 +479,8 @@ impl Model {
 
 
     pub fn find_solutions(&mut self, mut groups: Vec<Group>, groups_csv_filepath: &str, model_folder_path: &str) {
+
+        println!("find_solutions()");
 
         // let intersection_sets = optimization::calculate_intersection_sets(&flat_paths);
         // let selected_paths = select_path_per_group(
@@ -530,7 +532,7 @@ mod tests {
     #[test]
     fn validate_graph_integrity() {
 
-        let mut model = Model::with_stations_trips_and_footpaths("real_data/");
+        let mut model = Model::with_stations_trips_and_footpaths("real_data");
         let graph = model.graph;
 
         let start = Instant::now();

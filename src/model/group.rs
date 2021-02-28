@@ -118,7 +118,7 @@ impl Group {
         writer.write_all(serialized_groups.as_bytes()).expect("Could not dump groups!")
     }
 
-    pub fn load_groups(group_folder_path: &str) -> Vec<Group> {
+    pub fn load_groups(group_folder_path: &str) -> Vec<Self> {
         println!("Loading groups...");
         let mut reader = BufReader::new(
             File::open(&format!("{}groups.json", group_folder_path)).expect(&format!("Could not open file {}model.json", group_folder_path))
