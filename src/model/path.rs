@@ -16,8 +16,7 @@ use super::{TimetableEdge, TimetableNode};
 pub struct Path {
     cost: u64,     // cost for this path
     duration: u64, // duration of this path
-
-    utilization: u64,
+    utilization: u64, // number of passengers
 
     pub edges: IndexSet<EdgeIndex>,
 }
@@ -43,7 +42,7 @@ impl Path {
         (self.cost + self.duration) / 2
     }
 
-    /// returns a Vec(missing capacity, edge)> that do not have enough capacity left for this path
+    /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
     /// if Vec empty -> all edges fit
     pub fn colliding_edges(
         &self,
@@ -61,14 +60,14 @@ impl Path {
         colliding
     }
 
-    /// add path to graph (add utilization to edges)
+    /// occupy self to graph (add utilization to edges)
     pub fn strain(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
         for edge_index in self.edges.iter() {
             graph[*edge_index].increase_utilization(self.utilization)
         }
     }
 
-    /// remove path from graph (remove utilization from edges)
+    /// release self from graph (remove utilization from edges)
     pub fn relieve(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
         for edge_index in self.edges.iter() {
             graph[*edge_index].decrease_utilization(self.utilization)
@@ -276,6 +275,7 @@ pub fn create_subgraph_from_edges(
     )
 }
 
+/// not working
 fn all_simple_paths_dfs_dorian(
     graph: &'static DiGraph<TimetableNode, TimetableEdge>,
     from_node_index: NodeIndex,
