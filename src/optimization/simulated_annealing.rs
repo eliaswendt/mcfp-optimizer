@@ -7,7 +7,9 @@ use rand::Rng;
 use crate::model::{
     group::Group,
     path::{self},
-    TimetableEdge, TimetableNode,
+    timetable::{
+        TimetableEdge, TimetableNode
+    },
 };
 
 // use std::{collections::HashMap, sync::atomic::AtomicU64};

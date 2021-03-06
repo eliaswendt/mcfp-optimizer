@@ -36,7 +36,7 @@ impl Path {
         self.edges.intersection(&other.edges).cloned().collect()
     }
 
-    // calculates a score that will be useful for heuristic search
+    /// calculates a score that will be useful for heuristic search
     #[inline]
     pub fn score(&self) -> u64 {
         (self.cost + self.duration) / 2
@@ -199,7 +199,7 @@ impl Path {
             while let Some((next_edge, next_node)) = walker.next(graph) {
                 let edge_weight = &graph[next_edge];
                 let edge_weight_duration = edge_weight.get_duration();
-                let edge_weight_cost = edge_weight.get_travel_cost();
+                let edge_weight_cost = edge_weight.get_path_search_cost();
 
                 if edge_weight_duration <= remaining_duration
                     && edge_weight.get_capacity_hard_limit() >= min_capacity
