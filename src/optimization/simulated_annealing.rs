@@ -7,7 +7,7 @@ use rand::Rng;
 use crate::model::{
     group::Group,
     path::{self},
-    timetable::{
+    graph::{
         TimetableEdge, TimetableNode
     },
 };

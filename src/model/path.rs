@@ -14,7 +14,7 @@ use super::{TimetableEdge, TimetableNode};
 
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
-    cost: u64,        // cost for this path
+    pub cost: u64,        // cost for this path
     duration: u64,    // duration of this path
     utilization: u64, // number of passengers
 
@@ -161,8 +161,7 @@ impl Path {
             max_budget,
         );
 
-        paths
-            .into_iter()
+        paths.into_iter()
             .map(|(remaining_duration, remaining_budget, edges)| Self {
                 cost: max_budget - remaining_budget,
                 duration: max_duration - remaining_duration,
