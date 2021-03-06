@@ -30,34 +30,29 @@ fn main() {
         Model::with_stations_trips_and_footpaths(csv_folder_path)
     } else {
         println!("loading model from {}", model_folder_path);
-        Model::load_model(model_folder_path)
+        Model::load_from_file(model_folder_path)
     };
 
     if dump_model {
-        println!("dumping model to {}", model_folder_path);
-        Model::dump_model(&model, model_folder_path);
+        Model::save_to_file(&model, model_folder_path);
     }
 
     if csv_folder_path.contains("sample") {
         // create dot code only for sample data
 
-        let dot_code = Model::to_dot(&model);
-
-        BufWriter::new(File::create("graph.dot").unwrap())
-            .write(dot_code.as_bytes())
-            .unwrap();
+        Model::save_dot_code(&model, "graph.dot");
     }
 
     let groups = if create_new_graph {
         model.find_paths_for_groups(&format!("{}/groups.csv", csv_folder_path))
     } else {
-        Group::load_groups(model_folder_path)
+        Group::load_from_file(model_folder_path)
     };
 
     if dump_model {
-        Group::dump_groups(&groups, model_folder_path);
+        Group::save_to_file(&groups, model_folder_path);
     }
 
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
-    optimization::randomized_hillclimb::hill_climb_step(&mut model.graph, &groups, 3);
+    optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups, 1000);
 }

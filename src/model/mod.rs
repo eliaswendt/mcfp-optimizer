@@ -8,9 +8,9 @@ pub mod footpath;
 pub mod station;
 pub mod trip;
 pub mod path;
-pub mod timetable;
+pub mod graph;
 
-use timetable::{TimetableNode, TimetableEdge};
+use graph::{TimetableNode, TimetableEdge};
 
 
 use group::Group;
@@ -121,6 +121,46 @@ impl Model {
         }
     }
 
+    pub fn save_to_file(model: &Self, model_folder_path: &str) {
+        print!("saving model to {} ... ", model_folder_path);
+        let start = Instant::now();
+
+        let writer = BufWriter::new(
+            File::create(&format!("{}model.json", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
+        );
+        serde_json::to_writer(writer, model).expect("Could not dump model");
+
+        println!("done ({}ms)", start.elapsed().as_millis());
+    }
+
+    pub fn load_from_file(model_folder_path: &str) -> Self {
+        print!("loading model from {} ...", model_folder_path);
+        let start = Instant::now();
+
+        let reader = BufReader::new(
+            File::open(&format!("{}model.json", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
+        );
+        let model: Self = serde_json::from_reader(reader).expect("Could not load model from file!");
+
+
+        println!("done ({}ms)", start.elapsed().as_millis());
+
+        model
+    }
+
+
+    /// create graviz dot code of model's graph 
+    pub fn save_dot_code(model: &Self, filepath: &str) {
+        let dot_code = format!("{:?}", Dot::with_config(&model.graph, &[]));
+
+
+        BufWriter::new(
+            File::create(filepath).expect(&format!("Could create dot-file at {}", filepath))
+        ).write(dot_code.as_bytes()).unwrap();
+    }
+
+
+
 
     /// find next start node at this station
     pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
@@ -180,29 +220,6 @@ impl Model {
     }
 
 
-    pub fn to_dot(model: &Self) -> String {
-        format!("{:?}", Dot::with_config(&model.graph, &[]))
-    }
-
-    pub fn dump_model(model: &Self, model_folder_path: &str) {
-        println!("Dumping model...");
-        let mut writer = BufWriter::new(
-            File::create(&format!("{}model.json", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
-        );
-        let serialized_model = serde_json::to_string(model).unwrap();
-        writer.write_all(serialized_model.as_bytes()).expect("Could not dump model!")
-    }
-
-    pub fn load_model(model_folder_path: &str) -> Self {
-        println!("Loading model...");
-        let mut reader = BufReader::new(
-            File::open(&format!("{}model.json", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
-        );
-        let mut serialized_model = String::new();
-        reader.read_to_string(&mut serialized_model).unwrap();
-        let model: Self = serde_json::from_str(&serialized_model).expect("Could not load model from file!");
-        model
-    }
 }
 
 #[cfg(test)]

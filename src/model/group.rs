@@ -119,7 +119,7 @@ impl Group {
             println!(
                 "{}",
                 format!(
-                    "{} paths, best={{duration={}, len={}}}",
+                    "{} path(s), best={{duration={}, len={}}}",
                     self.paths.len(),
                     self.paths[0].duration(),
                     self.paths[0].len()
@@ -130,32 +130,32 @@ impl Group {
         }
     }
 
-    pub fn dump_groups(groups: &Vec<Group>, group_folder_path: &str) {
-        println!("Dumping groups...");
-        let mut writer = BufWriter::new(
-            File::create(&format!("{}groups.json", group_folder_path)).expect(&format!(
-                "Could not open file {}groups.json",
-                group_folder_path
-            )),
+    pub fn save_to_file(groups: &Vec<Group>, filepath: &str) {
+        print!("saving groups to {} ...", filepath);
+        let start = Instant::now();
+
+        let writer = BufWriter::new(
+            File::create(&format!("{}groups.json", filepath))
+                .expect(&format!("Could not open file {}groups.json", filepath)),
         );
-        let serialized_groups = serde_json::to_string(&groups).unwrap();
-        writer
-            .write_all(serialized_groups.as_bytes())
-            .expect("Could not dump groups!")
+        serde_json::to_writer(writer, groups).expect("Could not save groups to file");
+
+        println!("done ({}ms)", start.elapsed().as_millis());
     }
 
-    pub fn load_groups(group_folder_path: &str) -> Vec<Self> {
-        println!("Loading groups...");
-        let mut reader = BufReader::new(
-            File::open(&format!("{}groups.json", group_folder_path)).expect(&format!(
-                "Could not open file {}model.json",
-                group_folder_path
-            )),
+    pub fn load_from_file(filepath: &str) -> Vec<Self> {
+        print!("loading groups from {} ...", filepath);
+        let start = Instant::now();
+
+        let reader = BufReader::new(
+            File::open(&format!("{}groups.json", filepath))
+                .expect(&format!("Could not open file {}model.json", filepath)),
         );
-        let mut serialized_groups = String::new();
-        reader.read_to_string(&mut serialized_groups).unwrap();
-        let groups: Vec<Group> = serde_json::from_str::<Vec<Group>>(&serialized_groups)
-            .expect("Could not load groups from file!");
+        let groups: Vec<Group> =
+            serde_json::from_reader(reader).expect("Could not load groups from file!");
+
+        println!("done ({}ms)", start.elapsed().as_millis());
+
         groups
     }
 }
