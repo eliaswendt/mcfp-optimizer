@@ -11,47 +11,61 @@ mod model;
 mod optimization;
 
 fn main() {
+
+    // EXPLANATION OF CLI ARGUMENT USAGE:
+    // if <csv_folderpath> specified, the program will try to read all CSVs from there + create a new model + search paths for all groups + create a snapshot of current model and continue with best path selection
+    // if <csv_folderpath> is NOT specified, the proram will try to load a snapshot from a previous run and directly continue with best path selection
+
+
     let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        println!("run with {} <csv_folder_path>", args[0]);
-        return;
-    }
+    let csv_folderpath_option = if args.len() != 2 {
+        println!("<csv_folderpath> not specified -> trying to load snapshot from last run");
+        None
+    } else {
+        println!("using CSV folderpath \"{}\" to create new graph", args[1]);
+        Some(&args[1])
+    };
 
-    // configuration of this execution
-    let csv_folder_path = &args[1];
-    let dump_folder_path = "dump/";
-    let build_new_model = false;
-    let save_model_to_file = true;
+    let snapshot_folder_path = "snapshot/";
 
-    let mut model = if build_new_model {
+    let (mut model, groups) = if let Some(csv_folderpath) = csv_folderpath_option {
         println!(
-            "creating new model with_stations_trips_and_footpaths({})",
-            csv_folder_path
+            "creating new model with_stations_trips_and_footpaths({}) and groups",
+            csv_folderpath
         );
-        Model::with_stations_trips_and_footpaths(csv_folder_path)
+
+        let model = Model::with_stations_trips_and_footpaths(csv_folderpath);
+        let groups = model.find_paths_for_groups(&format!("{}/groups.csv", csv_folderpath));
+
+        println!("create snapshot of model and groups for next run");
+        Model::save_to_file(&model, snapshot_folder_path);
+        Group::save_to_file(&groups, snapshot_folder_path);
+
+
+        println!("building a graphviz graph of model");
+        if csv_folderpath.contains("sample_data") {
+            // create dot code only for sample data
+            Model::save_dot_code_to(&model, &format!("{}/graph.dot", csv_folderpath));
+        }
+
+        (model, groups)
     } else {
-        Model::load_from_file(dump_folder_path)
+        (
+            Model::load_from_file(snapshot_folder_path),
+            Group::load_from_file(snapshot_folder_path)
+        )
     };
 
-    if save_model_to_file {
-        Model::save_to_file(&model, dump_folder_path);
-    }
 
-    if csv_folder_path.contains("sample") {
-        // create dot code only for sample data
-        Model::save_dot_code(&model, "graph.dot");
-    }
 
-    let groups = if build_new_model {
-        model.find_paths_for_groups(&format!("{}/groups.csv", csv_folder_path))
-    } else {
-        Group::load_from_file(dump_folder_path)
-    };
 
-    if save_model_to_file {
-        Group::save_to_file(&groups, dump_folder_path);
-    }
+    // at this state we can start with group's paths selection
+
+
 
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
-    optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups, 30, 100);
+    // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups, 30, 100);
+
+
+    println!("done with main() -> terminating")
 }

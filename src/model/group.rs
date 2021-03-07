@@ -101,9 +101,9 @@ impl Group {
             to,
             self.passengers as u64,
             max_duration,
-            4,
-            20,
-            90,
+            3,
+            50,
+            100,
         );
 
         print!("done in {}ms, ", start.elapsed().as_millis());
@@ -131,7 +131,7 @@ impl Group {
     }
 
     pub fn save_to_file(groups: &Vec<Group>, filepath: &str) {
-        print!("saving groups to {} ...", filepath);
+        print!("saving groups to {} ... ", filepath);
         let start = Instant::now();
 
         let writer = BufWriter::new(
@@ -144,7 +144,7 @@ impl Group {
     }
 
     pub fn load_from_file(filepath: &str) -> Vec<Self> {
-        print!("loading groups from {} ...", filepath);
+        print!("loading groups from {} ... ", filepath);
         let start = Instant::now();
 
         let reader = BufReader::new(

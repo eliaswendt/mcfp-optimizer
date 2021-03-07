@@ -136,7 +136,7 @@ impl Model {
 
 
     pub fn load_from_file(model_folder_path: &str) -> Self {
-        print!("loading model from {} ...", model_folder_path);
+        print!("loading model from {} ... ", model_folder_path);
         let start = Instant::now();
 
         let reader = BufReader::new(
@@ -152,7 +152,7 @@ impl Model {
 
 
     /// create graviz dot code of model's graph 
-    pub fn save_dot_code(model: &Self, filepath: &str) {
+    pub fn save_dot_code_to(model: &Self, filepath: &str) {
         let dot_code = format!("{:?}", Dot::with_config(&model.graph, &[]));
 
         BufWriter::new(
@@ -188,7 +188,7 @@ impl Model {
         self.stations_main_arrival.get(station_id).map(|main_arrival| *main_arrival)
     }
 
-    pub fn find_paths_for_groups(&mut self, groups_csv_filepath: &str) -> Vec<Group> {
+    pub fn find_paths_for_groups(&self, groups_csv_filepath: &str) -> Vec<Group> {
         // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
         // Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
