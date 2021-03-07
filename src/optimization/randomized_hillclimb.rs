@@ -10,7 +10,7 @@ use crate::model::{
 };
 
 /// formalizing a system state
-/// by storing indices of currently selected path for each group
+/// by storing the indices of the currently selected path for each group
 #[derive(Debug)]
 struct SelectionState<'a> {
     groups_paths: &'a Vec<Vec<&'a Path>>,
@@ -18,6 +18,7 @@ struct SelectionState<'a> {
 }
 
 impl<'a> SelectionState<'a> {
+
     pub fn generate_random_state(groups_paths: &'a Vec<Vec<&Path>>) -> Self {
         let mut rng = rand::thread_rng();
 
@@ -35,7 +36,7 @@ impl<'a> SelectionState<'a> {
 
     /// generates a vec of neighbor states
     /// generate new states, so that each neighbor only differs in selected path of one group
-    pub fn generate_neighbors(&self) -> Vec<Self> {
+    pub fn generate_group_neighbors(&self) -> Vec<Self> {
 
         let mut neighbors = Vec::with_capacity(self.groups_paths.len() * 10);
 

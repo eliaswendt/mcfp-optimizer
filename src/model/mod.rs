@@ -40,7 +40,9 @@ pub struct Model {
     // we need to store all transfer and arrival nodes for all stations at all times
     // required as entry-/endpoints for search
     stations_transfers: HashMap<String, Vec<(u64, NodeIndex)>>,
-    stations_main_arrival: HashMap<String, NodeIndex>
+    stations_main_arrival: HashMap<String, NodeIndex>,
+
+    trips: HashMap<u64, trip::Trip>
 }
 
 impl Model {
@@ -62,7 +64,11 @@ impl Model {
         let mut stations_arrivals = HashMap::with_capacity(stations.len());
         let mut stations_main_arrival = HashMap::with_capacity(stations.len());
 
-        for trip in trip::Trip::from_maps_to_vec(&trip_maps) {
+        // also save a HashMap of trips to parse group's "in_trip" column
+        let trips = trip::Trip::from_maps_to_vec(&trip_maps);
+        let trips_map: HashMap<u64, trip::Trip> = trips.iter().map(|t| (t.id, t.clone())).collect();
+
+        for trip in trips {
             trip.connect(&mut graph, &mut stations);
         }
 
@@ -117,7 +123,8 @@ impl Model {
         Self {
             graph,
             stations_transfers,
-            stations_main_arrival
+            stations_main_arrival,
+            trips: trips_map
         }
     }
 
@@ -192,14 +199,14 @@ impl Model {
     }
 
     pub fn find_paths_for_groups(&self, groups_csv_filepath: &str) -> Vec<Group> {
-        // Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
-        // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
-        // Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
+
+        // TODO: Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
         // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
         // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
 
         let mut groups = Group::from_maps_to_vec(
-            &csv_reader::read_to_maps(groups_csv_filepath)
+            &csv_reader::read_to_maps(groups_csv_filepath),
+            &self.trips
         );
 
         let groups_len = groups.len();

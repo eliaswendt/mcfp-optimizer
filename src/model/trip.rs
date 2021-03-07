@@ -1,9 +1,11 @@
 use std::collections::{HashMap, HashSet};
+use serde::{Deserialize, Serialize};
 
 use petgraph::graph::DiGraph;
 
 use super::{station::Station, TimetableEdge, TimetableNode};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trip {
     pub id: u64,
     pub from_station: String,

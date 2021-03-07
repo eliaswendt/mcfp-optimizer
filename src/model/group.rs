@@ -11,10 +11,7 @@ use std::{
 use colored::Colorize;
 use petgraph::graph::{DiGraph, EdgeIndex};
 
-use super::{
-    path::{self, Path},
-    Model, TimetableEdge, TimetableNode,
-};
+use super::{Model, TimetableEdge, TimetableNode, path::{self, Path}, trip::Trip};
 
 /// travel group
 #[derive(Clone, Serialize, Deserialize)]
@@ -39,10 +36,15 @@ pub struct Group {
 
 impl Group {
 
-    pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
+    pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>, trips: &HashMap<u64, Trip>) -> Vec<Self> {
         println!("parsing {} group(s)", group_maps.len());
 
         let mut groups = Vec::with_capacity(group_maps.len());
+
+
+        // TODO: Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
+        // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
+
 
         for group_map in group_maps.iter() {
             let id = group_map.get("id").unwrap().parse().unwrap();
