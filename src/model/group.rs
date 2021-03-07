@@ -101,9 +101,9 @@ impl Group {
             to,
             self.passengers as u64,
             max_duration,
-            5,
-            50,
-            100,
+            4,
+            20,
+            90,
         );
 
         print!("done in {}ms, ", start.elapsed().as_millis());

@@ -17,42 +17,41 @@ fn main() {
         return;
     }
 
+    // configuration of this execution
     let csv_folder_path = &args[1];
-    let model_folder_path = "dump/";
-    let create_new_graph = true;
-    let dump_model = true;
+    let dump_folder_path = "dump/";
+    let build_new_model = false;
+    let save_model_to_file = true;
 
-    let mut model = if create_new_graph {
+    let mut model = if build_new_model {
         println!(
             "creating new model with_stations_trips_and_footpaths({})",
             csv_folder_path
         );
         Model::with_stations_trips_and_footpaths(csv_folder_path)
     } else {
-        println!("loading model from {}", model_folder_path);
-        Model::load_from_file(model_folder_path)
+        Model::load_from_file(dump_folder_path)
     };
 
-    if dump_model {
-        Model::save_to_file(&model, model_folder_path);
+    if save_model_to_file {
+        Model::save_to_file(&model, dump_folder_path);
     }
 
     if csv_folder_path.contains("sample") {
         // create dot code only for sample data
-
         Model::save_dot_code(&model, "graph.dot");
     }
 
-    let groups = if create_new_graph {
+    let groups = if build_new_model {
         model.find_paths_for_groups(&format!("{}/groups.csv", csv_folder_path))
     } else {
-        Group::load_from_file(model_folder_path)
+        Group::load_from_file(dump_folder_path)
     };
 
-    if dump_model {
-        Group::save_to_file(&groups, model_folder_path);
+    if save_model_to_file {
+        Group::save_to_file(&groups, dump_folder_path);
     }
 
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
-    optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups, 1000);
+    optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups, 30, 100);
 }

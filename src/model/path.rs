@@ -14,7 +14,7 @@ use super::{TimetableEdge, TimetableNode};
 
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
-    pub cost: u64,        // cost for this path
+    pub cost: u64,    // cost for this path
     duration: u64,    // duration of this path
     utilization: u64, // number of passengers
 
@@ -104,14 +104,14 @@ impl Path {
         min_capacity: u64,
         max_duration: u64,
 
-        n_steps: u64,
+        n_budget_steps: u64,
         min_budget: u64,
         max_budget: u64, // maximum number of transfers to follow
     ) -> Vec<Self> {
         // increase depth in 4 steps
-        let depth_step = (max_budget - min_budget) / n_steps;
+        let depth_step = (max_budget - min_budget) / n_budget_steps;
 
-        for i in 0..n_steps + 1 {
+        for i in 0..n_budget_steps + 1 {
             let current_budget = min_budget + i * depth_step;
 
             println!("[iddfs()] trying with budget={}", current_budget);
@@ -161,7 +161,8 @@ impl Path {
             max_budget,
         );
 
-        paths.into_iter()
+        paths
+            .into_iter()
             .map(|(remaining_duration, remaining_budget, edges)| Self {
                 cost: max_budget - remaining_budget,
                 duration: max_duration - remaining_duration,

@@ -121,6 +121,7 @@ impl Model {
         }
     }
 
+
     pub fn save_to_file(model: &Self, model_folder_path: &str) {
         print!("saving model to {} ... ", model_folder_path);
         let start = Instant::now();
@@ -132,6 +133,7 @@ impl Model {
 
         println!("done ({}ms)", start.elapsed().as_millis());
     }
+
 
     pub fn load_from_file(model_folder_path: &str) -> Self {
         print!("loading model from {} ...", model_folder_path);
@@ -153,12 +155,10 @@ impl Model {
     pub fn save_dot_code(model: &Self, filepath: &str) {
         let dot_code = format!("{:?}", Dot::with_config(&model.graph, &[]));
 
-
         BufWriter::new(
             File::create(filepath).expect(&format!("Could create dot-file at {}", filepath))
         ).write(dot_code.as_bytes()).unwrap();
     }
-
 
 
 
