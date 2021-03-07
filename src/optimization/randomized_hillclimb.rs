@@ -1,4 +1,4 @@
-use std::iter::Map;
+use std::{iter::Map, time::Instant};
 
 use petgraph::graph::DiGraph;
 use rand::Rng;
@@ -36,6 +36,7 @@ impl<'a> SelectionState<'a> {
     /// generates a vec of neighbor states
     /// generate new states, so that each neighbor only differs in selected path of one group
     pub fn generate_neighbors(&self) -> Vec<Self> {
+
         let mut neighbors = Vec::with_capacity(self.groups_paths.len() * 10);
 
         // iterate over all groups_paths_selection
@@ -59,7 +60,7 @@ impl<'a> SelectionState<'a> {
 
                 neighbors.push(selection_state);
             }
-        }
+        }        
 
         neighbors
     }
@@ -101,22 +102,35 @@ impl<'a> SelectionState<'a> {
         neighbors
     }
 
+    #[inline]
     pub fn get_cost(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) -> u64 {
+
         // first: strain all selected paths to TimetableGraph
+        // let start = Instant::now();
         for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
             self.groups_paths[group_index][*path_index].strain(graph);
         }
+        // println!("first took {}ms", start.elapsed().as_millis());
+
+
 
         // second: calculate sum of all path's utilization costs
+        // let start = Instant::now();
         let mut cost_sum = 0;
         for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
             cost_sum += self.groups_paths[group_index][*path_index].utilization_cost(graph);
         }
+        // println!("second took {}ms", start.elapsed().as_millis());
+
+
 
         // third: relieve all selected paths to TimetableGraph
+        // let start = Instant::now();
         for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
             self.groups_paths[group_index][*path_index].relieve(graph);
         }
+        // println!("thrid took {}ms", start.elapsed().as_millis());
+
 
         cost_sum
     }
@@ -159,12 +173,14 @@ pub fn randomized_hillclimb(
         for j in 0..max_n_iterations {
             // search local maximum from this initial configuration
 
-            let mut neighbors_with_costs: Vec<(u64, SelectionState)> = local_minimum
-                .1
-                .generate_neighbors()
+            let neighbors = local_minimum.1.generate_direct_neighbors();
+
+            // attach each neighbor state with a cost value
+            let mut neighbors_with_costs: Vec<(u64, SelectionState)> = neighbors
                 .into_iter()
                 .map(|s| (s.get_cost(graph), s))
                 .collect();
+
 
             // sort neighbors by cost (lowest first)
             neighbors_with_costs.sort_unstable_by_key(|(cost, _)| *cost);

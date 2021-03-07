@@ -127,9 +127,11 @@ impl Model {
         let start = Instant::now();
 
         let writer = BufWriter::new(
-            File::create(&format!("{}model.json", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
+            File::create(&format!("{}model.bincode", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
         );
-        serde_json::to_writer(writer, model).expect("Could not dump model");
+
+        bincode::serialize_into(writer, model).expect("Could not dump model");
+        //serde_json::to_writer(writer, model).expect("Could not dump model");
 
         println!("done ({}ms)", start.elapsed().as_millis());
     }
@@ -140,9 +142,10 @@ impl Model {
         let start = Instant::now();
 
         let reader = BufReader::new(
-            File::open(&format!("{}model.json", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
+            File::open(&format!("{}model.bincode", model_folder_path)).expect(&format!("Could not open file {}model.json", model_folder_path))
         );
-        let model: Self = serde_json::from_reader(reader).expect("Could not load model from file!");
+        let model: Self = bincode::deserialize_from(reader).expect("Could not load model from file!");
+        // let model: Self = serde_json::from_reader(reader).expect("Could not load model from file!");
 
 
         println!("done ({}ms)", start.elapsed().as_millis());
@@ -218,8 +221,6 @@ impl Model {
 
         groups
     }
-
-
 }
 
 #[cfg(test)]

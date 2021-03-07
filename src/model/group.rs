@@ -75,10 +75,11 @@ impl Group {
         let start = Instant::now();
 
         let writer = BufWriter::new(
-            File::create(&format!("{}groups.json", filepath))
+            File::create(&format!("{}groups.bincode", filepath))
                 .expect(&format!("Could not open file {}groups.json", filepath)),
         );
-        serde_json::to_writer(writer, groups).expect("Could not save groups to file");
+        bincode::serialize_into(writer, groups).expect("Could not save groups to file");
+        // serde_json::to_writer(writer, groups).expect("Could not save groups to file");
 
         println!("done ({}ms)", start.elapsed().as_millis());
     }
@@ -89,11 +90,11 @@ impl Group {
         let start = Instant::now();
 
         let reader = BufReader::new(
-            File::open(&format!("{}groups.json", filepath))
+            File::open(&format!("{}groups.bincode", filepath))
                 .expect(&format!("Could not open file {}model.json", filepath)),
         );
-        let groups: Vec<Group> =
-            serde_json::from_reader(reader).expect("Could not load groups from file!");
+        let groups: Vec<Group> = bincode::deserialize_from(reader).expect("Could not load groups from file!");
+        // let groups: Vec<Group> = serde_json::from_reader(reader).expect("Could not load groups from file!");
 
         println!("done ({}ms)", start.elapsed().as_millis());
 
@@ -142,8 +143,8 @@ impl Group {
             to,
             self.passengers as u64,
             max_duration,
-            1,
-            100,
+            2,
+            50,
             100,
         );
 
