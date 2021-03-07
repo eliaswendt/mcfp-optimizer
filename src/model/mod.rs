@@ -8,9 +8,9 @@ pub mod footpath;
 pub mod station;
 pub mod trip;
 pub mod path;
-pub mod graph;
+pub mod timetable_graph;
 
-use graph::{TimetableNode, TimetableEdge};
+use timetable_graph::{TimetableNode, TimetableEdge};
 
 
 use group::Group;
@@ -259,23 +259,23 @@ mod tests {
 
                         // Departure outgoing edge is ride
                         let edge_is_ride = edge_weight.is_ride();
-                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", edge_weight.get_kind_as_str()));
+                        assert!(edge_is_ride, format!("Outgoing edge of departure node is not Ride but {}!", edge_weight.kind_as_str()));
                         
                         // Outgoing Edge ends in Arrival node
                         let departure_to_arrival =  node_b_weight.is_arrival();
-                        assert!(departure_to_arrival, format!("Node Departure does not end in Arrival node but in {}!", node_b_weight.get_kind()));
+                        assert!(departure_to_arrival, format!("Node Departure does not end in Arrival node but in {}!", node_b_weight.kind()));
                         
                         // Departure time is before Arrival time
-                        let departure_before_arrival = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
-                        assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
+                        let departure_before_arrival = node_a_weight.time().unwrap() <= node_b_weight.time().unwrap();
+                        assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_a_weight.time().unwrap(), node_b_weight.time().unwrap()));
                         
                         // Departure node has only one outgoing edge
                         let one_outgoing = graph.neighbors(node_a_index).enumerate().count();
                         assert!(one_outgoing == 1, format!("Departure node has not one outgoing edge but {}", one_outgoing));
                     
                         // both nodes have same trip 
-                        let same_trip = node_a_weight.get_trip_id().unwrap() == node_b_weight.get_trip_id().unwrap();
-                        assert!(same_trip == true, format!("Departure node has not the same trip as Arrival node! {} vs {}", node_a_weight.get_trip_id().unwrap(), node_b_weight.get_trip_id().unwrap()));
+                        let same_trip = node_a_weight.trip_id().unwrap() == node_b_weight.trip_id().unwrap();
+                        assert!(same_trip == true, format!("Departure node has not the same trip as Arrival node! {} vs {}", node_a_weight.trip_id().unwrap(), node_b_weight.trip_id().unwrap()));
                     },
 
                     TimetableNode::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
@@ -283,65 +283,65 @@ mod tests {
                         // Outgoing edge is WaitInTrain, Alight, Walk, or MainArrivalRelation
                         let edge_is_correct = edge_weight.is_wait_in_train() || edge_weight.is_alight()
                             || edge_weight.is_walk() || edge_weight.is_main_arrival_relation();
-                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weight.get_kind_as_str()));
+                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weight.kind_as_str()));
                         
                         // if edge is WaitInTrain -> Nodes have same trip and node b is departure
                         if edge_weight.is_wait_in_train() {
                             let arrival_to_departure = node_b_weight.is_departure();
-                            assert!(arrival_to_departure, format!("Node Arrival does not end in Departure node after WaitInTrain edge but in {}!", node_b_weight.get_kind()));
+                            assert!(arrival_to_departure, format!("Node Arrival does not end in Departure node after WaitInTrain edge but in {}!", node_b_weight.kind()));
                             
                             num_wait_in_train += 1;
 
                             // same trip id
-                            let same_trip = node_a_weight.get_trip_id().unwrap() == node_b_weight.get_trip_id().unwrap();
-                            assert!(same_trip == true, format!("Arrival node has not the same trip as Departure node for WaitInStation edge! {} vs {}", node_a_weight.get_trip_id().unwrap(), node_b_weight.get_trip_id().unwrap()));
+                            let same_trip = node_a_weight.trip_id().unwrap() == node_b_weight.trip_id().unwrap();
+                            assert!(same_trip == true, format!("Arrival node has not the same trip as Departure node for WaitInStation edge! {} vs {}", node_a_weight.trip_id().unwrap(), node_b_weight.trip_id().unwrap()));
                         }
 
                         // if edge is Alight -> node b is transfer
                         if edge_weight.is_alight() {
                             let arrival_to_transfer = node_b_weight.is_transfer();
-                            assert!(arrival_to_transfer, format!("Node Arrival does not end in Transfer node after Alight edge but in {}!", node_b_weight.get_kind()));
+                            assert!(arrival_to_transfer, format!("Node Arrival does not end in Transfer node after Alight edge but in {}!", node_b_weight.kind()));
                         }
 
                         // if edge is Walk -> node b is transfer
                         if edge_weight.is_walk() {
                             let arrival_to_walk = node_b_weight.is_transfer();
-                            assert!(arrival_to_walk, format!("Node Arrival does not end in Transfer node after Walk edge but in {}!", node_b_weight.get_kind()));
+                            assert!(arrival_to_walk, format!("Node Arrival does not end in Transfer node after Walk edge but in {}!", node_b_weight.kind()));
                         }
 
                         // if edge is MainStationRelation -> node b is MainArrival
                         if edge_weight.is_main_arrival_relation() {
                             let arrival_to_main_arrival = node_b_weight.is_main_arrival();
-                            assert!(arrival_to_main_arrival, format!("Node Arrival does not end in Transfer node after MainArrivalRelation edge but in {}!", node_b_weight.get_kind()));
+                            assert!(arrival_to_main_arrival, format!("Node Arrival does not end in Transfer node after MainArrivalRelation edge but in {}!", node_b_weight.kind()));
                             num_main_arrival += 1;
                         }
 
                         // Arrival node has time before node b
                         if node_b_weight.is_departure() || node_b_weight.is_transfer() {
-                            let arrival_before_departure_transfer = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
-                            assert!(arrival_before_departure_transfer, format!("Node Arrival has greater time as {} node! {} vs {}", node_b_weight.get_kind(), node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
+                            let arrival_before_departure_transfer = node_a_weight.time().unwrap() <= node_b_weight.time().unwrap();
+                            assert!(arrival_before_departure_transfer, format!("Node Arrival has greater time as {} node! {} vs {}", node_b_weight.kind(), node_a_weight.time().unwrap(), node_b_weight.time().unwrap()));
                         }
 
                         // Arrival node and node b have same stations
                         if node_b_weight.is_departure() || node_b_weight.is_main_arrival() {
                             // same stations
-                            let same_stations = node_a_weight.get_station_id().unwrap() == node_b_weight.get_station_id().unwrap();
-                            assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station_id().unwrap(), node_b_weight.get_station_id().unwrap()));
+                            let same_stations = node_a_weight.station_id().unwrap() == node_b_weight.station_id().unwrap();
+                            assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.kind(), node_a_weight.station_id().unwrap(), node_b_weight.station_id().unwrap()));
                         }
                     },
                     TimetableNode::Transfer {time: _, station_id: _, station_name: _} => {
 
                         // Outgoing edge is Board or WaitAtStation
                         let edge_is_correct = edge_weight.is_board() || edge_weight.is_wait_at_station();
-                        assert!(edge_is_correct, format!("Outgoing edge of Transfer node is not Board, or WaitAtStation but {}!", edge_weight.get_kind_as_str()));
+                        assert!(edge_is_correct, format!("Outgoing edge of Transfer node is not Board, or WaitAtStation but {}!", edge_weight.kind_as_str()));
                         
                         // if edge is Board -> node b is Departure node and both have same time
                         if edge_weight.is_board() {
                             let transfer_to_departure = node_b_weight.is_departure();
-                            assert!(transfer_to_departure, format!("Node Transfer does not end in Departure node after Board edge but in {}!", node_b_weight.get_kind()));
+                            assert!(transfer_to_departure, format!("Node Transfer does not end in Departure node after Board edge but in {}!", node_b_weight.kind()));
 
-                            let same_time = node_a_weight.get_time().unwrap() == node_b_weight.get_time().unwrap();
-                            assert!(same_time, format!("Transfer node and Departure node have not same time! {} vs. {}", node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
+                            let same_time = node_a_weight.time().unwrap() == node_b_weight.time().unwrap();
+                            assert!(same_time, format!("Transfer node and Departure node have not same time! {} vs. {}", node_a_weight.time().unwrap(), node_b_weight.time().unwrap()));
                         
                             num_board += 1;
                         }
@@ -349,15 +349,15 @@ mod tests {
                         // if edge is WaitAtStation -> node b is Transfer node and node b has time greater or equal node a
                         if edge_weight.is_wait_at_station() {
                             let transfer_to_transfer = node_b_weight.is_transfer();
-                            assert!(transfer_to_transfer, format!("Node Transfer does not end in Transfer node after WaitAtStation edge but in {}!", node_b_weight.get_kind()));
+                            assert!(transfer_to_transfer, format!("Node Transfer does not end in Transfer node after WaitAtStation edge but in {}!", node_b_weight.kind()));
                         
-                            let transfer_before_transfer = node_a_weight.get_time().unwrap() <= node_b_weight.get_time().unwrap();
-                            assert!(transfer_before_transfer, format!("Transfer node has not time less or equal Transfer node! {} vs. {}", node_a_weight.get_time().unwrap(), node_b_weight.get_time().unwrap()));
+                            let transfer_before_transfer = node_a_weight.time().unwrap() <= node_b_weight.time().unwrap();
+                            assert!(transfer_before_transfer, format!("Transfer node has not time less or equal Transfer node! {} vs. {}", node_a_weight.time().unwrap(), node_b_weight.time().unwrap()));
                         }
 
                         // both nodes have same station
-                        let same_stations = node_a_weight.get_station_id().unwrap() == node_b_weight.get_station_id().unwrap();
-                        assert!(same_stations, format!("Transfer node and {} node have not same station! {} vs. {}", node_b_weight.get_kind(), node_a_weight.get_station_id().unwrap(), node_b_weight.get_station_id().unwrap()));                   
+                        let same_stations = node_a_weight.station_id().unwrap() == node_b_weight.station_id().unwrap();
+                        assert!(same_stations, format!("Transfer node and {} node have not same station! {} vs. {}", node_b_weight.kind(), node_a_weight.station_id().unwrap(), node_b_weight.station_id().unwrap()));                   
                     },
                     TimetableNode::MainArrival {station_id: _} => {
                         

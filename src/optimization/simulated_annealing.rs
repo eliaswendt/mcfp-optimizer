@@ -7,7 +7,7 @@ use rand::Rng;
 use crate::model::{
     group::Group,
     path::{self},
-    graph::{
+    timetable_graph::{
         TimetableEdge, TimetableNode
     },
 };
@@ -35,16 +35,16 @@ pub fn optimize_overloaded_graph(
     // get all overcrowded edges
     for (edge_index, occupying_groups) in edges_2_groups.iter() {
         let timetable_edge = graph.edge_weight(*edge_index).unwrap();
-        if timetable_edge.get_utilization() > timetable_edge.get_capacity_hard_limit() {
+        if timetable_edge.utilization() > timetable_edge.capacity_hard_limit() {
             println!(
                 "Overcrowded edge found: capacity={}, utilization={}, groups={:?}",
-                timetable_edge.get_capacity_hard_limit(),
-                timetable_edge.get_utilization(),
+                timetable_edge.capacity_hard_limit(),
+                timetable_edge.utilization(),
                 occupying_groups
             );
             overcrowded_edges.insert(
                 *edge_index,
-                timetable_edge.get_utilization() - timetable_edge.get_capacity_hard_limit(),
+                timetable_edge.utilization() - timetable_edge.capacity_hard_limit(),
             );
         }
     }
@@ -98,7 +98,7 @@ pub fn optimize_overloaded_graph(
             let collected_keys = overcrowded_edges.keys().collect::<Vec<_>>();
             if collected_keys.contains(&edge_index) {
                 let timetable_edge = graph[*edge_index].clone();
-                if timetable_edge.get_utilization() <= timetable_edge.get_capacity_hard_limit() {
+                if timetable_edge.utilization() <= timetable_edge.capacity_hard_limit() {
                     overcrowded_edges.remove(edge_index);
                 }
             }
@@ -237,7 +237,7 @@ fn edge_overcrowding(
 ) -> i64 {
     let timetable_edge = graph.edge_weight(edge_index).unwrap();
     let overcrowding =
-        timetable_edge.get_utilization() as i64 - timetable_edge.get_capacity_hard_limit() as i64;
+        timetable_edge.utilization() as i64 - timetable_edge.capacity_hard_limit() as i64;
     if overcrowding > 0 {
         //println!("Overcrowded edge found: edge={:?}, capacity={}, utilization={}, groups={:?}", edge_index, timetable_edge.get_capacity(), timetable_edge.get_utilization(), occupying_groups);
     }

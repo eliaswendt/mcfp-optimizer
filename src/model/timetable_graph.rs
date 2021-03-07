@@ -32,7 +32,7 @@ pub enum TimetableNode {
 impl TimetableNode {
 
     #[inline]
-    pub fn get_time(&self) -> Option<u64> {
+    pub fn time(&self) -> Option<u64> {
         match self {
             Self::Departure {trip_id: _, time, station_id: _, station_name: _} => Some(*time),
             Self::Arrival {trip_id: _, time, station_id: _, station_name: _} => Some(*time),
@@ -42,7 +42,7 @@ impl TimetableNode {
     }
 
     #[inline]
-    pub fn get_station_id(&self) -> Option<String> {
+    pub fn station_id(&self) -> Option<String> {
         match self {
             Self::Departure {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
             Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
@@ -93,7 +93,7 @@ impl TimetableNode {
     }
 
     #[inline]
-    pub fn get_kind(&self) -> &str {
+    pub fn kind(&self) -> &str {
         match self {
             Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
             Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => "Arrival",
@@ -103,7 +103,7 @@ impl TimetableNode {
     }
 
     #[inline]
-    pub fn get_trip_id(&self) -> Option<u64> {
+    pub fn trip_id(&self) -> Option<u64> {
         match self {
             Self::Departure {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
             Self::Arrival {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
@@ -150,7 +150,7 @@ impl TimetableEdge {
 
     /// maps edge to some virtual cost for improved DFS (aka. effort/expense to "take" the edge)
     #[inline]
-    pub fn get_path_search_cost(&self) -> u64 {
+    pub fn travel_cost(&self) -> u64 {
         match self {
             Self::Trip {duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization: _} => 2,
             Self::WaitInTrain {duration: _} => 1,
@@ -164,8 +164,9 @@ impl TimetableEdge {
 
     /// calculate the utilization cost for edge
     #[inline]
-    pub fn get_utilization_search_cost(&self) -> u64 {
+    pub fn utilization_cost(&self) -> u64 {
         match self {
+
             // penalize utilization over capacity_soft_limit, forbid utilization over capacity_hard_limit 
             Self::Trip {duration: _, capacity_soft_limit, capacity_hard_limit, utilization} => {
                 if utilization < capacity_soft_limit {
@@ -180,25 +181,9 @@ impl TimetableEdge {
                     diff.pow(2)
                 }
             },
-            
-            Self::WaitInTrain { duration } => {
-                todo!()
-            }
-            Self::Board => {
-                todo!()
-            }
-            Self::Alight { duration } => {
-                todo!()
-            }
-            Self::WaitAtStation { duration } => {
-                todo!()
-            }
-            Self::Walk { duration } => {
-                todo!()
-            }
-            Self::MainArrivalRelation => {
-                todo!()
-            }
+
+            // for every other edge type return zero
+            _ => 0
         }
     }
 
@@ -277,7 +262,7 @@ impl TimetableEdge {
 
     /// get duration of self, defaults to 0
     #[inline]
-    pub fn get_duration(&self) -> u64 {
+    pub fn duration(&self) -> u64 {
         match self {
             Self::Trip{duration, capacity_soft_limit: _, capacity_hard_limit: _, utilization: _} => *duration,
             Self::WaitInTrain{duration} => *duration,
@@ -290,7 +275,7 @@ impl TimetableEdge {
 
     /// get capacity_soft_limit of self, defaults to MAX
     #[inline]
-    pub fn get_capacity_soft_limit(&self) -> u64 {
+    pub fn capacity_soft_limit(&self) -> u64 {
         match self {
             Self::Trip{duration: _, capacity_soft_limit, capacity_hard_limit: _, utilization: _} => *capacity_soft_limit,
             _ => std::u64::MAX, // all other edge types are not limited in terms of capacity
@@ -299,7 +284,7 @@ impl TimetableEdge {
 
     /// get capacity_hard_limit of self, defaults to MAX
     #[inline]
-    pub fn get_capacity_hard_limit(&self) -> u64 {
+    pub fn capacity_hard_limit(&self) -> u64 {
         match self {
             Self::Trip{duration: _, capacity_soft_limit: _, capacity_hard_limit, utilization: _} => *capacity_hard_limit,
             _ => std::u64::MAX, // all other edge types are not limited in terms of capacity
@@ -324,7 +309,7 @@ impl TimetableEdge {
 
     /// get utilization of self, defaults to 0
     #[inline]
-    pub fn get_utilization(&self) -> u64 {
+    pub fn utilization(&self) -> u64 {
         match self {
             Self::Trip{duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization} => *utilization,
             _ => 0 // other edges always return 0 utilization as they have unlimited capacity
@@ -340,9 +325,9 @@ impl TimetableEdge {
     // }
 
     #[inline]
-    pub fn get_kind_as_str(&self) -> &str {
+    pub fn kind_as_str(&self) -> &str {
         match self {
-            Self::Trip {duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization: _}  => "Ride",
+            Self::Trip {duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization: _}  => "Trip",
             Self::WaitInTrain {duration: _} => "WaitInTrain",
             Self::Board => "Board",
             Self::Alight {duration: _} => "Alight",

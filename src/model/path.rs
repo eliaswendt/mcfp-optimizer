@@ -14,7 +14,7 @@ use super::{TimetableEdge, TimetableNode};
 
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
-    pub cost: u64,    // cost for this path
+    pub travel_cost: u64,    // cost for this path
     duration: u64,    // duration of this path
     utilization: u64, // number of passengers
 
@@ -22,6 +22,12 @@ pub struct Path {
 }
 
 impl Path {
+
+    pub fn utilization_cost(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
+        self.edges.iter().map(|e| graph[*e].utilization_cost()).sum()
+    }
+
+
     #[inline]
     pub fn len(&self) -> usize {
         self.edges.len()
@@ -39,7 +45,7 @@ impl Path {
     /// calculates a score that will be useful for heuristic search
     #[inline]
     pub fn score(&self) -> u64 {
-        (self.cost + self.duration) / 2
+        (self.travel_cost + self.duration) / 2
     }
 
     // /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
@@ -111,7 +117,7 @@ impl Path {
         // increase depth in 4 steps
         let depth_step = (max_budget - min_budget) / n_budget_steps;
 
-        for i in 0..n_budget_steps + 1 {
+        for i in 0..n_budget_steps {
             let current_budget = min_budget + i * depth_step;
 
             println!("[iddfs()] trying with budget={}", current_budget);
@@ -164,7 +170,7 @@ impl Path {
         paths
             .into_iter()
             .map(|(remaining_duration, remaining_budget, edges)| Self {
-                cost: max_budget - remaining_budget,
+                travel_cost: max_budget - remaining_budget,
                 duration: max_duration - remaining_duration,
 
                 utilization,
@@ -198,11 +204,11 @@ impl Path {
             // iterate over all outgoing edges
             while let Some((next_edge, next_node)) = walker.next(graph) {
                 let edge_weight = &graph[next_edge];
-                let edge_weight_duration = edge_weight.get_duration();
-                let edge_weight_cost = edge_weight.get_path_search_cost();
+                let edge_weight_duration = edge_weight.duration();
+                let edge_weight_cost = edge_weight.travel_cost();
 
                 if edge_weight_duration <= remaining_duration
-                    && edge_weight.get_capacity_hard_limit() >= min_capacity
+                    && edge_weight.capacity_hard_limit() >= min_capacity
                     && edge_weight_cost <= remaining_budget
                 {
                     // edge can handle the minium required capacity and does not take longer then the remaining duration
@@ -299,7 +305,7 @@ fn all_simple_paths_dfs_dorian(
     let path_finder = from_fn(move || {
         while let Some(children) = stack.last_mut() {
             if let Some((child_edge_index, child_node_index)) = children.next(graph) {
-                let mut duration = graph.edge_weight(child_edge_index).unwrap().get_duration();
+                let mut duration = graph.edge_weight(child_edge_index).unwrap().duration();
                 if durations.iter().sum::<u64>() + duration < max_duration
                     && rides.iter().sum::<u64>() < max_rides
                 {
@@ -315,7 +321,7 @@ fn all_simple_paths_dfs_dorian(
                         ));
                     } else if !visited.contains(&child_edge_index) {
                         let edge_weight = graph.edge_weight(child_edge_index).unwrap();
-                        durations.push(edge_weight.get_duration());
+                        durations.push(edge_weight.duration());
                         // only count ride to station and walk to station as limit factor
                         // if edge_weight.is_ride_to_station() || edge_weight.is_walk_to_station() {
                         //     rides.push(1);
@@ -338,7 +344,7 @@ fn all_simple_paths_dfs_dorian(
                         if c_node_index == to_node_index {
                             children_any_to_node_index = true;
                             edge_index = Some(c_edge_index);
-                            duration = graph.edge_weight(child_edge_index).unwrap().get_duration();
+                            duration = graph.edge_weight(child_edge_index).unwrap().duration();
                             break;
                         }
                     }

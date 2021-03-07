@@ -11,11 +11,9 @@ mod model;
 mod optimization;
 
 fn main() {
-
     // EXPLANATION OF CLI ARGUMENT USAGE:
     // if <csv_folderpath> specified, the program will try to read all CSVs from there + create a new model + search paths for all groups + create a snapshot of current model and continue with best path selection
     // if <csv_folderpath> is NOT specified, the proram will try to load a snapshot from a previous run and directly continue with best path selection
-
 
     let args: Vec<String> = env::args().collect();
     let csv_folderpath_option = if args.len() != 2 {
@@ -41,7 +39,6 @@ fn main() {
         Model::save_to_file(&model, snapshot_folder_path);
         Group::save_to_file(&groups, snapshot_folder_path);
 
-
         println!("building a graphviz graph of model");
         if csv_folderpath.contains("sample_data") {
             // create dot code only for sample data
@@ -52,20 +49,19 @@ fn main() {
     } else {
         (
             Model::load_from_file(snapshot_folder_path),
-            Group::load_from_file(snapshot_folder_path)
+            Group::load_from_file(snapshot_folder_path),
         )
     };
 
-
-
-
     // at this state we can start with group's paths selection
 
-
-
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
-    // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups, 30, 100);
-
+    optimization::randomized_hillclimb::randomized_hillclimb(
+        &mut model.graph, 
+        &groups, 
+        100, 
+        1000
+    );
 
     println!("done with main() -> terminating")
 }

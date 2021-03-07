@@ -128,7 +128,7 @@ impl Station {
 
         // THIRD: iterate over all arrivals and connect them to the station's next available transfer
         for arrival in self.arrivals.values().flatten() {
-            let arrival_time = graph[*arrival].get_time().unwrap();
+            let arrival_time = graph[*arrival].time().unwrap();
             let earliest_transfer_time = arrival_time + self.transfer_time;
 
             // try to find next transfer node at this station (requires transfers to be sorted (earliest first))
@@ -155,8 +155,8 @@ impl Station {
 
             // from here on we have two vecs of arrivals and departures of the same trip
             for (arrival, departure) in arrivals_of_trip.iter().zip(departures_of_trip.iter()) {
-                let arrival_time = graph[*arrival].get_time().unwrap();
-                let departure_time = graph[*departure].get_time().unwrap();
+                let arrival_time = graph[*arrival].time().unwrap();
+                let departure_time = graph[*departure].time().unwrap();
 
                 // only create edge between arrival and departure only if arrival is before (time) departure
                 // this is required, as it otherwise would also connect start-/end station of a trip with equal start/destination

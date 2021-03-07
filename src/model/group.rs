@@ -38,6 +38,7 @@ pub struct Group {
 }
 
 impl Group {
+
     pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
         println!("parsing {} group(s)", group_maps.len());
 
@@ -67,6 +68,46 @@ impl Group {
 
         groups
     }
+
+
+    pub fn save_to_file(groups: &Vec<Group>, filepath: &str) {
+        print!("saving groups to {} ... ", filepath);
+        let start = Instant::now();
+
+        let writer = BufWriter::new(
+            File::create(&format!("{}groups.json", filepath))
+                .expect(&format!("Could not open file {}groups.json", filepath)),
+        );
+        serde_json::to_writer(writer, groups).expect("Could not save groups to file");
+
+        println!("done ({}ms)", start.elapsed().as_millis());
+    }
+
+
+    pub fn load_from_file(filepath: &str) -> Vec<Self> {
+        print!("loading groups from {} ... ", filepath);
+        let start = Instant::now();
+
+        let reader = BufReader::new(
+            File::open(&format!("{}groups.json", filepath))
+                .expect(&format!("Could not open file {}model.json", filepath)),
+        );
+        let groups: Vec<Group> =
+            serde_json::from_reader(reader).expect("Could not load groups from file!");
+
+        println!("done ({}ms)", start.elapsed().as_millis());
+
+        groups
+    }
+
+
+
+
+
+
+
+
+
 
     /// returns (remaining_duration, path), returns true if there was at least one path found
     pub fn search_paths(&mut self, model: &Model, max_budget: u64, duration_factor: f64) -> bool {
@@ -101,8 +142,8 @@ impl Group {
             to,
             self.passengers as u64,
             max_duration,
-            3,
-            50,
+            1,
+            100,
             100,
         );
 
@@ -128,34 +169,5 @@ impl Group {
             );
             true
         }
-    }
-
-    pub fn save_to_file(groups: &Vec<Group>, filepath: &str) {
-        print!("saving groups to {} ... ", filepath);
-        let start = Instant::now();
-
-        let writer = BufWriter::new(
-            File::create(&format!("{}groups.json", filepath))
-                .expect(&format!("Could not open file {}groups.json", filepath)),
-        );
-        serde_json::to_writer(writer, groups).expect("Could not save groups to file");
-
-        println!("done ({}ms)", start.elapsed().as_millis());
-    }
-
-    pub fn load_from_file(filepath: &str) -> Vec<Self> {
-        print!("loading groups from {} ... ", filepath);
-        let start = Instant::now();
-
-        let reader = BufReader::new(
-            File::open(&format!("{}groups.json", filepath))
-                .expect(&format!("Could not open file {}model.json", filepath)),
-        );
-        let groups: Vec<Group> =
-            serde_json::from_reader(reader).expect("Could not load groups from file!");
-
-        println!("done ({}ms)", start.elapsed().as_millis());
-
-        groups
     }
 }
