@@ -47,6 +47,9 @@ pub struct Model {
 
 impl Model {
 
+    /// Build a timetable model (graph) from a folder that contains the following files:
+    ///
+    /// `stations.csv`, `footpaths.csv`, `trips.csv`
     pub fn with_stations_trips_and_footpaths(csv_folder_path: &str) -> Self {
 
         let start = Instant::now();
@@ -66,7 +69,7 @@ impl Model {
 
         // also save a HashMap of trips to parse group's "in_trip" column
         let trips = trip::Trip::from_maps_to_vec(&trip_maps);
-        let trips_map: HashMap<u64, trip::Trip> = trips.iter().map(|t| (t.id, t.clone())).collect();
+        let trips_map: HashMap<String, trip::Trip> = trips.iter().map(|t| (format!("{}_{}", t.id, t.to_station), t.clone())).collect();
 
         for trip in trips {
             trip.connect(&mut graph, &mut stations);
@@ -92,7 +95,6 @@ impl Model {
             stations_main_arrival.insert(station_id.clone(),main_arrival);
         }
 
-
         let mut successful_footpath_counter = 0;
         let mut failed_footpath_counter = 0;
 
@@ -102,6 +104,7 @@ impl Model {
             let from_station_arrivals = stations_arrivals.get(&footpath.from_station).unwrap();
             let to_station_transfers = stations_transfers.get(&footpath.to_station).unwrap();
 
+            // connect stations via footpaths
             let (
                 successful_footpaths,
                 failed_footpaths
@@ -128,7 +131,7 @@ impl Model {
         }
     }
 
-
+    /// save model to file (for later runs)
     pub fn save_to_file(model: &Self, model_folder_path: &str) {
         print!("saving model to {} ... ", model_folder_path);
         let start = Instant::now();
@@ -143,7 +146,7 @@ impl Model {
         println!("done ({}ms)", start.elapsed().as_millis());
     }
 
-
+    /// load model from file (from previous run)
     pub fn load_from_file(model_folder_path: &str) -> Self {
         print!("loading model from {} ... ", model_folder_path);
         let start = Instant::now();
@@ -160,7 +163,6 @@ impl Model {
         model
     }
 
-
     /// create graviz dot code of model's graph 
     pub fn save_dot_code_to(model: &Self, filepath: &str) {
         let dot_code = format!("{:?}", Dot::with_config(&model.graph, &[]));
@@ -172,7 +174,7 @@ impl Model {
 
 
 
-    /// find next start node at this station
+    /// find next start node at station with specified id from this start_time
     pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
         match self.stations_transfers.get(station_id) {
             Some(station_departures) => {

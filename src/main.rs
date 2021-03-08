@@ -33,6 +33,9 @@ fn main() {
         );
 
         let model = Model::with_stations_trips_and_footpaths(csv_folderpath);
+
+        return;
+
         let groups = model.find_paths_for_groups(&format!("{}/groups.csv", csv_folderpath));
 
         println!("create snapshot of model and groups for next run");

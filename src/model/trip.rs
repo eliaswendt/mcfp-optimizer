@@ -26,13 +26,13 @@ impl Trip {
             let from_station = trip_map.get("from_station").unwrap().clone();
             let to_station = trip_map.get("to_station").unwrap().clone();
 
-            //let key = format!("{}_{}->{}", id, from_station, to_station);
+            println!("{}_{}->{}", id, from_station, to_station);
 
             trips.push(Self {
                 id,
-                from_station: from_station,
+                from_station,
                 departure: trip_map.get("departure").unwrap().parse().unwrap(),
-                to_station: to_station,
+                to_station,
                 arrival: trip_map.get("arrival").unwrap().parse().unwrap(),
                 capacity: trip_map.get("capacity").unwrap().parse().unwrap(),
             });
