@@ -36,7 +36,7 @@ pub struct Group {
 
 impl Group {
 
-    pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>, trips: &HashMap<u64, Trip>) -> Vec<Self> {
+    pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>, trips: &HashMap<String, Trip>) -> Vec<Self> {
         println!("parsing {} group(s)", group_maps.len());
 
         let mut groups = Vec::with_capacity(group_maps.len());
@@ -113,7 +113,7 @@ impl Group {
 
 
     /// returns (remaining_duration, path), returns true if there was at least one path found
-    pub fn search_paths(&mut self, model: &Model, max_budget: u64, duration_factor: f64) -> bool {
+    pub fn search_paths(&mut self, model: &Model, budget_steps: &[u64], duration_factor: f64) -> bool {
         let from = model
             .find_start_node_index(&self.start, self.departure)
             .expect("Could not find departure at from_station");
@@ -145,14 +145,12 @@ impl Group {
             to,
             self.passengers as u64,
             max_duration,
-            2,
-            50,
-            100,
+            budget_steps,
         );
 
         print!("done in {}ms, ", start.elapsed().as_millis());
 
-        // sort by remaining_duration (highest first)
+        // sort by remaining budget (highest/best first)
         self.paths.sort_unstable();
         self.paths.reverse();
 

@@ -42,7 +42,7 @@ pub struct Model {
     stations_transfers: HashMap<String, Vec<(u64, NodeIndex)>>,
     stations_main_arrival: HashMap<String, NodeIndex>,
 
-    trips: HashMap<u64, trip::Trip>
+    trips: HashMap<String, trip::Trip>
 }
 
 impl Model {
@@ -217,7 +217,11 @@ impl Model {
         for (index, group) in groups.iter_mut().enumerate() {
 
             print!("[group={}/{}]: ", index+1, groups_len);
-            if group.search_paths(&self, 70, 2.0) {
+            if group.search_paths(
+                &self, 
+                &vec![25, 50, 75, 100, 125],
+                2.0,
+            ) {
                 n_successful_groups += 1;
             }
         }

@@ -26,7 +26,7 @@ impl Trip {
             let from_station = trip_map.get("from_station").unwrap().clone();
             let to_station = trip_map.get("to_station").unwrap().clone();
 
-            println!("{}_{}->{}", id, from_station, to_station);
+            // println!("{}_{}->{}", id, from_station, to_station);
 
             trips.push(Self {
                 id,

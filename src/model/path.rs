@@ -110,33 +110,28 @@ impl Path {
         min_capacity: u64,
         max_duration: u64,
 
-        n_budget_steps: u64,
-        min_budget: u64,
-        max_budget: u64, // maximum number of transfers to follow
+        budget_steps: &[u64] // maximum number of transfers to follow
     ) -> Vec<Self> {
-        // increase depth in 4 steps
-        let depth_step = (max_budget - min_budget) / n_budget_steps;
 
-        for i in 0..n_budget_steps {
-            let current_budget = min_budget + i * depth_step;
+        for budget in budget_steps {
 
-            println!("[iddfs()] trying with budget={}", current_budget);
+            print!("budget={} ... ", budget);
 
-            let result = Self::search_recursive_dfs(
+            let paths = Self::search_recursive_dfs(
                 graph,
                 from,
                 to,
                 min_capacity,
                 max_duration,
-                current_budget,
+                *budget,
             );
 
-            if result.len() > 0 {
-                return result;
+            if paths.len() > 0 {
+                // found at least one path -> return
+                return paths;
             }
         }
 
-        println!("[iddfs()] giving up...");
         Vec::new()
     }
 
