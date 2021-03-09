@@ -14,7 +14,7 @@ use super::SelectionState;
 /// perform a single Hill Climbing Step
 pub fn randomized_hillclimb(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-    groups: &Vec<Group>,
+    groups: Vec<&Group>,
     n_restarts: u64,       // number of "parallel" hill-climb searches
     max_n_iterations: u64, // number of iterations to improve result
 ) {
@@ -35,7 +35,7 @@ pub fn randomized_hillclimb(
 
     for run in 0..n_restarts {
         // choose random configuration as initial state
-        let initial_state = SelectionState::generate_random_state(&groups_paths);
+        let initial_state = SelectionState::generate_random_state(groups);
         let mut local_minimum = (initial_state.get_cost(graph), initial_state);
 
         print!(

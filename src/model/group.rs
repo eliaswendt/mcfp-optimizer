@@ -14,7 +14,7 @@ use petgraph::graph::{DiGraph, EdgeIndex};
 use super::{Model, TimetableEdge, TimetableNode, path::{self, Path}, trip::Trip};
 
 /// travel group
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Group {
     pub id: u64,
 

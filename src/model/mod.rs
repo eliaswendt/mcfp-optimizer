@@ -8,9 +8,9 @@ pub mod footpath;
 pub mod station;
 pub mod trip;
 pub mod path;
-pub mod timetable_graph;
+pub mod graph_weigth;
 
-use timetable_graph::{TimetableNode, TimetableEdge};
+use graph_weigth::{TimetableNode, TimetableEdge};
 
 
 use group::Group;
