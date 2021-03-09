@@ -14,7 +14,7 @@ use super::SelectionState;
 /// perform a single Hill Climbing Step
 pub fn randomized_hillclimb(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-    groups: Vec<&Group>,
+    groups: &Vec<Group>,
     n_restarts: u64,       // number of "parallel" hill-climb searches
     max_n_iterations: u64, // number of iterations to improve result
 ) {

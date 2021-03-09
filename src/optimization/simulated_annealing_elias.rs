@@ -7,7 +7,7 @@ fn time_to_temperature(time: u64) -> u64 {
     10 / time
 }
 
-pub fn simulated_annealing<'a>(groups: Vec<&'a Group>) -> SelectionState<'a> {
+pub fn simulated_annealing<'a>(groups: &'a Vec<Group>) -> SelectionState<'a> {
 
     let mut current_state = SelectionState::generate_random_state(groups);
     let mut time = 1;

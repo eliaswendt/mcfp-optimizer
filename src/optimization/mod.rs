@@ -11,8 +11,8 @@ pub mod simulated_annealing_elias;
 /// formalizing a system state
 /// by storing the indices of the currently selected path for each group
 #[derive(Debug)]
-struct SelectionState<'a> {
-    groups: Vec<&'a Group>,
+pub struct SelectionState<'a> {
+    groups: &'a Vec<Group>,
     
     // groups_paths: &'a Vec<Vec<&'a Path>>,
     pub groups_paths_selection: Vec<usize>, // array of indices (specifies selected path for each group)
@@ -20,7 +20,7 @@ struct SelectionState<'a> {
 
 impl<'a> SelectionState<'a> {
 
-    pub fn generate_random_state(groups: Vec<&'a Group>) -> Self {
+    pub fn generate_random_state(groups: &'a Vec<Group>) -> Self {
         let mut rng = rand::thread_rng();
 
         let mut groups_paths_selection = Vec::with_capacity(groups.len());
