@@ -12,22 +12,17 @@ use crate::model::{
 use super::SelectionState;
 
 /// perform a single Hill Climbing Step
-pub fn randomized_hillclimb(
+pub fn randomized_hillclimb<'a>(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-    groups: &Vec<Group>,
+    groups: &'a Vec<Group>,
     n_restarts: u64,       // number of "parallel" hill-climb searches
     max_n_iterations: u64, // number of iterations to improve result
-) {
+) -> SelectionState<'a> {
     println!(
         "randomized_hillclimb(n_runs={}, n_iterations={})",
         n_restarts, max_n_iterations
     );
 
-    let groups_paths: Vec<Vec<&Path>> = groups
-        .iter()
-        .map(|g| g.paths.iter().collect::<Vec<&Path>>())
-        .filter(|p| p.len() != 0) // filter out all groups with zero paths
-        .collect();
     // println!("groups_paths={:?}", groups_paths);
 
     // from each parallel state save the resulting local maximum as (cost, state)
@@ -86,6 +81,11 @@ pub fn randomized_hillclimb(
 
     local_minima.sort_unstable_by_key(|(cost, _)| *cost);
     println!("lowest local minimum: {:?}", local_minima[0].0);
+
+
+    // move miminum to end of vec and pop this element
+    local_minima.reverse();
+    return local_minima.pop().unwrap().1
 
     // // stores the index of the currently selected path in each group
     // let mut selected_groups: Vec<usize> = Vec::with_capacity(groups.len());

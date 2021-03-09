@@ -219,7 +219,7 @@ impl Model {
             print!("[group={}/{}]: ", index+1, groups_len);
             if group.search_paths(
                 &self, 
-                &vec![25, 50, 75, 100, 125],
+                &vec![25, 50, 75],
                 2.0,
             ) {
                 n_successful_groups += 1;

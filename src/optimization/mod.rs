@@ -10,7 +10,7 @@ pub mod simulated_annealing_elias;
 
 /// formalizing a system state
 /// by storing the indices of the currently selected path for each group
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SelectionState<'a> {
     groups: &'a Vec<Group>,
     
