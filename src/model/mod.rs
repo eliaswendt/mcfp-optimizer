@@ -222,8 +222,7 @@ impl Model {
             print!("[group={}/{}]: ", index+1, groups_len);
             if group.search_paths(
                 &self, 
-                &vec![25, 50, 75],
-                2.0,
+                &vec![100],
             ) {
                 n_successful_groups += 1;
             }
@@ -235,8 +234,8 @@ impl Model {
             "Found at least one path for {}/{} groups ({}%) in {}s ({}min)", 
             n_successful_groups, groups.len(),
             (100 * n_successful_groups) / groups.len() as u64,
-            finished / 1000,
-            finished / 1000 / 60
+            start.elapsed().as_secs(),
+            start.elapsed().as_secs() / 60
         );
 
         groups

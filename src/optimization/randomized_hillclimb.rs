@@ -42,8 +42,8 @@ pub fn randomized_hillclimb<'a>(
         for j in 0..max_n_iterations {
             // search local maximum from this initial configuration
 
-            // let mut neighbors = local_minimum.generate_direct_neighbors(graph);
-            let mut neighbors = local_minimum.generate_group_neighbors(graph);
+            let mut neighbors = local_minimum.generate_direct_neighbors(graph);
+            // let mut neighbors = local_minimum.generate_group_neighbors(graph); // uses too much memory to properly test it :/
 
             // sort neighbors by cost (lowest first)
             neighbors.sort_unstable_by_key(|s| s.cost);

@@ -113,7 +113,7 @@ impl Group {
 
 
     /// returns (remaining_duration, path), returns true if there was at least one path found
-    pub fn search_paths(&mut self, model: &Model, budget_steps: &[u64], duration_factor: f64) -> bool {
+    pub fn search_paths(&mut self, model: &Model, budget_steps: &[u64]) -> bool {
         let from = model
             .find_start_node_index(&self.start, self.departure)
             .expect("Could not find departure at from_station");
