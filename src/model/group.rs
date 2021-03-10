@@ -121,9 +121,16 @@ impl Group {
             .find_end_node_index(&self.destination)
             .expect("Could not find destination station");
 
+        if self.departure > self.arrival {
+            self.paths = Vec::new();
+            return false
+        }
+
         // max duration should depend on the original travel time
         let travel_time = self.arrival - self.departure;
-        let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
+        
+        //let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
+        let max_duration = Group::calculate_max_travel_duration(travel_time);
 
         let start = Instant::now();
         print!(
@@ -170,5 +177,9 @@ impl Group {
             );
             true
         }
+    }
+
+    fn calculate_max_travel_duration(travel_time: u64) -> u64 {
+        2 * travel_time + 50
     }
 }

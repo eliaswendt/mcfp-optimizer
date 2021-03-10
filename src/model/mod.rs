@@ -214,6 +214,9 @@ impl Model {
         let groups_len = groups.len();
 
         let mut n_successful_groups: u64 = 0;
+
+        let start = Instant::now();
+
         for (index, group) in groups.iter_mut().enumerate() {
 
             print!("[group={}/{}]: ", index+1, groups_len);
@@ -226,10 +229,14 @@ impl Model {
             }
         }
 
+        let finished = start.elapsed().as_millis();
+
         println!(
-            "Found at least one path for {}/{} groups ({}%)", 
+            "Found at least one path for {}/{} groups ({}%) in {}s ({}min)", 
             n_successful_groups, groups.len(),
             (100 * n_successful_groups) / groups.len() as u64,
+            finished / 1000,
+            finished / 1000 / 60
         );
 
         groups
