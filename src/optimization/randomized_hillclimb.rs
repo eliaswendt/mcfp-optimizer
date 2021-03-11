@@ -41,14 +41,10 @@ pub fn randomized_hillclimb<'a>(
 
         for j in 0..max_n_iterations {
             // search local maximum from this initial configuration
-
-            let mut neighbors = local_minimum.generate_direct_neighbors(graph);
             // let mut neighbors = local_minimum.generate_group_neighbors(graph); // uses too much memory to properly test it :/
+            let best_neighbor = local_minimum.generate_direct_neighbors(graph).into_iter().min_by_key(|s| s.cost).unwrap();
 
-            // sort neighbors by cost (lowest first)
-            neighbors.sort_unstable_by_key(|s| s.cost);
-
-            if neighbors.len() == 0 || neighbors[0].cost >= local_minimum.cost {
+            if best_neighbor.cost >= local_minimum.cost {
                 // no neighbors found OR best neighbor has higher cost than current local maximum
 
                 println!(
@@ -62,11 +58,10 @@ pub fn randomized_hillclimb<'a>(
                 break;
             }
 
-            println!("\t[iteration={}/{}]: current={}", j+1, max_n_iterations, neighbors[0].cost);
+            println!("\t[iteration={}/{}]: current={}", j+1, max_n_iterations, best_neighbor.cost);
 
-            // set as new local maximum
-            neighbors.reverse();
-            local_minimum = neighbors.pop().unwrap();
+            // set as new local minimum
+            local_minimum = best_neighbor
         }
 
         local_minima.push(local_minimum);

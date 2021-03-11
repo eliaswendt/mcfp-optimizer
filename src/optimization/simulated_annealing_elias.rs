@@ -1,5 +1,3 @@
-use std::thread::current;
-
 use petgraph::graph::DiGraph;
 use rand::Rng;
 
@@ -30,15 +28,15 @@ pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEd
             return current;
         }
 
-        let mut neighbors = current.generate_direct_neighbors(graph);
-
-        // sort neighbors by cost (lowest first)
-        neighbors.sort_unstable_by_key(|s| s.cost);
-
         // select random next state
         // let next_state = &neighbor_states[rng.gen::<usize>() % neighbor_states.len()];
-        let next = &neighbors[0];
+        let next = current
+            .generate_direct_neighbors(graph)
+            .into_iter()
+            .min_by_key(|s| s.cost)
+            .unwrap();
 
+  
         // print!("next_state={:?}, ", next_state.groups_paths_selection);
 
         // if next_state is better than current_state -> delta positive
