@@ -110,6 +110,9 @@ impl Group {
 
         if self.departure > self.arrival {
             self.paths = Vec::new();
+            println!(
+                "{} -> {} with {} passenger(s) ... data invalid!",
+                self.start, self.destination, self.passengers);
         }
 
         // max duration should depend on the original travel time
