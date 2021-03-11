@@ -130,8 +130,7 @@ impl TimetableNode {
 pub enum TimetableEdge {
     Trip { // edge between departure and arrival
         duration: u64,
-        capacity_soft_limit: u64, // number of passangers that should not be exceeded (but can)
-        capacity_hard_limit: u64, // maximum number of passengers allowed
+        capacity: u64, // number of passangers that should not be exceeded (but can)
         utilization: u64, // number of passengers on this ride
     },
 
@@ -163,7 +162,7 @@ impl TimetableEdge {
     #[inline]
     pub fn travel_cost(&self) -> u64 {
         match self {
-            Self::Trip {duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization: _} => 2,
+            Self::Trip {duration: _, capacity: _, utilization: _} => 2,
             Self::WaitInTrain {duration: _} => 1,
             Self::Alight {duration: _} => 4,
             Self::WaitAtStation {duration: _} => 3,
@@ -179,16 +178,15 @@ impl TimetableEdge {
         match self {
 
             // penalize utilization over capacity_soft_limit, forbid utilization over capacity_hard_limit 
-            Self::Trip {duration: _, capacity_soft_limit, capacity_hard_limit, utilization} => {
-                if utilization < capacity_soft_limit {
+            Self::Trip {duration: _, capacity, utilization} => {
+
+                if utilization < capacity {
                     0
-                } else if utilization >= capacity_hard_limit {
-                    u64::MAX
                 } else {
                     // capacity in range [soft_limit, hard_limit)
                     // calculate penalty as quadratic diff
 
-                    let diff = *utilization - *capacity_soft_limit;
+                    let diff = (*utilization - *capacity) / 1000;
                     diff.pow(2)
                 }
             },
@@ -205,8 +203,7 @@ impl TimetableEdge {
         match self {
             Self::Trip {
                 duration: _, 
-                capacity_soft_limit: _, 
-                capacity_hard_limit: _,
+                capacity: _, 
                 utilization: _
             } => true,
             _ => false,
@@ -275,7 +272,7 @@ impl TimetableEdge {
     #[inline]
     pub fn duration(&self) -> u64 {
         match self {
-            Self::Trip{duration, capacity_soft_limit: _, capacity_hard_limit: _, utilization: _} => *duration,
+            Self::Trip{duration, capacity: _, utilization: _} => *duration,
             Self::WaitInTrain{duration} => *duration,
             Self::Alight{duration} => *duration,
             Self::WaitAtStation{duration} => *duration,
@@ -286,18 +283,9 @@ impl TimetableEdge {
 
     /// get capacity_soft_limit of self, defaults to MAX
     #[inline]
-    pub fn capacity_soft_limit(&self) -> u64 {
+    pub fn capacity(&self) -> u64 {
         match self {
-            Self::Trip{duration: _, capacity_soft_limit, capacity_hard_limit: _, utilization: _} => *capacity_soft_limit,
-            _ => std::u64::MAX, // all other edge types are not limited in terms of capacity
-        }
-    }
-
-    /// get capacity_hard_limit of self, defaults to MAX
-    #[inline]
-    pub fn capacity_hard_limit(&self) -> u64 {
-        match self {
-            Self::Trip{duration: _, capacity_soft_limit: _, capacity_hard_limit, utilization: _} => *capacity_hard_limit,
+            Self::Trip{duration: _, capacity, utilization: _} => *capacity,
             _ => std::u64::MAX, // all other edge types are not limited in terms of capacity
         }
     }
@@ -305,7 +293,7 @@ impl TimetableEdge {
     #[inline]
     pub fn increase_utilization(&mut self, addend: u64) {
         match self {
-            Self::Trip{duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization} => *utilization += addend,
+            Self::Trip{duration: _, capacity: _, utilization} => *utilization += addend,
             _ => {} // no need to track utilization on other edges, as they have unlimited capacity
         }
     }
@@ -313,7 +301,7 @@ impl TimetableEdge {
     #[inline]
     pub fn decrease_utilization(&mut self, subtrahend: u64) {
         match self {
-            Self::Trip{duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization} => *utilization -= subtrahend,
+            Self::Trip{duration: _, capacity: _, utilization} => *utilization -= subtrahend,
             _ => {} // no need to track utilization on other edges, as they have unlimited capacity
         }
     }
@@ -322,7 +310,7 @@ impl TimetableEdge {
     #[inline]
     pub fn utilization(&self) -> u64 {
         match self {
-            Self::Trip{duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization} => *utilization,
+            Self::Trip{duration: _, capacity: _, utilization} => *utilization,
             _ => 0 // other edges always return 0 utilization as they have unlimited capacity
         }
     }
@@ -338,7 +326,7 @@ impl TimetableEdge {
     #[inline]
     pub fn kind_as_str(&self) -> &str {
         match self {
-            Self::Trip {duration: _, capacity_soft_limit: _, capacity_hard_limit: _, utilization: _}  => "Trip",
+            Self::Trip {duration: _, capacity: _, utilization: _}  => "Trip",
             Self::WaitInTrain {duration: _} => "WaitInTrain",
             Self::Board => "Board",
             Self::Alight {duration: _} => "Alight",

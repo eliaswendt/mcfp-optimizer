@@ -119,11 +119,9 @@ impl Group {
 
         let start_instant = Instant::now();
         print!(
-            "{} -> {} with {} passenger(s) in {} min(s) ... ",
+            "{} -> {} ... ",
             model.graph[start].station_name(), 
             model.graph[destination].station_name(), 
-            self.passengers,
-            max_duration
         );
 
         // self.paths = path::Path::all_paths_iddfs(

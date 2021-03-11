@@ -56,7 +56,7 @@ fn main() {
     let groups_with_at_least_one_path: Vec<Group> = groups.into_iter().filter(|g| !g.paths.is_empty()).collect();
 
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
-    //optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
+    optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
     // optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path);
 
 

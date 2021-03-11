@@ -235,7 +235,7 @@ impl Path {
                 let edge_weight_cost = edge_weight.travel_cost();
 
                 if edge_weight_duration <= remaining_duration
-                    && edge_weight.capacity_hard_limit() >= min_capacity
+                    // && edge_weight.capacity_hard_limit() >= min_capacity
                     && edge_weight_cost <= remaining_budget
                 {
                     // edge can handle the minium required capacity and does not take longer then the remaining duration
