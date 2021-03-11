@@ -67,11 +67,6 @@ impl Path {
         self.utilization
     }
 
-    pub fn utilization_cost(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
-        self.edges.iter().map(|e| graph[*e].utilization_cost()).sum()
-    }
-
-
     pub fn intersecting_edges(&self, other: &Self) -> Vec<EdgeIndex> {
         self.edges.intersection(&other.edges).cloned().collect()
     }
@@ -97,16 +92,26 @@ impl Path {
     // }
 
     /// occupy self to graph (add utilization to edges)
-    pub fn strain_to_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
-        for edge_index in self.edges.iter() {
-            graph[*edge_index].increase_utilization(self.utilization)
+    pub fn strain_to_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>, strained_edges: &mut HashSet<EdgeIndex>) {
+        for edge in self.edges.iter() {
+            graph[*edge].increase_utilization(self.utilization);
+
+            // also add edge to set of strained edges
+            strained_edges.insert(*edge);
         }
     }
 
     /// release self from graph (remove utilization from edges)
-    pub fn relieve_from_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
-        for edge_index in self.edges.iter() {
-            graph[*edge_index].decrease_utilization(self.utilization)
+    pub fn relieve_from_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>, strained_edges: &mut HashSet<EdgeIndex>) {
+        for edge in self.edges.iter() {
+
+            let timetable_edge = &mut graph[*edge];
+            timetable_edge.decrease_utilization(self.utilization);
+
+            if timetable_edge.utilization() == 0 {
+                // utilization is zero (edge is not strained) -> remove from strained_edges
+                strained_edges.remove(edge);
+            }
         }
     }
 

@@ -186,7 +186,7 @@ impl TimetableEdge {
                     // capacity in range [soft_limit, hard_limit)
                     // calculate penalty as quadratic diff
 
-                    let diff = (*utilization - *capacity) / 1000;
+                    let diff = *utilization - *capacity;
                     diff.pow(2)
                 }
             },

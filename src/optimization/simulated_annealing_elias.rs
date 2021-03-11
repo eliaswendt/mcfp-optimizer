@@ -6,8 +6,10 @@ use rand::Rng;
 use super::SelectionState;
 use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, path::Path};
 
+/// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
-    100.0 / time.powf(2.0)
+    // 100.0 / time.powf(2.0)
+    50.0 / (time as f64)
 }
 
 pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>) -> SelectionState<'a> {
@@ -23,7 +25,7 @@ pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEd
         print!("[time={}]: current_state_cost={}, temperature={}, ", time, current.cost, temperature);
         
         // actually exactly zero, but difficult with float
-        if temperature < 0.1 {
+        if temperature < 1.0 {
             println!("-> return");
             return current;
         }
