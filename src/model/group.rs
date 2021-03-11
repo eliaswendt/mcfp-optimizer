@@ -96,11 +96,7 @@ impl Group {
     }
 
     /// returns the number of found paths
-    pub fn search_paths(
-        &mut self, 
-        model: &Model,
-        budgets: &[u64],
-    ) {
+    pub fn search_paths(&mut self, model: &Model) {
         let start = model
             .find_start_node_index(&self.start, self.departure)
             .expect("Could not find departure at from_station");
@@ -139,14 +135,15 @@ impl Group {
         //     budgets,
         // );
 
-        if self.paths.len() == 0 {
-            self.paths = path::Path::dfs_visiter_search(
-                &model.graph,
-                start,
-                destination,
-                self.passengers as u64,
-            )
-        }
+        self.paths = path::Path::dfs_visitor_search(
+            &model.graph,
+            start,
+            destination,
+            self.passengers as u64
+        );
+
+        // filter out paths that exceed duration or do not fulfill minium capacity
+
 
         print!("done in {}ms, ", start_instant.elapsed().as_millis());
 

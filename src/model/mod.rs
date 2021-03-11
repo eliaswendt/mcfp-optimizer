@@ -76,7 +76,7 @@ impl Model {
             // create main arrival node
             let main_arrival = graph.add_node(TimetableNode::MainArrival {
                 station_id: station_id.clone(),
-                station_name: format!("{}_MainArrival", station_name)   
+                station_name
             });
 
             // connect all arrival nodes to the main arrival
@@ -169,7 +169,6 @@ impl Model {
     }
 
 
-
     /// find next start node at station with specified id from this start_time
     pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
         match self.stations_transfers.get(station_id) {
@@ -210,50 +209,26 @@ impl Model {
         let groups_len = groups.len();
   
         
-        // benchmark budgets
-        let mut writer = BufWriter::new(
-            File::create("eval/dfs_budgets.csv").unwrap()
-        );
-        
-        writer.write("budget,search_duration_in_millis,n_groups_with_at_least_one_path\n".as_bytes()).unwrap();
-        
-        
-        for budget in (0..105).step_by(5) {
+        let start = Instant::now();
+        let mut n_groups_with_at_least_one_path: u64 = 0;
 
-            let start = Instant::now();
-            let mut n_groups_with_at_least_one_path: u64 = 0;
-    
-            for (index, group) in groups.iter_mut().enumerate() {
-    
-                print!("[budget={}][group={}/{}]: ", budget, index+1, groups_len);
-                group.search_paths(
-                    &self,
-                    &vec![budget]
-                );
-                
-                if group.paths.len() != 0 {
-                    n_groups_with_at_least_one_path += 1;
-                }
+        for (index, group) in groups.iter_mut().enumerate() {
+
+            print!("[group={}/{}]: ", index+1, groups_len);
+            group.search_paths(&self);
+            
+            if group.paths.len() != 0 {
+                n_groups_with_at_least_one_path += 1;
             }
-
-
-            println!(
-                "Found at least one path for {}/{} groups ({}%) in {}s ({}min)", 
-                n_groups_with_at_least_one_path, groups.len(),
-                (100 * n_groups_with_at_least_one_path) / groups.len() as u64,
-                start.elapsed().as_secs(),
-                start.elapsed().as_secs() / 60
-            );
-    
-
-            writer.write(
-                format!("{},{},{}\n",
-                    budget,
-                    start.elapsed().as_millis(),
-                    n_groups_with_at_least_one_path
-                ).as_bytes()
-            ).unwrap();
         }
+
+        println!(
+            "Found at least one path for {}/{} groups ({}%) in {}s ({}min)", 
+            n_groups_with_at_least_one_path, groups.len(),
+            (100 * n_groups_with_at_least_one_path) / groups.len() as u64,
+            start.elapsed().as_secs(),
+            start.elapsed().as_secs() / 60
+        );
 
         groups
     }

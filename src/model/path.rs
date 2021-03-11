@@ -263,8 +263,9 @@ impl Path {
 
 
 
-    /// iterative depening search
-    pub fn dfs_visiter_search(
+    /// petgraph native depth first search (using visitors)
+    /// currently fastest implementation (full traversation, no duration/budget/capacity limitation)
+    pub fn dfs_visitor_search(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
         destination: NodeIndex, // condition that determines whether goal node was found
