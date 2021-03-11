@@ -213,10 +213,7 @@ impl Model {
         for (index, group) in groups.iter_mut().enumerate() {
 
             print!("[group={}/{}]: ", index+1, groups_len);
-            if group.search_paths(
-                &self, 
-                &vec![75],
-            ) {
+            if group.search_paths(&self) {
                 n_successful_groups += 1;
             }
         }

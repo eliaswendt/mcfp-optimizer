@@ -55,7 +55,7 @@ pub fn optimize_overloaded_graph(
     // step t of optimization
     let mut t = 1;
     // max steps
-    let mut t_max = 1000;
+    let t_max = 1000;
 
     // set current best solution
     let mut best_solution = overcrowded_edges.clone();

@@ -96,7 +96,7 @@ impl Group {
     }
 
     /// returns (remaining_duration, path), returns true if there was at least one path found
-    pub fn search_paths(&mut self, model: &Model, budget_steps: &[u64]) -> bool {
+    pub fn search_paths(&mut self, model: &Model) -> bool {
         let from = model
             .find_start_node_index(&self.start, self.departure)
             .expect("Could not find departure at from_station");
@@ -114,6 +114,8 @@ impl Group {
         
         //let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
         let max_duration = Group::calculate_max_travel_duration(travel_time);
+
+        let budget_steps = &vec![50];
 
         let start = Instant::now();
         print!(
