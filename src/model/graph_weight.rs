@@ -26,6 +26,7 @@ pub enum TimetableNode {
 
     MainArrival {
         station_id: String,
+        station_name: String,
     }
 }
 
@@ -47,8 +48,18 @@ impl TimetableNode {
             Self::Departure {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
             Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
             Self::Transfer {time: _, station_id, station_name: _} => Some(station_id.clone()),
-            Self::MainArrival {station_id} => Some(station_id.clone()),
+            Self::MainArrival {station_id, station_name: _} => Some(station_id.clone()),
             _ => None
+        }
+    }
+
+    #[inline]
+    pub fn station_name(&self) -> String {
+        match self {
+            Self::Departure {trip_id: _, time: _, station_id: _, station_name} => station_name.clone(),
+            Self::Arrival {trip_id: _, time: _, station_id: _, station_name} => station_name.clone(),
+            Self::Transfer {time: _, station_id: _, station_name} => station_name.clone(),
+            Self::MainArrival { station_id: _, station_name } => station_name.clone()
         }
     }
 
@@ -87,7 +98,7 @@ impl TimetableNode {
     #[inline]
     pub fn is_main_arrival(&self) -> bool {
         match self {
-            Self::MainArrival {station_id: _} => true,
+            Self::MainArrival {station_id: _, station_name: _} => true,
             _ => false
         }
     }
@@ -98,7 +109,7 @@ impl TimetableNode {
             Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
             Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => "Arrival",
             Self::Transfer {time: _, station_id: _, station_name: _}  => "Transfer",
-            Self::MainArrival {station_id: _} => "MainArrival",
+            Self::MainArrival {station_id: _, station_name: _} => "MainArrival",
         }
     }
 
@@ -108,7 +119,7 @@ impl TimetableNode {
             Self::Departure {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
             Self::Arrival {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
             Self::Transfer {time: _, station_id: _, station_name: _}  => None,
-            Self::MainArrival {station_id: _} => None,
+            Self::MainArrival {station_id: _, station_name: _} => None,
         }
     }
 }

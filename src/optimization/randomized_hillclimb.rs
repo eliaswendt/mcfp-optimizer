@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::model::{
     group::Group,
     path::Path,
-    graph_weigth::{TimetableEdge, TimetableNode},
+    graph_weight::{TimetableEdge, TimetableNode},
 };
 
 use super::SelectionState;

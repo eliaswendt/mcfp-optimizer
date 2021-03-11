@@ -7,7 +7,7 @@ use rand::Rng;
 use crate::model::{
     group::Group,
     path::{self},
-    graph_weigth::{
+    graph_weight::{
         TimetableEdge, TimetableNode
     },
 };
@@ -91,7 +91,7 @@ pub fn optimize_overloaded_graph(
         // relieve edges of previous path
         let path_index = group_2_path_index.get(&group.id).unwrap();
         let path = group.paths.get(*path_index).unwrap();
-        path.relieve(graph);
+        path.relieve_from_graph(graph);
 
         // remove from overcrowded edges if utilization <= capacity
         for edge_index in path.edges.iter() {
@@ -122,7 +122,7 @@ pub fn optimize_overloaded_graph(
         // }
 
         // strain edges of new path
-        next_path.strain(graph);
+        next_path.strain_to_graph(graph);
 
         // set path as new path of group
         group_2_path_index.insert(group.id, next_path_index);
@@ -159,8 +159,8 @@ pub fn optimize_overloaded_graph(
                 best_solution = overcrowded_edges.clone();
             } else {
                 // undo changes in graph
-                next_path.relieve(graph);
-                path.strain(graph);
+                next_path.relieve_from_graph(graph);
+                path.strain_to_graph(graph);
                 overcrowded_edges = best_solution.clone();
             }
         }
@@ -207,11 +207,12 @@ pub fn select_path_per_group(
     let mut edges_2_groups: HashMap<EdgeIndex, Vec<(usize, u64)>> = HashMap::new();
 
     for (i, group) in groups.iter().enumerate() {
-        let index = path::Path::get_best_path(&group.paths);
+
+        let index = Some(0);
         match index {
             Some(index) => {
                 let selected_path = group.paths.get(index).unwrap();
-                selected_path.strain(graph);
+                selected_path.strain_to_graph(graph);
                 for edge_index in selected_path.edges.iter() {
                     if !edges_2_groups.contains_key(edge_index) {
                         edges_2_groups.insert(*edge_index, vec![(i, group.id)]);

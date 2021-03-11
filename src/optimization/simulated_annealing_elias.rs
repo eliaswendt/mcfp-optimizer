@@ -4,7 +4,7 @@ use petgraph::graph::DiGraph;
 use rand::Rng;
 
 use super::SelectionState;
-use crate::model::{graph_weigth::{TimetableEdge, TimetableNode}, group::Group, path::Path};
+use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, path::Path};
 
 fn time_to_temperature(time: f64) -> f64 {
     100.0 / time.powf(2.0)

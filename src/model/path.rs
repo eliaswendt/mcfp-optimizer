@@ -7,39 +7,76 @@ use super::{TimetableEdge, TimetableNode};
 
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
-    pub travel_cost: u64,    // cost for this path
-    duration: u64,    // duration of this path
+    travel_cost: u64, // cost for this path
+    duration: u64, // duration of this path
     utilization: u64, // number of passengers
 
     pub edges: IndexSet<EdgeIndex>,
 }
 
+
+impl Ord for Path {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.travel_cost.cmp(&other.travel_cost)
+    }
+}
+
+impl PartialOrd for Path {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Path {
+    fn eq(&self, other: &Self) -> bool {
+        self.travel_cost == other.travel_cost
+    }
+}
+
+
 impl Path {
+
+    pub fn new(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: IndexSet<EdgeIndex>, utilization: u64) -> Self {
+
+        let mut travel_cost: u64 = 0;
+        let mut duration: u64 = 0;
+
+        for edge in edges.iter() {
+            let edge_weight = &graph[*edge];
+            travel_cost += edge_weight.travel_cost();
+            duration += edge_weight.duration();
+        }
+
+        Self {
+            travel_cost,
+            duration,
+            utilization,
+            edges
+        }
+    }
+
+    pub fn travel_cost(&self) -> u64 {
+        self.travel_cost
+    }
+
+    pub fn duration(&self) -> u64 {
+        self.duration
+    }
+
+    pub fn utilization(&self) -> u64 {
+        self.utilization
+    }
 
     pub fn utilization_cost(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
         self.edges.iter().map(|e| graph[*e].utilization_cost()).sum()
     }
 
 
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.edges.len()
-    }
-
-    #[inline]
-    pub fn duration(&self) -> u64 {
-        self.duration
-    }
-
     pub fn intersecting_edges(&self, other: &Self) -> Vec<EdgeIndex> {
         self.edges.intersection(&other.edges).cloned().collect()
     }
 
-    /// calculates a score that will be useful for heuristic search
-    #[inline]
-    pub fn score(&self) -> u64 {
-        (self.travel_cost + self.duration) / 2
-    }
+
 
     // /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
     // /// if Vec empty -> all edges fit
@@ -60,60 +97,60 @@ impl Path {
     // }
 
     /// occupy self to graph (add utilization to edges)
-    pub fn strain(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
+    pub fn strain_to_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
         for edge_index in self.edges.iter() {
             graph[*edge_index].increase_utilization(self.utilization)
         }
     }
 
     /// release self from graph (remove utilization from edges)
-    pub fn relieve(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
+    pub fn relieve_from_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) {
         for edge_index in self.edges.iter() {
             graph[*edge_index].decrease_utilization(self.utilization)
         }
     }
 
-    /// get index of path with minimal cost from a list of paths
-    pub fn get_best_path(paths: &Vec<Self>) -> Option<usize> {
-        let mut score = 0;
-        let mut index = None;
-        for (i, path) in paths.iter().enumerate() {
-            match index {
-                Some(j) => {
-                    if path.score() < score {
-                        score = path.score();
-                        index = Some(i)
-                    }
-                }
-                None => {
-                    score = path.score();
-                    index = Some(i)
-                }
-            }
-        }
-        index
-    }
+    // /// get index of path with minimal cost from a list of paths
+    // pub fn get_best_path(paths: &Vec<Self>) -> Option<usize> {
+    //     let mut score = 0;
+    //     let mut index = None;
+    //     for (i, path) in paths.iter().enumerate() {
+    //         match index {
+    //             Some(j) => {
+    //                 if path.score() < score {
+    //                     score = path.score();
+    //                     index = Some(i)
+    //                 }
+    //             }
+    //             None => {
+    //                 score = path.score();
+    //                 index = Some(i)
+    //             }
+    //         }
+    //     }
+    //     index
+    // }
 
     /// iterative deeping depth-first-search (IDDFS)
     pub fn all_paths_iddfs(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
-        from: NodeIndex,
-        to: NodeIndex, // condition that determines whether goal node was found
+        start: NodeIndex,
+        destination: NodeIndex, // condition that determines whether goal node was found
 
         min_capacity: u64,
         max_duration: u64,
 
-        budget_steps: &[u64] // maximum number of transfers to follow
+        budgets: &[u64] // maximum number of transfers to follow
     ) -> Vec<Self> {
 
-        for budget in budget_steps {
+        for budget in budgets {
 
             print!("budget={} ... ", budget);
 
             let paths = Self::search_recursive_dfs(
                 graph,
-                from,
-                to,
+                start,
+                destination,
                 min_capacity,
                 max_duration,
                 *budget,
@@ -132,12 +169,12 @@ impl Path {
     // returns a vec of paths along with their remaining_duration
     pub fn search_recursive_dfs(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
-        from: NodeIndex,
-        to: NodeIndex, // condition that determines whether goal node was found
+        start: NodeIndex,
+        destination: NodeIndex, // condition that determines whether goal node was found
         
         utilization: u64, // number of passengers, weight of load, etc.
         max_duration: u64,
-        max_budget: u64, // initial search budget (each edge has cost that needs to be payed)
+        budget: u64, // initial search budget (each edge has cost that needs to be payed)
     ) -> Vec<Self> {
         // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
 
@@ -147,18 +184,18 @@ impl Path {
         Self::search_recursive_dfs_helper(
             graph,
             &mut paths,
-            from,
-            to,
+            start,
+            destination,
             &mut visited,
             utilization,
             max_duration,
-            max_budget,
+            budget,
         );
 
         paths
             .into_iter()
             .map(|(remaining_duration, remaining_budget, edges)| Self {
-                travel_cost: max_budget - remaining_budget,
+                travel_cost: budget - remaining_budget,
                 duration: max_duration - remaining_duration,
 
                 utilization,
@@ -172,8 +209,8 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         paths: &mut Vec<(u64, u64, IndexSet<EdgeIndex>)>, // paths found until now
         current: NodeIndex,
-        to: NodeIndex,
-        visited: &mut IndexSet<EdgeIndex>, // vec of visited edges (in order of visit)
+        destination: NodeIndex,
+        path: &mut IndexSet<EdgeIndex>, // visited edges (in order of visit)
 
         // recursion anchors (if zero)
         min_capacity: u64,
@@ -183,11 +220,13 @@ impl Path {
         // println!("all_paths_dfs_recursive(current={:?}, goal={:?}, visited.len()={}, min_capacity={}, remaining_duration={})", current, to, visited.len(), min_capacity, remaining_duration);
         // println!("remaining_duration: {}", remaining_duration);
 
-        if current == to {
-            // take all edge indices (in order of visit) and insert them into a vec
-            paths.push((remaining_duration, remaining_budget, visited.clone()));
+        if current == destination {
+            // found destination node
+            paths.push((remaining_duration, remaining_budget, path.clone()));
+
         } else {
-            let mut walker = graph.neighbors_directed(current, Outgoing).detach();
+
+            let mut walker = graph.neighbors(current).detach();
 
             // iterate over all outgoing edges
             while let Some((next_edge, next_node)) = walker.next(graph) {
@@ -202,95 +241,92 @@ impl Path {
                     // edge can handle the minium required capacity and does not take longer then the remaining duration
 
                     // add next_edge for next call
-                    visited.insert(next_edge);
+                    path.insert(next_edge);
 
                     &mut Self::search_recursive_dfs_helper(
                         graph,
                         paths,
                         next_node,
-                        to,
-                        visited,
+                        destination,
+                        path,
                         min_capacity,
                         remaining_duration - edge_weight_duration,
                         remaining_budget - edge_weight_cost,
                     );
 
                     // remove next_edge from visited
-                    visited.pop();
+                    path.pop();
                 }
             }
         }
     }
+
+
 
     /// iterative depening search
-    pub fn one_path_dfs(
+    pub fn dfs_visiter_search(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
-        from: NodeIndex,
-        to: NodeIndex, // condition that determines whether goal node was found
+        start: NodeIndex,
+        destination: NodeIndex, // condition that determines whether goal node was found
         
         utilization: u64, // number of passengers, weight of load, etc.
-        max_duration: u64,
     ) -> Vec<Self> {
-        print!("no limit ... ");
+
+        let mut paths = Vec::new();
 
         let mut predecessor = vec![NodeIndex::end(); graph.node_count()];
-        depth_first_search(graph, Some(from), | event| {
+        depth_first_search(graph, Some(start), | event| {
+
             if let DfsEvent::TreeEdge(u, v) = event {
                 predecessor[v.index()] = u;
-                if v == to {
-                    return Control::Break(v);
+
+
+                if v == destination {
+                    // we found destination node -> use predecessor map to look-up edge path
+                    // start at destination node (to) and "walk" back to start (from), collect all nodes in path vec and then reverse vec
+        
+                    let mut next = destination;
+                    let mut node_path = vec![next];
+
+                    while next != start {
+                        let pred = predecessor[next.index()];
+                        node_path.push(pred);
+                        next = pred;
+                    }
+                    node_path.reverse();
+
+                    // found_destinations.push(to.clone());
+                    let mut edges = IndexSet::new();
+
+                    for transfer_slice in node_path.windows(2) {
+                        // iterate over all pairs of nodes in node_path
+
+                        // add index of edge between node pair to edges
+                        edges.insert(
+                            graph.find_edge(transfer_slice[0], transfer_slice[1]).unwrap()
+                        );
+                    }
+
+                    // create and insert Self
+                    paths.push(Self::new(
+                        graph,
+                        edges,
+                        utilization
+                    ));
+
+                    return Control::Prune
                 }
             }
-            Control::Continue
+            
+            // always continue dfs
+            Control::<NodeIndex>::Continue
         });
-        
-        let mut next = to;
-        let mut path = vec![next];
-        while next != from {
-            let pred = predecessor[next.index()];
-            path.push(pred);
-            next = pred;
-        }
-        path.reverse();
 
-        let mut edges = IndexSet::new();
-        let mut duration: u64 = 0;
-
-        for transfer_slice in path.windows(2) {
-            let edge_index = graph.find_edge(transfer_slice[0], transfer_slice[1]);
-            let timetable_edge = &graph[edge_index.unwrap()];
-            duration += timetable_edge.duration();
-            edges.insert(edge_index.unwrap());
-        }
-
-        vec![Self {
-            travel_cost: 0,
-            duration: duration,
-
-            utilization: utilization,
-
-            edges: edges,
-        }]
+        paths
     }
 }
 
-impl Ord for Path {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.score().cmp(&other.score())
-    }
-}
 
-impl PartialOrd for Path {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for Path {
-    fn eq(&self, other: &Self) -> bool {
-        self.score() == other.score()
-    }
-}
 
 /// builds subgraph that only contains nodes connected by edges
 pub fn create_subgraph_from_edges(
@@ -323,8 +359,8 @@ pub fn create_subgraph_from_edges(
 /// working too good
 fn all_simple_paths_dfs_dorian(
     graph: &'static DiGraph<TimetableNode, TimetableEdge>,
-    from_node_index: NodeIndex,
-    to_node_index: NodeIndex,
+    start: NodeIndex,
+    destination: NodeIndex,
     max_duration: u64,
     max_rides: u64,
 ) -> impl Iterator<Item = (u64, Vec<EdgeIndex>)> {
@@ -335,7 +371,7 @@ fn all_simple_paths_dfs_dorian(
 
     // list of childs of currently exploring path nodes,
     // last elem is list of childs of last visited node
-    let mut stack = vec![graph.neighbors_directed(from_node_index, Outgoing).detach()];
+    let mut stack = vec![graph.neighbors_directed(start, Outgoing).detach()];
     let mut durations: Vec<u64> = Vec::new();
     let mut rides: Vec<u64> = vec![0];
 
@@ -348,7 +384,7 @@ fn all_simple_paths_dfs_dorian(
                 if durations.iter().sum::<u64>() + duration < max_duration
                     && rides.iter().sum::<u64>() < max_rides
                 {
-                    if child_node_index == to_node_index {
+                    if child_node_index == destination {
                         let path = visited
                             .iter()
                             .cloned()
@@ -380,14 +416,14 @@ fn all_simple_paths_dfs_dorian(
                     let mut edge_index = None;
                     let mut children_cloned = children.clone();
                     while let Some((c_edge_index, c_node_index)) = children_cloned.next(graph) {
-                        if c_node_index == to_node_index {
+                        if c_node_index == destination {
                             children_any_to_node_index = true;
                             edge_index = Some(c_edge_index);
                             duration = graph.edge_weight(child_edge_index).unwrap().duration();
                             break;
                         }
                     }
-                    if (child_node_index == to_node_index || children_any_to_node_index)
+                    if (child_node_index == destination || children_any_to_node_index)
                         && (durations.iter().sum::<u64>() + duration >= max_duration
                             || rides.iter().sum::<u64>() >= max_rides)
                     {

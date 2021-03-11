@@ -15,7 +15,6 @@ pub struct Station {
 impl Station {
     pub fn from_maps_to_map(
         station_maps: &Vec<HashMap<String, String>>,
-        graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     ) -> HashMap<String, Self> {
         println!("parsing {} station(s)", station_maps.len());
 
@@ -42,7 +41,7 @@ impl Station {
         stations_map
     }
 
-    /// add departure to station
+    /// add departure node to graph
     pub fn add_departure(
         &mut self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -79,7 +78,7 @@ impl Station {
         departure
     }
 
-    /// add arrival to station
+    /// add arrival node to graph
     pub fn add_arrival(
         &mut self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,

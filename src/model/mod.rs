@@ -8,9 +8,9 @@ pub mod footpath;
 pub mod station;
 pub mod trip;
 pub mod path;
-pub mod graph_weigth;
+pub mod graph_weight;
 
-use graph_weigth::{TimetableNode, TimetableEdge};
+use graph_weight::{TimetableNode, TimetableEdge};
 
 
 use group::Group;
@@ -52,10 +52,10 @@ impl Model {
         let trip_maps = csv_reader::read_to_maps(&format!("{}/trips.csv", csv_folder_path));
         let footpath_maps = csv_reader::read_to_maps(&format!("{}/footpaths.csv", csv_folder_path));
 
-        // create graph
+        // initialize graph
         let mut graph = DiGraph::new();
 
-        let mut stations = station::Station::from_maps_to_map(&station_maps, &mut graph);
+        let mut stations = station::Station::from_maps_to_map(&station_maps);
         let mut stations_transfers = HashMap::with_capacity(stations.len());
         let mut stations_arrivals = HashMap::with_capacity(stations.len());
         let mut stations_main_arrival = HashMap::with_capacity(stations.len());
@@ -69,11 +69,14 @@ impl Model {
         }
 
         for (station_id, station) in stations.into_iter() {
+
+            let station_name = station.name.clone();
             let (transfers, arrivals) = station.connect(&mut graph);
 
             // create main arrival node
             let main_arrival = graph.add_node(TimetableNode::MainArrival {
-                station_id: station_id.clone()            
+                station_id: station_id.clone(),
+                station_name: format!("{}_MainArrival", station_name)   
             });
 
             // connect all arrival nodes to the main arrival
@@ -205,26 +208,52 @@ impl Model {
         );
 
         let groups_len = groups.len();
-
-        let mut n_successful_groups: u64 = 0;
-
-        let start = Instant::now();
-
-        for (index, group) in groups.iter_mut().enumerate() {
-
-            print!("[group={}/{}]: ", index+1, groups_len);
-            if group.search_paths(&self) {
-                n_successful_groups += 1;
-            }
-        }
-
-        println!(
-            "Found at least one path for {}/{} groups ({}%) in {}s ({}min)", 
-            n_successful_groups, groups.len(),
-            (100 * n_successful_groups) / groups.len() as u64,
-            start.elapsed().as_secs(),
-            start.elapsed().as_secs() / 60
+  
+        
+        // benchmark budgets
+        let mut writer = BufWriter::new(
+            File::create("eval/dfs_budgets.csv").unwrap()
         );
+        
+        writer.write("budget,search_duration_in_millis,n_groups_with_at_least_one_path\n".as_bytes()).unwrap();
+        
+        
+        for budget in (0..105).step_by(5) {
+
+            let start = Instant::now();
+            let mut n_groups_with_at_least_one_path: u64 = 0;
+    
+            for (index, group) in groups.iter_mut().enumerate() {
+    
+                print!("[budget={}][group={}/{}]: ", budget, index+1, groups_len);
+                group.search_paths(
+                    &self,
+                    &vec![budget]
+                );
+                
+                if group.paths.len() != 0 {
+                    n_groups_with_at_least_one_path += 1;
+                }
+            }
+
+
+            println!(
+                "Found at least one path for {}/{} groups ({}%) in {}s ({}min)", 
+                n_groups_with_at_least_one_path, groups.len(),
+                (100 * n_groups_with_at_least_one_path) / groups.len() as u64,
+                start.elapsed().as_secs(),
+                start.elapsed().as_secs() / 60
+            );
+    
+
+            writer.write(
+                format!("{},{},{}\n",
+                    budget,
+                    start.elapsed().as_millis(),
+                    n_groups_with_at_least_one_path
+                ).as_bytes()
+            ).unwrap();
+        }
 
         groups
     }
@@ -369,7 +398,7 @@ mod tests {
                         let same_stations = node_a_weight.station_id().unwrap() == node_b_weight.station_id().unwrap();
                         assert!(same_stations, format!("Transfer node and {} node have not same station! {} vs. {}", node_b_weight.kind(), node_a_weight.station_id().unwrap(), node_b_weight.station_id().unwrap()));                   
                     },
-                    TimetableNode::MainArrival {station_id: _} => {
+                    TimetableNode::MainArrival {station_id: _, station_name: _} => {
                         
                         // todo: Panic because MainArrival node has no outgoing edges
                         assert!(false, "MainArrival node has outgoing edge!")
@@ -405,7 +434,7 @@ mod tests {
                     // Only one outoging board edge
                     assert!(num_board == 1, format!("Transfer node has {} outgoing Board edges instead of 1!", num_board));
                 },
-                TimetableNode::MainArrival {station_id: _} => {
+                TimetableNode::MainArrival {station_id: _, station_name: _} => {
                         
                     // has no outgoing edges
                     let outoging_edge_count = graph.edges_directed(node_a_index, Outgoing).count();

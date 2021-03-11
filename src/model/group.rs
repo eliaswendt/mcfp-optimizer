@@ -95,18 +95,21 @@ impl Group {
         groups
     }
 
-    /// returns (remaining_duration, path), returns true if there was at least one path found
-    pub fn search_paths(&mut self, model: &Model) -> bool {
-        let from = model
+    /// returns the number of found paths
+    pub fn search_paths(
+        &mut self, 
+        model: &Model,
+        budgets: &[u64],
+    ) {
+        let start = model
             .find_start_node_index(&self.start, self.departure)
             .expect("Could not find departure at from_station");
-        let to = model
+        let destination = model
             .find_end_node_index(&self.destination)
             .expect("Could not find destination station");
 
         if self.departure > self.arrival {
             self.paths = Vec::new();
-            return false
         }
 
         // max duration should depend on the original travel time
@@ -115,62 +118,52 @@ impl Group {
         //let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
         let max_duration = Group::calculate_max_travel_duration(travel_time);
 
-        let budget_steps = &vec![50];
-
-        let start = Instant::now();
+        let start_instant = Instant::now();
         print!(
             "{} -> {} with {} passenger(s) in {} min(s) ... ",
-            self.start, self.destination, self.passengers, max_duration
+            model.graph[start].station_name(), 
+            model.graph[destination].station_name(), 
+            self.passengers,
+            max_duration
         );
-        // self.paths = path::Path::search_recursive_dfs(
-        //     &model.graph,
-        //     from,
-        //     to, //|node| node.is_arrival_at_station(&group_value.destination), // dynamic condition for dfs algorithm to find arrival node
 
+        // self.paths = path::Path::all_paths_iddfs(
+        //     &model.graph,
+        //     start,
+        //     destination,
         //     self.passengers as u64,
         //     max_duration,
-        //     max_budget // initial budget for cost (each edge has individual search cost)
+        //     budgets,
         // );
-        self.paths = path::Path::all_paths_iddfs(
-            &model.graph,
-            from,
-            to,
-            self.passengers as u64,
-            max_duration,
-            budget_steps,
-        );
 
         if self.paths.len() == 0 {
-            self.paths = path::Path::one_path_dfs(
+            self.paths = path::Path::dfs_visiter_search(
                 &model.graph,
-                from,
-                to,
+                start,
+                destination,
                 self.passengers as u64,
-                max_duration
             )
         }
 
-        print!("done in {}ms, ", start.elapsed().as_millis());
+        print!("done in {}ms, ", start_instant.elapsed().as_millis());
 
-        // sort by remaining budget (highest/best first)
+        // sort lowest travel_cost first
         self.paths.sort_unstable();
-        self.paths.reverse();
 
         if self.paths.len() == 0 {
             println!("{}", format!("no path found").red());
-            false
         } else {
             println!(
                 "{}",
                 format!(
-                    "{} path(s), best={{duration={}, len={}}}",
+                    "{} path(s), best={{travel_cost={}, duration={}, len={}}}",
                     self.paths.len(),
+                    self.paths[0].travel_cost(),
                     self.paths[0].duration(),
-                    self.paths[0].len()
+                    self.paths[0].edges.len()
                 )
                 .green()
             );
-            true
         }
     }
 

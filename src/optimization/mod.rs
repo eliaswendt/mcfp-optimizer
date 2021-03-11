@@ -1,7 +1,7 @@
 use petgraph::graph::DiGraph;
 use rand::Rng;
 
-use crate::model::{graph_weigth::{TimetableEdge, TimetableNode}, group::Group, path::Path};
+use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, path::Path};
 
 pub mod simulated_annealing;
 pub mod randomized_hillclimb;
@@ -33,7 +33,7 @@ impl<'a> SelectionState<'a> {
 
         // first: strain all selected paths to TimetableGraph
         for (group_index, path_index) in groups_paths_selection.iter().enumerate() {
-            groups[group_index].paths[*path_index].strain(graph);
+            groups[group_index].paths[*path_index].strain_to_graph(graph);
         }
 
         // second: calculate sum of all path's utilization costs
@@ -44,7 +44,7 @@ impl<'a> SelectionState<'a> {
 
         // third: relieve all selected paths to TimetableGraph
         for (group_index, path_index) in groups_paths_selection.iter().enumerate() {
-            groups[group_index].paths[*path_index].relieve(graph);
+            groups[group_index].paths[*path_index].relieve_from_graph(graph);
         }
 
 
@@ -63,7 +63,7 @@ impl<'a> SelectionState<'a> {
 
         // for faster cost calculation now strain all actual selected paths to the graph and only switch paths for the groups we are currently working on
         for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
-            self.groups[group_index].paths[*path_index].strain(graph);
+            self.groups[group_index].paths[*path_index].strain_to_graph(graph);
         }
 
         // iterate over all groups_paths_selection
@@ -72,7 +72,7 @@ impl<'a> SelectionState<'a> {
             let actual_selected_path_index = self.groups_paths_selection[group_index];
 
             // relieve the actual selected path of current group
-            self.groups[group_index].paths[actual_selected_path_index].relieve(graph);
+            self.groups[group_index].paths[actual_selected_path_index].relieve_from_graph(graph);
 
             // for each group add state with all possible paths for current group
             let n_paths_of_group = self.groups[group_index].paths.len();
@@ -86,11 +86,11 @@ impl<'a> SelectionState<'a> {
 
                 // calculate cost for when choosing path_index instead of actual_path_index
                 let mut cost_sum = 0;
-                self.groups[group_index].paths[path_index].strain(graph);
+                self.groups[group_index].paths[path_index].strain_to_graph(graph);
                 for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
                     cost_sum += self.groups[group_index].paths[*path_index].utilization_cost(graph);
                 }
-                self.groups[group_index].paths[path_index].relieve(graph);
+                self.groups[group_index].paths[path_index].relieve_from_graph(graph);
                 
 
                 let mut groups_paths_selection_clone = self.groups_paths_selection.clone();
@@ -108,13 +108,13 @@ impl<'a> SelectionState<'a> {
             }
 
             // re-add the actually selected path for current group to graph
-            self.groups[group_index].paths[actual_selected_path_index].strain(graph);
+            self.groups[group_index].paths[actual_selected_path_index].strain_to_graph(graph);
         }      
         
         // at the beginning of the function we strained all actual selected paths to the graph
         // before returning relieve them
         for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
-            self.groups[group_index].paths[*path_index].relieve(graph);
+            self.groups[group_index].paths[*path_index].relieve_from_graph(graph);
         }
 
         neighbors
@@ -129,7 +129,7 @@ impl<'a> SelectionState<'a> {
 
         // for faster cost calculation now strain all actual selected paths to the graph and only switch paths for the groups we are currently working on
         for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
-            self.groups[group_index].paths[*path_index].strain(graph);
+            self.groups[group_index].paths[*path_index].strain_to_graph(graph);
         }
 
         // iterate over all groups_paths_selection
@@ -139,7 +139,7 @@ impl<'a> SelectionState<'a> {
             let actual_selected_path_index = self.groups_paths_selection[group_index];
 
             // relieve the actual selected path of current group
-            self.groups[group_index].paths[actual_selected_path_index].relieve(graph);
+            self.groups[group_index].paths[actual_selected_path_index].relieve_from_graph(graph);
 
 
             // create state with index decremented by one
@@ -148,11 +148,11 @@ impl<'a> SelectionState<'a> {
                 groups_paths_selection_clone[group_index] -= 1;
 
                 let mut cost_sum = 0;
-                self.groups[group_index].paths[actual_selected_path_index - 1].strain(graph);
+                self.groups[group_index].paths[actual_selected_path_index - 1].strain_to_graph(graph);
                 for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
                     cost_sum += self.groups[group_index].paths[*path_index].utilization_cost(graph);
                 }
-                self.groups[group_index].paths[actual_selected_path_index - 1].relieve(graph);
+                self.groups[group_index].paths[actual_selected_path_index - 1].relieve_from_graph(graph);
 
 
                 let selection_state = Self {
@@ -171,11 +171,11 @@ impl<'a> SelectionState<'a> {
                 groups_paths_selection_clone[group_index] += 1;
 
                 let mut cost_sum = 0;
-                self.groups[group_index].paths[actual_selected_path_index + 1].strain(graph);
+                self.groups[group_index].paths[actual_selected_path_index + 1].strain_to_graph(graph);
                 for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
                     cost_sum += self.groups[group_index].paths[*path_index].utilization_cost(graph);
                 }
-                self.groups[group_index].paths[actual_selected_path_index + 1].relieve(graph);
+                self.groups[group_index].paths[actual_selected_path_index + 1].relieve_from_graph(graph);
 
 
                 let selection_state = Self {
@@ -189,13 +189,13 @@ impl<'a> SelectionState<'a> {
             }
 
             // re-add the actually selected path for current group to graph
-            self.groups[group_index].paths[actual_selected_path_index].strain(graph);
+            self.groups[group_index].paths[actual_selected_path_index].strain_to_graph(graph);
         }
 
         // at the beginning of the function we strained all actual selected paths to the graph
         // before returning relieve them
         for (group_index, path_index) in self.groups_paths_selection.iter().enumerate() {
-            self.groups[group_index].paths[*path_index].relieve(graph);
+            self.groups[group_index].paths[*path_index].relieve_from_graph(graph);
         }
 
         neighbors
