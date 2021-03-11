@@ -221,8 +221,6 @@ impl Model {
             }
         }
 
-        let finished = start.elapsed().as_millis();
-
         println!(
             "Found at least one path for {}/{} groups ({}%) in {}s ({}min)", 
             n_successful_groups, groups.len(),
