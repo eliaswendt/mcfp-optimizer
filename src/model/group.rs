@@ -138,6 +138,16 @@ impl Group {
             budget_steps,
         );
 
+        if self.paths.len() == 0 {
+            self.paths = path::Path::one_path_dfs(
+                &model.graph,
+                from,
+                to,
+                self.passengers as u64,
+                max_duration
+            )
+        }
+
         print!("done in {}ms, ", start.elapsed().as_millis());
 
         // sort by remaining budget (highest/best first)
