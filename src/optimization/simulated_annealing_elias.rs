@@ -9,7 +9,7 @@ use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, p
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
     // 100.0 / time.powf(2.0)
-    50.0 / (time as f64)
+    80.0 / (time as f64)
 }
 
 pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>) -> SelectionState<'a> {

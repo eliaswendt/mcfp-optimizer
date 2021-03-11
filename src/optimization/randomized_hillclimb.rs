@@ -32,8 +32,8 @@ pub fn randomized_hillclimb<'a>(
         // choose random configuration as initial state
         let mut local_minimum = SelectionState::generate_random_state(graph, groups);
 
-        print!(
-            "[restart={}/{}]: initial_cost={} ",
+        println!(
+            "[restart={}/{}]: initial_cost={}",
             run + 1,
             n_restarts,
             local_minimum.cost
@@ -52,17 +52,17 @@ pub fn randomized_hillclimb<'a>(
                 // no neighbors found OR best neighbor has higher cost than current local maximum
 
                 println!(
-                    "reached local minimum {} in {}/{} iterations",
-                    local_minimum.cost,
+                    "\t[iteration={}/{}]: reached local minimum {}",
                     j + 1,
-                    max_n_iterations
+                    max_n_iterations,
+                    local_minimum.cost,
                 );
 
                 // as we won't find any better solution -> early exit loop
                 break;
             }
 
-            // println!("found new local maximum neighbor cost={}", neighbors[0].0);
+            println!("\t[iteration={}/{}]: current={}", j+1, max_n_iterations, neighbors[0].cost);
 
             // set as new local maximum
             neighbors.reverse();

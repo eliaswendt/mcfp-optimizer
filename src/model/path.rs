@@ -92,6 +92,7 @@ impl Path {
     // }
 
     /// occupy self to graph (add utilization to edges)
+    #[inline]
     pub fn strain_to_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>, strained_edges: &mut HashSet<EdgeIndex>) {
         for edge in self.edges.iter() {
             graph[*edge].increase_utilization(self.utilization);
@@ -102,6 +103,7 @@ impl Path {
     }
 
     /// release self from graph (remove utilization from edges)
+    #[inline]
     pub fn relieve_from_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>, strained_edges: &mut HashSet<EdgeIndex>) {
         for edge in self.edges.iter() {
 
