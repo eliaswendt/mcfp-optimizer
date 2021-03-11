@@ -106,6 +106,9 @@ impl Group {
 
         if self.departure > self.arrival {
             self.paths = Vec::new();
+            println!(
+                "{} -> {} with {} passenger(s) ... data invalid!",
+                self.start, self.destination, self.passengers);
             return false
         }
 
@@ -115,7 +118,7 @@ impl Group {
         //let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
         let max_duration = Group::calculate_max_travel_duration(travel_time);
 
-        let budget_steps = &vec![50];
+        let budget_steps = &vec![];
 
         let start = Instant::now();
         print!(
