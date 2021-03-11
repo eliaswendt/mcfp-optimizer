@@ -1,17 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::io::Read;
-use std::io::Write;
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{BufReader, BufWriter},
-    time::Instant,
-};
+use std::{cmp::max, collections::HashMap, fs::File, io::{BufReader, BufWriter}, time::Instant};
 
 use colored::Colorize;
-use petgraph::graph::{DiGraph, EdgeIndex};
 
-use super::{Model, TimetableEdge, TimetableNode, path::{self, Path}, trip::Trip};
+use super::{Model, path::{self, Path}, trip::Trip};
 
 /// travel group
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,15 +94,6 @@ impl Group {
 
         groups
     }
-
-
-
-
-
-
-
-
-
 
     /// returns (remaining_duration, path), returns true if there was at least one path found
     pub fn search_paths(&mut self, model: &Model, budget_steps: &[u64], duration_factor: f64) -> bool {

@@ -1,14 +1,7 @@
 use indexmap::IndexSet;
-use petgraph::{
-    graph::{DiGraph, EdgeIndex, NodeIndex},
-    EdgeDirection::Outgoing,
-};
+use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{Control, DfsEvent, depth_first_search}};
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
-    iter::from_fn,
-};
+use std::{cmp::Ordering, collections::HashSet, iter::from_fn};
 
 use super::{TimetableEdge, TimetableNode};
 
@@ -132,7 +125,46 @@ impl Path {
             }
         }
 
-        Vec::new()
+        print!("no limit ... ");
+
+        let mut predecessor = vec![NodeIndex::end(); graph.node_count()];
+        depth_first_search(graph, Some(from), | event| {
+            if let DfsEvent::TreeEdge(u, v) = event {
+                predecessor[v.index()] = u;
+                if v == to {
+                    return Control::Break(v);
+                }
+            }
+            Control::Continue
+        });
+        
+        let mut next = to;
+        let mut path = vec![next];
+        while next != from {
+            let pred = predecessor[next.index()];
+            path.push(pred);
+            next = pred;
+        }
+        path.reverse();
+        //println!("{:?}", path);
+        //let mut remaining_duration = 0;
+        //let mut remaining_budget = 0;
+        let mut edges = IndexSet::new();
+
+        for transfer_slice in path.windows(2) {
+            let edge_index = graph.find_edge(transfer_slice[0], transfer_slice[1]);
+            edges.insert(edge_index.unwrap());
+        }
+
+        vec![Self {
+            travel_cost: 0,
+            duration: 0,
+
+            utilization: min_capacity,
+
+            edges: edges,
+        }]
+
     }
 
     // launcher of recursive implementation of dfs
@@ -141,7 +173,7 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         from: NodeIndex,
         to: NodeIndex, // condition that determines whether goal node was found
-
+        
         utilization: u64, // number of passengers, weight of load, etc.
         max_duration: u64,
         max_budget: u64, // initial search budget (each edge has cost that needs to be payed)

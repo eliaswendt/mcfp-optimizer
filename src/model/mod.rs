@@ -1,7 +1,7 @@
-use std::{collections::{HashMap, HashSet}, fs::File, time::Instant};
+use std::{collections::HashMap, fs::File, time::Instant};
 use serde::{Deserialize, Serialize};
 use std::io::{BufWriter, Write};
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 
 pub mod group;
 pub mod footpath;
@@ -15,20 +15,13 @@ use graph_weigth::{TimetableNode, TimetableEdge};
 
 use group::Group;
 
-use crate::optimization;
-
 use petgraph::{
-    EdgeDirection::Outgoing, 
-    Graph, dot::{Dot}, 
+    dot::{Dot}, 
     graph::{
-        NodeIndex, 
-        EdgeIndex, 
+        NodeIndex,
         DiGraph
     }
 };
-
-use colored::*;
-use path::Path;
 
 use crate::csv_reader;
 
@@ -245,6 +238,8 @@ impl Model {
 
 #[cfg(test)]
 mod tests {
+    use petgraph::EdgeDirection::Outgoing;
+
     use super::*;
 
     /// Panics if invalid
