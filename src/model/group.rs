@@ -70,7 +70,7 @@ impl Group {
 
         let writer = BufWriter::new(
             File::create(&format!("{}groups.bincode", filepath))
-                .expect(&format!("Could not open file {}groups.json", filepath)),
+                .expect(&format!("Could not open file {}groups.bincode", filepath)),
         );
         bincode::serialize_into(writer, groups).expect("Could not save groups to file");
         // serde_json::to_writer(writer, groups).expect("Could not save groups to file");
@@ -85,7 +85,7 @@ impl Group {
 
         let reader = BufReader::new(
             File::open(&format!("{}groups.bincode", filepath))
-                .expect(&format!("Could not open file {}model.json", filepath)),
+                .expect(&format!("Could not open file {}model.bincode", filepath)),
         );
         let groups: Vec<Group> = bincode::deserialize_from(reader).expect("Could not load groups from file!");
         // let groups: Vec<Group> = serde_json::from_reader(reader).expect("Could not load groups from file!");
