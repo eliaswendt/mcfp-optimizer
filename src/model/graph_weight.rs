@@ -177,13 +177,12 @@ impl TimetableEdge {
     pub fn utilization_cost(&self) -> u64 {
         match self {
 
-            // penalize utilization over capacity_soft_limit, forbid utilization over capacity_hard_limit 
+            // penalize utilization over capacity
             Self::Trip {duration: _, capacity, utilization} => {
 
                 if utilization < capacity {
                     0
                 } else {
-                    // capacity in range [soft_limit, hard_limit)
                     // calculate penalty as quadratic diff
 
                     let diff = *utilization - *capacity;

@@ -7,10 +7,13 @@ use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, p
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
     // 100.0 / time.powf(2.0)
-    100.0 / (time as f64)
+    1000.0 / (time as f64)
 }
 
 pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>) -> SelectionState<'a> {
+    println!(
+        "simulated_annealing()"
+    );
 
     let mut rng = rand::thread_rng();
 
@@ -47,7 +50,7 @@ pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEd
 
         if delta_cost > 0 {
             current = next.clone();
-            println!("replacing current state");
+            println!("-> replacing current state");
         } else {
             let probability = (delta_cost as f64 / temperature as f64).exp();
             let random = rng.gen_range(0.0..1.0);
@@ -55,6 +58,7 @@ pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEd
             println!("probability={}, random={}", probability, random);
 
             if random < probability {
+                println!("-> choosing worse neighbor");
                 current = next.clone();
             }
         }
