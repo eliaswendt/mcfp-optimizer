@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use petgraph::graph::{DiGraph, EdgeIndex};
-use rand::Rng;
+use rand::{Rng, prelude::ThreadRng};
 
 use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, path::Path};
 
@@ -62,7 +62,7 @@ impl<'a> SelectionState<'a> {
 
     /// generates a vec of neighbor states
     /// generate new states, so that each neighbor only differs in selected path of one group
-    pub fn generate_group_neighbors(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) -> Vec<Self> {
+    pub fn all_group_neighbors(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) -> Vec<Self> {
         
         let mut neighbors = Vec::with_capacity(self.groups.len() * 10);
 
@@ -128,7 +128,7 @@ impl<'a> SelectionState<'a> {
     /// generates a vec of neighbor states
     /// create two new states per selected_path_index -> one with the one-lower index (if > 0) + one with the one-higher index (if in bounds)
     /// this function also efficiently calculates the cost during creation of path configurations
-    pub fn generate_direct_neighbors(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) -> Vec<Self> {
+    pub fn all_direct_neighbors(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) -> Vec<Self> {
 
         let mut neighbors = Vec::with_capacity(self.groups.len() * 2);
 
@@ -207,5 +207,37 @@ impl<'a> SelectionState<'a> {
         }
 
         neighbors
+    }
+
+    pub fn random_group_neighbor(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>, rng: &mut ThreadRng) -> Self {
+
+        let random_group_index = rng.gen::<usize>() % self.groups.len();
+        let random_path_index = rng.gen::<usize>() % self.groups[random_group_index].paths.len();
+
+        let mut groups_paths_selection = self.groups_paths_selection.clone();
+        groups_paths_selection[random_group_index] = random_path_index;
+
+
+        let mut strained_edges: HashSet<EdgeIndex> = HashSet::new();
+
+        // first: strain all selected paths to TimetableGraph
+        for (group_index, path_index) in groups_paths_selection.iter().enumerate() {
+
+            let path = &self.groups[group_index].paths[*path_index];
+            path.strain_to_graph(graph, &mut strained_edges);
+        }
+
+        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges);
+
+        // third: relieve all selected paths to TimetableGraph
+        for (group_index, path_index) in groups_paths_selection.iter().enumerate() {
+            self.groups[group_index].paths[*path_index].relieve_from_graph(graph, &mut strained_edges);
+        }
+
+        Self {
+            groups: self.groups,
+            cost,
+            groups_paths_selection,
+        }
     }
 }

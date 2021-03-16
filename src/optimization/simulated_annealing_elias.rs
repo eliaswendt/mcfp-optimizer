@@ -1,3 +1,4 @@
+use colored::Colorize;
 use petgraph::graph::DiGraph;
 use rand::Rng;
 
@@ -6,14 +7,14 @@ use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, p
 
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
-    // 100.0 / time.powf(2.0)
-    1000.0 / (time as f64)
+    // 10000000.0 / time.powf(2.0)
+    10000.0 / (time as f64)
+    // 1000.00 - time.powf(1.1)
 }
 
 pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>) -> SelectionState<'a> {
-    println!(
-        "simulated_annealing()"
-    );
+
+    println!("simulated_annealing()");
 
     let mut rng = rand::thread_rng();
 
@@ -23,7 +24,7 @@ pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEd
     loop {
         let temperature = time_to_temperature(time as f64);
         
-        print!("[time={}]: current_state_cost={}, temperature={}, ", time, current.cost, temperature);
+        print!("[time={}]: current_cost={}, temp={}, ", time, current.cost, temperature);
         
         // actually exactly zero, but difficult with float
         if temperature < 1.0 {
@@ -33,12 +34,13 @@ pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEd
 
         // select random next state
         // let next_state = &neighbor_states[rng.gen::<usize>() % neighbor_states.len()];
-        let next = current
-            .generate_direct_neighbors(graph)
-            .into_iter()
-            .min_by_key(|s| s.cost)
-            .unwrap();
+        // let next = current
+        //     .all_direct_neighbors(graph)
+        //     .into_iter()
+        //     .min_by_key(|s| s.cost)
+        //     .unwrap();
 
+        let next = current.random_group_neighbor(graph, &mut rng);
   
         // print!("next_state={:?}, ", next_state.groups_paths_selection);
 
@@ -50,16 +52,18 @@ pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEd
 
         if delta_cost > 0 {
             current = next.clone();
-            println!("-> replacing current state");
+            println!("{}", format!("-> replacing current state").green());
         } else {
             let probability = (delta_cost as f64 / temperature as f64).exp();
             let random = rng.gen_range(0.0..1.0);
 
-            println!("probability={}, random={}", probability, random);
+            print!("probability={}, random={} ", probability, random);
 
             if random < probability {
-                println!("-> choosing worse neighbor");
+                println!("{}", format!("-> choosing worse neighbor").red());
                 current = next.clone();
+            } else {
+                println!("-> skipping")
             }
         }
 
