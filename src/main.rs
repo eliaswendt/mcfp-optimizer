@@ -64,7 +64,7 @@ fn main() {
 
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
     // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
-    optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path);
+    optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing.csv");
 
 
     println!("done with main() -> terminating")

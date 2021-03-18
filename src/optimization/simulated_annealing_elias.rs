@@ -1,3 +1,5 @@
+use std::{fs::File, io::{BufWriter, Write}};
+
 use colored::Colorize;
 use petgraph::graph::DiGraph;
 use rand::Rng;
@@ -7,16 +9,22 @@ use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, p
 
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
-    // 10000000.0 / time.powf(2.0)
-    10000.0 / (time as f64)
-    // 1000.00 - time.powf(1.1)
+    // (100000.0 - time).powf(1.1)
+    10000.0 / time // cost=782, funktioniert schonmal ganz gut
+    // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
 
-pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>) -> SelectionState<'a> {
+pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>, filepath: &str) -> SelectionState<'a> {
 
     println!("simulated_annealing()");
 
     let mut rng = rand::thread_rng();
+
+    let mut writer = BufWriter::new(
+        File::create(filepath).expect(&format!("Could not create file \"{}\"", filepath))
+    );
+
+    writer.write("time,temperature,cost\n".as_bytes()).unwrap();
 
     let mut current = SelectionState::generate_random_state(graph, groups);
     let mut time = 1;
@@ -25,7 +33,8 @@ pub fn simulated_annealing<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEd
         let temperature = time_to_temperature(time as f64);
         
         print!("[time={}]: current_cost={}, temp={}, ", time, current.cost, temperature);
-        
+        writer.write(format!("{},{},{}\n", time, temperature, current.cost).as_bytes()).unwrap();
+
         // actually exactly zero, but difficult with float
         if temperature < 1.0 {
             println!("-> return");

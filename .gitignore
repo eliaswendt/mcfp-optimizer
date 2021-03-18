@@ -3,4 +3,4 @@
 /dump
 .DS_Store
 /snapshot
-/eval
+/eval/venv
