@@ -8,6 +8,7 @@ use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, p
 pub mod simulated_annealing;
 pub mod randomized_hillclimb;
 pub mod simulated_annealing_elias;
+pub mod randomized_best;
 
 
 /// formalizing a system state
@@ -216,7 +217,6 @@ impl<'a> SelectionState<'a> {
 
         let mut groups_paths_selection = self.groups_paths_selection.clone();
         groups_paths_selection[random_group_index] = random_path_index;
-
 
         let mut strained_edges: HashSet<EdgeIndex> = HashSet::new();
 
