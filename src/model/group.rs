@@ -139,7 +139,9 @@ impl Group {
             start,
             destination,
             self.passengers as u64,
-            1
+            self.arrival,
+            1,
+            
         );
 
         // filter out paths that exceed duration or do not fulfill minium capacity

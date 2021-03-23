@@ -58,7 +58,7 @@ pub fn simulated_annealing<'a>(
         let temperature = time_to_temperature(time as f64);
 
         print!(
-            "[time={}]: current_cost={}, temp={:.20}, ",
+            "[time={}]: current_cost={}, temp={:.2}, ",
             time, current_state.cost, temperature
         );
         writer
@@ -106,7 +106,7 @@ pub fn simulated_annealing<'a>(
                     let probability = (delta_cost as f64 / temperature as f64).exp();
                     let random = rng.gen_range(0.0..1.0);
 
-                    print!("probability={}, random={} ", probability, random);
+                    print!("probability={:.2}, random={:.2} ", probability, random);
 
                     if random < probability {
                         println!("{}", format!("-> choosing worse neighbor").red());

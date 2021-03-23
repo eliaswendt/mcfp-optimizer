@@ -352,19 +352,23 @@ impl<'a> SelectionState<'a> {
 
             // get start node 
             let (start, _) = graph.edge_endpoints(*edge_index).unwrap();
+
+            // get possible paths from current start node to end node
             let possible_paths = path::Path::dfs_visitor_search(
                 graph,
                 start,
                 end,
                 groups[random_group].passengers as u64,
+                groups[random_group].arrival,
                 0
             );
 
             // if we have more paths as before 
-            if possible_paths.len() > 3 {              
+            if possible_paths.len() > 2 {              
                 let random_path_index = rng.gen::<usize>() % possible_paths.len();
 
                 let mut new_path = IndexSet::new();
+
                 // build new path completely
                 indices_before_edge.reverse();
                 for next_edge_index in indices_before_edge {
@@ -381,6 +385,7 @@ impl<'a> SelectionState<'a> {
                     graph,
                     new_path,
                     groups[random_group].passengers as u64,
+                    groups[random_group].arrival
                 )))
             }
         }

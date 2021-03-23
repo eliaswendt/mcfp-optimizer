@@ -10,6 +10,7 @@ pub struct Path {
     travel_cost: u64, // cost for this path
     duration: u64, // duration of this path
     utilization: u64, // number of passengers
+    travel_delay: i64,  // time between planned and real arrival
 
     pub edges: IndexSet<EdgeIndex>,
 }
@@ -36,7 +37,7 @@ impl PartialEq for Path {
 
 impl Path {
 
-    pub fn new(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: IndexSet<EdgeIndex>, utilization: u64) -> Self {
+    pub fn new(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: IndexSet<EdgeIndex>, utilization: u64, planned_arrival: u64) -> Self {
 
         let mut travel_cost: u64 = 0;
         let mut duration: u64 = 0;
@@ -47,10 +48,15 @@ impl Path {
             duration += edge_weight.duration();
         }
 
+        let real_arrival = Self::get_real_arrival(graph, &edges);
+
+        let travel_delay = real_arrival as i64 - planned_arrival as i64;
+
         Self {
             travel_cost,
             duration,
             utilization,
+            travel_delay,
             edges
         }
     }
@@ -67,10 +73,23 @@ impl Path {
         self.utilization
     }
 
+    pub fn travel_delay(&self) -> i64 {
+        self.travel_delay
+    }
+
     pub fn intersecting_edges(&self, other: &Self) -> Vec<EdgeIndex> {
         self.edges.intersection(&other.edges).cloned().collect()
     }
 
+    pub fn get_real_arrival(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: &IndexSet<EdgeIndex>) -> u64 {
+        let last_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().0;
+        let timetable_node = graph.node_weight(last_node).unwrap();
+        let real_arrival = match timetable_node.is_arrival() {
+            True => timetable_node.time().unwrap(),
+            False=> { println!("Warning! Second last node of path is not arrival node."); 0 }
+        };
+        real_arrival
+    }
 
 
     // /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
@@ -147,6 +166,8 @@ impl Path {
         min_capacity: u64,
         max_duration: u64,
 
+        planned_arrival: u64,
+
         budgets: &[u64] // maximum number of transfers to follow
     ) -> Vec<Self> {
 
@@ -159,6 +180,7 @@ impl Path {
                 start,
                 destination,
                 min_capacity,
+                planned_arrival,
                 max_duration,
                 *budget,
             );
@@ -180,6 +202,7 @@ impl Path {
         destination: NodeIndex, // condition that determines whether goal node was found
         
         utilization: u64, // number of passengers, weight of load, etc.
+        planned_arrival: u64,
         max_duration: u64,
         budget: u64, // initial search budget (each edge has cost that needs to be payed)
     ) -> Vec<Self> {
@@ -206,6 +229,7 @@ impl Path {
                 duration: max_duration - remaining_duration,
 
                 utilization,
+                travel_delay: Self::get_real_arrival(graph, &edges) as i64 - planned_arrival as i64,
 
                 edges: edges.into_iter().collect(),
             })
@@ -278,6 +302,7 @@ impl Path {
         destination: NodeIndex, // condition that determines whether goal node was found
         
         utilization: u64, // number of passengers, weight of load, etc.
+        planned_arrival: u64,
 
         limit_paths: usize,
     ) -> Vec<Self> {
@@ -321,11 +346,12 @@ impl Path {
                     paths.push(Self::new(
                         graph,
                         edges,
-                        utilization
+                        utilization,
+                        planned_arrival,
                     ));
 
                     if limit_paths != 0 && paths.len() >= limit_paths {
-                        return Control::Break(destination)
+                        return Control::Break(v)
                     }
                     return Control::Prune
                 }
