@@ -138,7 +138,8 @@ impl Group {
             &model.graph,
             start,
             destination,
-            self.passengers as u64
+            self.passengers as u64,
+            1
         );
 
         // filter out paths that exceed duration or do not fulfill minium capacity

@@ -278,6 +278,8 @@ impl Path {
         destination: NodeIndex, // condition that determines whether goal node was found
         
         utilization: u64, // number of passengers, weight of load, etc.
+
+        limit_paths: usize,
     ) -> Vec<Self> {
 
         let mut paths = Vec::new();
@@ -322,6 +324,9 @@ impl Path {
                         utilization
                     ));
 
+                    if limit_paths != 0 && paths.len() >= limit_paths {
+                        return Control::Break(destination)
+                    }
                     return Control::Prune
                 }
             }
