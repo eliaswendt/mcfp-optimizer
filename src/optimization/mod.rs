@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use indexmap::IndexSet;
-use petgraph::graph::{DiGraph, EdgeIndex};
+use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
 use rand::{Rng, prelude::ThreadRng};
 
 use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, path::{self, Path}};
@@ -26,6 +26,15 @@ impl<'a> SelectionState<'a> {
 
     pub fn calculate_cost_of_strained_edges(graph: &mut DiGraph<TimetableNode, TimetableEdge>, strained_edges: &HashSet<EdgeIndex>) -> u64 {
         strained_edges.iter().map(|e| graph[*e].utilization_cost()).sum()
+    }
+
+    pub fn calculate_total_travel_delay(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>) -> i64 {
+        let mut delay = 0;
+        for (group_index, group) in self.groups.iter().enumerate() {
+            let path_index = self.groups_paths_selection[group_index];
+            delay += group.paths[path_index].travel_delay();
+        }
+        delay
     }
 
     pub fn generate_random_state(graph: &mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>) -> Self {
@@ -293,6 +302,8 @@ impl<'a> SelectionState<'a> {
             }
         }
 
+        print!("num_edges={}, ", edges.len());
+
         let random_edge_index = rng.gen::<usize>() % edges.len();
         let random_edge = edges[random_edge_index];
 
@@ -332,26 +343,42 @@ impl<'a> SelectionState<'a> {
         let path = groups[random_group].paths[path_index].clone();
 
         // find all edges before chosen overcrowded edge in path
-        let mut indices_before_edge = Vec::new();
+        let mut edges_before_edge = IndexSet::new();
+        // find all edges after chosen overcrowded edge in path
+        let mut edges_after_edge = IndexSet::new();
 
+        let mut switched = false;
         for edge_index in &path.edges {
             if *edge_index == edge {
-                break;
+                switched = true;
             }
-            indices_before_edge.push(edge_index)
+            if switched {
+                edges_after_edge.insert(*edge_index);
+            } else {
+                edges_before_edge.insert(*edge_index);
+            }
+            
         }
         
         // start with edge before selected overcrowded edge
-        indices_before_edge.reverse();
+        edges_before_edge.reverse();
 
-        // find end node of path: todo
-        //let (_, end) = graph.edge_endpoints(*edge).unwrap();
-        let (_, end) = graph.edge_endpoints(*path.edges.last().unwrap()).unwrap();
+        Self::strategie_1(graph, groups, random_group, &mut edges_before_edge, graph.edge_endpoints(*edges_after_edge.last().unwrap()).unwrap().1, rng)
+    }
 
-        for edge_index in indices_before_edge.clone() {
+    fn strategie_1(
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>, 
+        groups: &mut Vec<Group>, 
+        random_group: usize, 
+        edges_before_edge: &mut IndexSet<EdgeIndex>, 
+        end: NodeIndex, 
+        rng: &mut ThreadRng
+    ) -> (usize, Option<Path>) {
+
+        for edge_index in edges_before_edge.clone() {
 
             // get start node 
-            let (start, _) = graph.edge_endpoints(*edge_index).unwrap();
+            let (start, _) = graph.edge_endpoints(edge_index).unwrap();
 
             // get possible paths from current start node to end node
             let possible_paths = path::Path::dfs_visitor_search(
@@ -370,9 +397,9 @@ impl<'a> SelectionState<'a> {
                 let mut new_path = IndexSet::new();
 
                 // build new path completely
-                indices_before_edge.reverse();
-                for next_edge_index in indices_before_edge {
-                    if *next_edge_index == *edge_index {
+                edges_before_edge.reverse();
+                for next_edge_index in edges_before_edge.iter() {
+                    if *next_edge_index == edge_index {
                         break;
                     }
                     new_path.insert(*next_edge_index);
@@ -389,7 +416,7 @@ impl<'a> SelectionState<'a> {
                 )))
             }
         }
- 
+
         (random_group, None)
     }
 }

@@ -18,7 +18,7 @@ use crate::model::{
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
     //(5000.0 / time).powf(1.2)
-    1500.0 / time // cost=782, funktioniert schonmal ganz gut
+    2000.0 / time // cost=782, funktioniert schonmal ganz gut
                   // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
 
@@ -39,7 +39,8 @@ pub fn simulated_annealing<'a>(
     writer.write("time,temperature,cost\n".as_bytes()).unwrap();
 
     let new_group_list = groups.clone();
-    let mut current_state = SelectionState::generate_random_state(graph, &new_group_list); //state;
+    let mut current_state = SelectionState::generate_random_state(graph, &new_group_list);
+    //let mut current_state = state;
     let mut time = 1;
 
     let start_instant = Instant::now();
@@ -48,7 +49,7 @@ pub fn simulated_annealing<'a>(
     let mut steps_without_changes = 0;
 
     loop {
-        if steps_without_changes > 100 || current_state.cost <= 0 {
+        if steps_without_changes > 200 || current_state.cost <= 0 {
             print!("-> return with costs={} ", current_state.cost);
             println!("(done in {}s)", start_instant.elapsed().as_secs());
             return;
@@ -58,8 +59,8 @@ pub fn simulated_annealing<'a>(
         let temperature = time_to_temperature(time as f64);
 
         print!(
-            "[time={}]: current_cost={}, temp={:.2}, ",
-            time, current_state.cost, temperature
+            "[time={}]: current_cost={:5.}, current_delay={}, temp={:.2}, ",
+            time, current_state.cost, current_state.calculate_total_travel_delay(graph), temperature
         );
         writer
             .write(format!("{},{},{}\n", time, temperature, current_state.cost).as_bytes())
@@ -96,7 +97,7 @@ pub fn simulated_annealing<'a>(
                 // if next_state is worse than current_state -> delta negative
                 let delta_cost = current_state.cost as i64 - next.cost as i64;
 
-                print!("delta_cost={}, ", delta_cost);
+                print!("delta_cost={:4.}, ", delta_cost);
 
                 if delta_cost > 0 {
                     current_state = next.clone();

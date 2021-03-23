@@ -66,7 +66,8 @@ fn main() {
 
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
     // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
-    //let state = optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing.csv");
+    // let mut groups_cloned = groups_with_at_least_one_path.clone();
+    // let new_state = optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &mut groups_cloned, "eval/simulated_annealing.csv");
     //optimization::randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, "eval/randomized_best.csv");
 
     let new_state = SelectionState {

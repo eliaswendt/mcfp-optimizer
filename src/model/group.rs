@@ -131,7 +131,8 @@ impl Group {
         //     destination,
         //     self.passengers as u64,
         //     max_duration,
-        //     budgets,
+        //     self.arrival,
+        //     &vec![500],
         // );
 
         self.paths = path::Path::dfs_visitor_search(
@@ -140,8 +141,7 @@ impl Group {
             destination,
             self.passengers as u64,
             self.arrival,
-            1,
-            
+            100,
         );
 
         // filter out paths that exceed duration or do not fulfill minium capacity
