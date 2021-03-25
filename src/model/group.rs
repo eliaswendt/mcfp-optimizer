@@ -1,9 +1,20 @@
+use petgraph::graph::NodeIndex;
 use serde::{Deserialize, Serialize};
-use std::{cmp::max, collections::HashMap, fs::File, io::{BufReader, BufWriter}, time::Instant};
+use std::{
+    cmp::max,
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter},
+    time::Instant,
+};
 
 use colored::Colorize;
 
-use super::{Model, path::{self, Path}, trip::Trip};
+use super::{
+    path::{self, Path},
+    trip::Trip,
+    Model,
+};
 
 /// travel group
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,28 +32,22 @@ pub struct Group {
     // Hier gibt es zwei Möglichkeiten (siehe auch unten):
     // Wenn der Wert leer ist, befindet sich die Gruppe am Start-Halt.
     // Wenn der Wert nicht leer ist, gibt er die Trip ID (Integer) der Fahrt an, in der sich die Gruppe befindet.
-    pub in_trip: Option<usize>,
+    pub in_trip: Option<u64>,
 
     pub paths: Vec<Path>, // possible paths for this group
 }
 
 impl Group {
-
-    pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>, trips: &HashMap<String, Trip>) -> Vec<Self> {
+    pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
         println!("parsing {} group(s)", group_maps.len());
 
         let mut groups = Vec::with_capacity(group_maps.len());
-
-
-        // TODO: Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
-        // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
-
 
         for group_map in group_maps.iter() {
             let id = group_map.get("id").unwrap().parse().unwrap();
 
             let in_trip_value = group_map.get("in_trip").unwrap();
-            let in_trip = if in_trip_value.is_empty() {
+            let in_trip: Option<u64> = if in_trip_value.is_empty() {
                 None
             } else {
                 Some(in_trip_value.parse().unwrap())
@@ -63,7 +68,6 @@ impl Group {
         groups
     }
 
-
     pub fn save_to_file(groups: &Vec<Group>, filepath: &str) {
         print!("saving groups to {} ... ", filepath);
         let start = Instant::now();
@@ -78,7 +82,6 @@ impl Group {
         println!("done ({}ms)", start.elapsed().as_millis());
     }
 
-
     pub fn load_from_file(filepath: &str) -> Vec<Self> {
         print!("loading groups from {} ... ", filepath);
         let start = Instant::now();
@@ -87,7 +90,8 @@ impl Group {
             File::open(&format!("{}groups.bincode", filepath))
                 .expect(&format!("Could not open file {}model.bincode", filepath)),
         );
-        let groups: Vec<Group> = bincode::deserialize_from(reader).expect("Could not load groups from file!");
+        let groups: Vec<Group> =
+            bincode::deserialize_from(reader).expect("Could not load groups from file!");
         // let groups: Vec<Group> = serde_json::from_reader(reader).expect("Could not load groups from file!");
 
         println!("done ({}ms)", start.elapsed().as_millis());
@@ -97,32 +101,85 @@ impl Group {
 
     /// returns the number of found paths
     pub fn search_paths(&mut self, model: &Model) {
-        let start = model
-            .find_start_node_index(&self.start, self.departure)
-            .expect("Could not find departure at from_station");
+        // TODO: Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
+        // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
+
+        /// find next start node at station with specified id from this start_time
+        /// returns the first timely reachable transfer at the station_id
+        /// returns None if no transfer reachable
+        let start: NodeIndex = match self.in_trip {
+            Some(in_trip) => {
+                // in_trip is set -> start at arrival of current trip
+
+                // FIRST: get all arrival nodes of the start station
+                let start_station_arrivals = model.stations_arrivals.get(&self.start).unwrap();
+
+                // SECOND: search all arrivals for trip_id == in_trip AND time == start at start station
+                let mut selected_station_arrival = None;
+                for start_station_arrival in start_station_arrivals.iter() {
+                    let arrival = model.graph[*start_station_arrival];
+
+                    if arrival.trip_id().unwrap() == in_trip
+                        && arrival.time().unwrap() == self.departure
+                    {
+                        selected_station_arrival = Some(*start_station_arrival);
+                        break;
+                    }
+                }
+
+                selected_station_arrival.expect(&format!(
+                    "Could not find arrival for in_trip={} and departure={}",
+                    in_trip, self.departure
+                ))
+            }
+            None => {
+                // in_trip is not set -> start at station transfer
+
+                let mut selected_station_transfer = None;
+
+                match model.stations_transfers.get(&self.start) {
+                    Some(station_transfers) => {
+                        // iterate until we find a departure time >= the time we want to start
+                        for station_transfer in station_transfers.iter() {
+                            if self.departure <= model.graph[*station_transfer].time().unwrap() {
+                                selected_station_transfer = Some(*station_transfer);
+                            }
+                        }
+                    }
+                    None => {}
+                }
+
+                selected_station_transfer.expect("Could not find departure at from_station")
+            }
+        };
+
         let destination = model
-            .find_end_node_index(&self.destination)
+            .stations_main_arrival
+            .get(&self.destination)
+            .map(|main_arrival| *main_arrival)
             .expect("Could not find destination station");
 
         if self.departure > self.arrival {
             self.paths = Vec::new();
             println!(
                 "{} -> {} ... data invalid!",
-                model.graph[start].station_name(), model.graph[destination].station_name());
+                model.graph[start].station_name(),
+                model.graph[destination].station_name()
+            );
             return;
         }
 
         // max duration should depend on the original travel time
         let travel_time = self.arrival - self.departure;
-        
+
         //let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
         let max_duration = Group::calculate_max_travel_duration(travel_time);
 
         let start_instant = Instant::now();
         print!(
             "{} -> {} ... ",
-            model.graph[start].station_name(), 
-            model.graph[destination].station_name(), 
+            model.graph[start].station_name(),
+            model.graph[destination].station_name(),
         );
 
         // self.paths = path::Path::all_paths_iddfs(
@@ -145,7 +202,6 @@ impl Group {
         );
 
         // filter out paths that exceed duration or do not fulfill minium capacity
-
 
         print!("done in {}ms, ", start_instant.elapsed().as_millis());
 

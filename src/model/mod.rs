@@ -170,34 +170,6 @@ impl Model {
         ).write(dot_code.as_bytes()).unwrap();
     }
 
-    /// find next start node at station with specified id from this start_time
-    /// returns the first timely reachable transfer at the station_id
-    /// returns None if no transfer reachable
-    pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
-        match self.stations_transfers.get(station_id) {
-            Some(station_transfers) => {
-                
-                // iterate until we find a departure time >= the time we want to start
-                for station_transfer in station_transfers.iter() {
-                    if start_time <= self.graph[*station_transfer].time().unwrap() {
-                        return Some(*station_transfer);
-                    }
-                }
-
-                // no departure >= start_time found
-                None
-            },
-
-            // station not found
-            None => None
-        }
-    }
-
-
-    pub fn find_end_node_index(&self, station_id: &str) -> Option<NodeIndex> {
-        self.stations_main_arrival.get(station_id).map(|main_arrival| *main_arrival)
-    }
-
     pub fn find_paths_for_groups(&self, groups_csv_filepath: &str) -> Vec<Group> {
 
         // TODO: Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
