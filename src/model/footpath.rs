@@ -27,11 +27,12 @@ impl Footpath {
         footpaths_vec
     }
 
+    /// connect all arrivals of a station with the earliest-reachable transfers at the footpath's destination station
     pub fn connect(
         self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         from_station_arrivals: &Vec<NodeIndex>,
-        to_station_transfers: &Vec<(u64, NodeIndex)>,
+        to_station_transfers: &Vec<NodeIndex>,
     ) -> (u64, u64) {
         let mut successful_footpath_counter = 0;
         let mut failed_footpath_counter = 0;
@@ -46,8 +47,8 @@ impl Footpath {
             let mut edge_added = false;
 
             // try to find next transfer node at to_station (requires transfers to be sorted, earliest first)
-            for (transfer_time, transfer) in to_station_transfers.iter() {
-                if earliest_transfer_time <= *transfer_time {
+            for transfer in to_station_transfers.iter() {
+                if earliest_transfer_time <= graph[*transfer].time().unwrap() {
                     graph.add_edge(
                         *arrival,
                         *transfer,

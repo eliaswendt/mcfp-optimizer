@@ -7,15 +7,15 @@ pub struct Station {
     pub transfer_time: u64, // transfer time (minutes) at this station
     pub name: String,
 
+    // key is the trip_id, value is Vec<>, because one trip may have multiple arrivals/departures at the same station
     pub arrivals: HashMap<u64, Vec<NodeIndex>>,
     pub departures: HashMap<u64, Vec<NodeIndex>>,
-    pub transfers: Vec<(u64, NodeIndex)>, // key is departure time
+
+    pub transfers: Vec<NodeIndex>,
 }
 
 impl Station {
-    pub fn from_maps_to_map(
-        station_maps: &Vec<HashMap<String, String>>,
-    ) -> HashMap<String, Self> {
+    pub fn from_maps_to_map(station_maps: &Vec<HashMap<String, String>>) -> HashMap<String, Self> {
         println!("parsing {} station(s)", station_maps.len());
 
         let mut stations_map = HashMap::with_capacity(station_maps.len());
@@ -62,18 +62,18 @@ impl Station {
             .or_insert(Vec::new())
             .push(departure);
 
-        // create departure transfer node (each departure also induces a corresponding departure node at the station)
-        let departure_transfer = graph.add_node(TimetableNode::Transfer {
+        // create transfer node, as each departure also induces a corresponding transfer node at the station
+        let transfer = graph.add_node(TimetableNode::Transfer {
             time,
             station_id: self.id.clone(),
             station_name: self.name.clone(),
         });
 
         // add edge between transfer of this station to departure
-        graph.add_edge(departure_transfer, departure, TimetableEdge::Board);
+        graph.add_edge(transfer, departure, TimetableEdge::Board);
 
         // add transfer node to list of transfer nodes of this station
-        self.transfers.push((time, departure_transfer));
+        self.transfers.push(transfer);
 
         departure
     }
@@ -110,17 +110,22 @@ impl Station {
     pub fn connect(
         mut self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-    ) -> (Vec<(u64, NodeIndex)>, Vec<NodeIndex>) {
-        // FIRST: sort transfers list by time (first tuple element)
-        self.transfers.sort_unstable_by_key(|(time, _)| *time);
+    ) -> (Vec<NodeIndex>, Vec<NodeIndex>) {
 
-        // SECOND: connect each transfer to the next (time)
+        // FIRST: sort transfers list by time (first tuple element)
+        self.transfers.sort_unstable_by_key(|transfer| graph[*transfer].time().unwrap());
+
+        // SECOND: connect all transfers with each other (only pairwise)
         for transfer_slice in self.transfers.windows(2) {
+
+            let transfer_a_time = graph[transfer_slice[0]].time().unwrap();
+            let transfer_b_time = graph[transfer_slice[1]].time().unwrap();
+
             graph.add_edge(
-                transfer_slice[0].1,
-                transfer_slice[1].1,
+                transfer_slice[0],
+                transfer_slice[1],
                 TimetableEdge::WaitAtStation {
-                    duration: transfer_slice[1].0 - transfer_slice[0].0,
+                    duration: transfer_b_time - transfer_a_time,
                 },
             );
         }
@@ -131,8 +136,8 @@ impl Station {
             let earliest_transfer_time = arrival_time + self.transfer_time;
 
             // try to find next transfer node at this station (requires transfers to be sorted (earliest first))
-            for (transfer_time, transfer) in self.transfers.iter() {
-                if earliest_transfer_time <= *transfer_time {
+            for transfer in self.transfers.iter() {
+                if earliest_transfer_time <= graph[*transfer].time().unwrap() {
                     graph.add_edge(
                         *arrival,
                         *transfer,
@@ -140,7 +145,7 @@ impl Station {
                             duration: self.transfer_time,
                         },
                     );
-                    break; // the loop
+                    break; // we connected a reachable transfer node -> break search loop
                 }
             }
         }

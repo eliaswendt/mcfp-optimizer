@@ -32,10 +32,13 @@ pub struct Model {
 
     // we need to store all transfer and arrival nodes for all stations at all times
     // required as entry-/endpoints for search
-    stations_transfers: HashMap<String, Vec<(u64, NodeIndex)>>,
-    stations_main_arrival: HashMap<String, NodeIndex>,
+    stations_transfers: HashMap<String, Vec<NodeIndex>>,
 
-    trips: HashMap<String, trip::Trip>
+    // required for "in_trip" column of groups (groups could start in a train instead of a station)
+    stations_arrivals: HashMap<String, Vec<NodeIndex>>, 
+
+    // connected to all arrivals of this station via zero-cost edge
+    stations_main_arrival: HashMap<String, NodeIndex>,
 }
 
 impl Model {
@@ -47,7 +50,7 @@ impl Model {
 
         let start = Instant::now();
 
-        // read all CSVs
+        // read all input data CSVs
         let station_maps = csv_reader::read_to_maps(&format!("{}/stations.csv", csv_folder_path));
         let trip_maps = csv_reader::read_to_maps(&format!("{}/trips.csv", csv_folder_path));
         let footpath_maps = csv_reader::read_to_maps(&format!("{}/footpaths.csv", csv_folder_path));
@@ -62,7 +65,6 @@ impl Model {
 
         // also save a HashMap of trips to parse group's "in_trip" column
         let trips = trip::Trip::from_maps_to_vec(&trip_maps);
-        let trips_map: HashMap<String, trip::Trip> = trips.iter().map(|t| (format!("{}_{}", t.id, t.to_station), t.clone())).collect();
 
         for trip in trips {
             trip.connect(&mut graph, &mut stations);
@@ -122,8 +124,8 @@ impl Model {
         Self {
             graph,
             stations_transfers,
+            stations_arrivals,
             stations_main_arrival,
-            trips: trips_map
         }
     }
 
@@ -168,16 +170,17 @@ impl Model {
         ).write(dot_code.as_bytes()).unwrap();
     }
 
-
     /// find next start node at station with specified id from this start_time
+    /// returns the first timely reachable transfer at the station_id
+    /// returns None if no transfer reachable
     pub fn find_start_node_index(&self, station_id: &str, start_time: u64) -> Option<NodeIndex> {
         match self.stations_transfers.get(station_id) {
-            Some(station_departures) => {
+            Some(station_transfers) => {
                 
                 // iterate until we find a departure time >= the time we want to start
-                for (departure_time, departure_node_index) in station_departures.iter() {
-                    if start_time <= *departure_time {
-                        return Some(*departure_node_index);
+                for station_transfer in station_transfers.iter() {
+                    if start_time <= self.graph[*station_transfer].time().unwrap() {
+                        return Some(*station_transfer);
                     }
                 }
 
