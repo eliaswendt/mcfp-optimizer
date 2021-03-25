@@ -37,7 +37,7 @@ impl fmt::Display for SelectionState<'_> {
 
             write!(
                 f, 
-                "[group_id={}]: {} ({}) -> {} ({}), travel_cost={}, travel_delay={}", 
+                "\n[group_id={}]: {} ({}) -> {} ({}), travel_cost={}, travel_delay={}", 
                 group.id,
                 group.start,
                 group.departure,

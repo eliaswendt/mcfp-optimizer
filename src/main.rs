@@ -39,8 +39,8 @@ fn main() {
         Model::save_to_file(&model, snapshot_folder_path);
         Group::save_to_file(&groups, snapshot_folder_path);
 
-        println!("building a graphviz graph of model");
         if csv_folderpath.contains("sample_data") {
+            println!("building a graphviz graph of model");
             // create dot code only for sample data
             Model::save_dot_code_to(&model, &format!("{}/graph.dot", csv_folderpath));
         }
@@ -67,7 +67,7 @@ fn main() {
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
     // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
     // let mut groups_cloned = groups_with_at_least_one_path.clone();
-    // let new_state = optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &mut groups_cloned, "eval/simulated_annealing.csv");
+    let selection_state = optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &mut &groups_with_at_least_one_path, "eval/simulated_annealing.csv");
     //optimization::randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, "eval/randomized_best.csv");
 
     // let new_state = SelectionState {
@@ -76,6 +76,8 @@ fn main() {
     //     groups_paths_selection: Vec::new() //state.groups_paths_selection
     // };
     // optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, new_state, "eval/simulated_annealing_on_path.csv");
+
+    println!("Selected State: {}", selection_state);
 
     println!("done with main() -> terminating")
 }

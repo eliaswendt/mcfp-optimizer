@@ -10,7 +10,7 @@ use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, p
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
     // (100000.0 - time).powf(1.1)
-    10000.0 / time // cost=782, funktioniert schonmal ganz gut
+    100000.0 / time // cost=782, funktioniert schonmal ganz gut
     // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
 
