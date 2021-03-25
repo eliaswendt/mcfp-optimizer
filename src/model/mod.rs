@@ -177,9 +177,7 @@ impl Model {
         // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
 
         let mut groups = Group::from_maps_to_vec(
-            &csv_reader::read_to_maps(groups_csv_filepath),
-            &self.trips
-        );
+            &csv_reader::read_to_maps(groups_csv_filepath));
 
         let groups_len = groups.len();
   
@@ -396,43 +394,43 @@ mod tests {
         println!("[validate_graph_integrity()]: passed ({}ms)", start.elapsed().as_millis());
     }
 
-    #[test]
-    fn validate_groups_paths_integrity() {
+    // #[test]
+    // fn validate_groups_paths_integrity() {
 
-        let model = Model::with_stations_trips_and_footpaths("real_data");
-        let graph = &model.graph;
-        let groups = &model.find_paths_for_groups("real_data/groups.csv");
+    //     let model = Model::with_stations_trips_and_footpaths("real_data");
+    //     let graph = &model.graph;
+    //     let groups = &model.find_paths_for_groups("real_data/groups.csv");
 
-        for group in groups {
-            let paths = &group.paths;
+    //     for group in groups {
+    //         let paths = &group.paths;
 
-            let from = model
-                .find_start_node_index(&group.start, group.departure)
-                .expect("Could not find departure at from_station");
-            let to = model
-                .find_end_node_index(&group.destination)
-                .expect("Could not find destination station");
+    //         let from = model
+    //             .find_start_node_index(&group.start, group.departure)
+    //             .expect("Could not find departure at from_station");
+    //         let to = model
+    //             .find_end_node_index(&group.destination)
+    //             .expect("Could not find destination station");
 
-            for path in paths {
-                let edges = &path.edges;
+    //         for path in paths {
+    //             let edges = &path.edges;
 
-                let mut current_node_index = from;
+    //             let mut current_node_index = from;
 
-                'outer: for edge in edges {
-                    let mut walker = graph.neighbors_directed(current_node_index, Outgoing).detach();
-                    while let Some((edge_index, node_index)) = walker.next(graph) {
-                        if *edge == edge_index {
-                            current_node_index = node_index;
-                            continue 'outer;
-                        }
-                    }
-                    assert!(false, "Path is not correctly connected!")
-                }
+    //             'outer: for edge in edges {
+    //                 let mut walker = graph.neighbors_directed(current_node_index, Outgoing).detach();
+    //                 while let Some((edge_index, node_index)) = walker.next(graph) {
+    //                     if *edge == edge_index {
+    //                         current_node_index = node_index;
+    //                         continue 'outer;
+    //                     }
+    //                 }
+    //                 assert!(false, "Path is not correctly connected!")
+    //             }
 
-                assert!(current_node_index == to, "Last node is not correct!")
-            }
-        }
-    }
+    //             assert!(current_node_index == to, "Last node is not correct!")
+    //         }
+    //     }
+    // }
 }
 
 

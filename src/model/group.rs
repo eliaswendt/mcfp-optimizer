@@ -104,12 +104,14 @@ impl Group {
         // TODO: Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
 
-        /// find next start node at station with specified id from this start_time
-        /// returns the first timely reachable transfer at the station_id
-        /// returns None if no transfer reachable
+        // find next start node at station with specified id from this start_time
+        // returns the first timely reachable transfer at the station_id
+        // returns None if no transfer reachable
         let start: NodeIndex = match self.in_trip {
             Some(in_trip) => {
                 // in_trip is set -> start at arrival of current trip
+
+                // println!("start={}, in_trip={}, departure={}", self.start, in_trip, self.departure);
 
                 // FIRST: get all arrival nodes of the start station
                 let start_station_arrivals = model.stations_arrivals.get(&self.start).unwrap();
@@ -117,12 +119,13 @@ impl Group {
                 // SECOND: search all arrivals for trip_id == in_trip AND time == start at start station
                 let mut selected_station_arrival = None;
                 for start_station_arrival in start_station_arrivals.iter() {
-                    let arrival = model.graph[*start_station_arrival];
+                    let arrival = &model.graph[*start_station_arrival];
 
                     if arrival.trip_id().unwrap() == in_trip
                         && arrival.time().unwrap() == self.departure
                     {
                         selected_station_arrival = Some(*start_station_arrival);
+                        // println!("Found arrival={:?}", arrival);
                         break;
                     }
                 }
@@ -189,7 +192,7 @@ impl Group {
         //     self.passengers as u64,
         //     max_duration,
         //     self.arrival,
-        //     &vec![500],
+        //     &vec![50, 75, 90],
         // );
 
         self.paths = path::Path::dfs_visitor_search(
@@ -198,7 +201,7 @@ impl Group {
             destination,
             self.passengers as u64,
             self.arrival,
-            100,
+            0,
         );
 
         // filter out paths that exceed duration or do not fulfill minium capacity

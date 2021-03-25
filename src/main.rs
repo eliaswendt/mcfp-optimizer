@@ -70,12 +70,12 @@ fn main() {
     // let new_state = optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &mut groups_cloned, "eval/simulated_annealing.csv");
     //optimization::randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, "eval/randomized_best.csv");
 
-    let new_state = SelectionState {
-        groups: &Vec::new(),
-        cost: 0, //state.cost, //SelectionState::generate_random_state(graph, groups); //state;
-        groups_paths_selection: Vec::new() //state.groups_paths_selection
-    };
-    optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, new_state, "eval/simulated_annealing.csv");
+    // let new_state = SelectionState {
+    //     groups: &Vec::new(),
+    //     cost: 0, //state.cost, //SelectionState::generate_random_state(graph, groups); //state;
+    //     groups_paths_selection: Vec::new() //state.groups_paths_selection
+    // };
+    // optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, new_state, "eval/simulated_annealing_on_path.csv");
 
     println!("done with main() -> terminating")
 }
