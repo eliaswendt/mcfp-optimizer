@@ -146,6 +146,7 @@ impl Group {
                         for station_transfer in station_transfers.iter() {
                             if self.departure <= model.graph[*station_transfer].time().unwrap() {
                                 selected_station_transfer = Some(*station_transfer);
+                                break;
                             }
                         }
                     }
