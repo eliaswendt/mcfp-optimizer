@@ -32,7 +32,7 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
     loop {
         let temperature = time_to_temperature(time as f64);
         
-        print!("[time={}]: current_cost={}, current_delay={}, temp={}, ", time, current.cost, current.calculate_total_travel_delay(graph), temperature);
+        print!("[time={}]: current_cost={}, current_delay={}, temp={}, ", time, current.cost, current.calculate_total_travel_delay(), temperature);
         writer.write(format!("{},{},{}\n", time, temperature, current.cost).as_bytes()).unwrap();
 
         // actually exactly zero, but difficult with float

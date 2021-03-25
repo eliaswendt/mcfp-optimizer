@@ -60,7 +60,7 @@ pub fn simulated_annealing<'a>(
 
         print!(
             "[time={}]: current_cost={:5.}, current_delay={}, temp={:.2}, ",
-            time, current_state.cost, current_state.calculate_total_travel_delay(graph), temperature
+            time, current_state.cost, current_state.calculate_total_travel_delay(), temperature
         );
         writer
             .write(format!("{},{},{}\n", time, temperature, current_state.cost).as_bytes())
