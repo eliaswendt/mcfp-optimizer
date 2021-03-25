@@ -61,6 +61,11 @@ impl Path {
         }
     }
 
+    /// returns cost of this path
+    pub fn cost(&self) -> i64 {
+        self.travel_cost as i64 + self.travel_delay
+    }
+
     pub fn travel_cost(&self) -> u64 {
         self.travel_cost
     }
@@ -85,8 +90,8 @@ impl Path {
         let last_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().0;
         let timetable_node = graph.node_weight(last_node).unwrap();
         let real_arrival = match timetable_node.is_arrival() {
-            True => timetable_node.time().unwrap(),
-            False=> { println!("Warning! Second last node of path is not arrival node."); 0 }
+            true => timetable_node.time().unwrap(),
+            false => { println!("Warning! Second last node of path is not arrival node."); 0 }
         };
         real_arrival
     }
