@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
 use indexmap::IndexSet;
 use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
@@ -23,6 +23,33 @@ pub struct SelectionState<'a> {
     pub groups: &'a Vec<Group>,
     pub cost: i64,                     // cost of this path selection
     pub groups_path_index: Vec<usize>, // array of indices (specifies selected path for each group)
+}
+
+impl fmt::Display for SelectionState<'_> {
+    // This trait  `fmt` with this exact signature.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Write strictly the first element into the supplied output
+        // stream: `f`. Returns `fmt::Result` which indicates whether the
+        // operation succeeded or failed. Note that `write!` uses syntax which
+        // is very similar to `println!`.
+
+        for (group, group_path_index) in self.groups.iter().zip(self.groups_path_index.iter()) {
+
+            write!(
+                f, 
+                "[group_id={}]: {} ({}) -> {} ({}), travel_cost={}, travel_delay={}", 
+                group.id,
+                group.start,
+                group.departure,
+                group.destination,
+                group.arrival,
+                group.paths[*group_path_index].travel_cost(),
+                group.paths[*group_path_index].travel_delay()
+            )?
+        }
+
+        Ok(())
+    }
 }
 
 impl<'a> SelectionState<'a> {
@@ -77,9 +104,8 @@ impl<'a> SelectionState<'a> {
             path.strain_to_graph(graph, &mut strained_edges);
         }
 
-        let cost = 
-            Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64 +
-            Self::calculate_cost_sum_of_selected_paths(groups, &groups_path_index);
+        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64
+            + Self::calculate_cost_sum_of_selected_paths(groups, &groups_path_index);
 
         // third: relieve all selected paths to TimetableGraph
         for (group_index, path_index) in groups_path_index.iter().enumerate() {
@@ -129,7 +155,8 @@ impl<'a> SelectionState<'a> {
                 self.groups[group_index].paths[path_index]
                     .strain_to_graph(graph, &mut strained_edges);
                 // calculate cost of all strained edges
-                let mut cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+                let mut cost =
+                    Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
                 // relieve new path from graph
                 self.groups[group_index].paths[path_index]
                     .relieve_from_graph(graph, &mut strained_edges);
@@ -137,7 +164,10 @@ impl<'a> SelectionState<'a> {
                 let mut groups_paths_selection_clone = self.groups_path_index.clone();
                 groups_paths_selection_clone[group_index] = path_index; // set current path_index as selected
 
-                cost += Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection_clone);
+                cost += Self::calculate_cost_sum_of_selected_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
 
                 let selection_state = Self {
                     groups: self.groups,
@@ -199,12 +229,16 @@ impl<'a> SelectionState<'a> {
                 self.groups[group_index].paths[actual_selected_path_index - 1]
                     .strain_to_graph(graph, &mut strained_edges);
                 // calculate cost of all strained edges
-                let mut cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+                let mut cost =
+                    Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
                 // relieve new path from graph
                 self.groups[group_index].paths[actual_selected_path_index - 1]
                     .relieve_from_graph(graph, &mut strained_edges);
 
-                cost += Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection_clone);
+                cost += Self::calculate_cost_sum_of_selected_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
 
                 let selection_state = Self {
                     groups: self.groups,
@@ -224,13 +258,16 @@ impl<'a> SelectionState<'a> {
                 self.groups[group_index].paths[actual_selected_path_index + 1]
                     .strain_to_graph(graph, &mut strained_edges);
                 // calculate cost of all strained edges
-                let mut cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+                let mut cost =
+                    Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
                 // relieve new path from graph
                 self.groups[group_index].paths[actual_selected_path_index + 1]
                     .relieve_from_graph(graph, &mut strained_edges);
 
-                cost += Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection_clone);
-
+                cost += Self::calculate_cost_sum_of_selected_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
 
                 let selection_state = Self {
                     groups: self.groups,
@@ -276,7 +313,8 @@ impl<'a> SelectionState<'a> {
             path.strain_to_graph(graph, &mut strained_edges);
         }
 
-        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64 + Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection);
+        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64
+            + Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection);
 
         // third: relieve all selected paths to TimetableGraph
         for (group_index, path_index) in groups_paths_selection.iter().enumerate() {
