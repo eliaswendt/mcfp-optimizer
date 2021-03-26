@@ -104,7 +104,7 @@ impl TimetableNode {
     }
 
     #[inline]
-    pub fn kind(&self) -> &str {
+    pub fn kind_as_str(&self) -> &str {
         match self {
             Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
             Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => "Arrival",
@@ -122,6 +122,8 @@ impl TimetableNode {
             Self::MainArrival {station_id: _, station_name: _} => None,
         }
     }
+
+
 }
 
 
@@ -198,7 +200,7 @@ impl TimetableEdge {
 
     /// is RideToStation Edge
     #[inline]
-    pub fn is_ride(&self) -> bool {
+    pub fn is_trip(&self) -> bool {
         match self {
             Self::Trip {
                 duration: _, 

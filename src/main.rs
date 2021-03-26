@@ -80,6 +80,8 @@ fn main() {
     println!("Selected State: {}", selection_state);
 
     selection_state.groups[10].paths[selection_state.groups_path_index[10]].display(&model.graph);
+    
+    println!("{}", selection_state.groups[10].paths[selection_state.groups_path_index[10]].to_human_readable_string(&model.graph));
 
     println!("done with main() -> terminating")
 }

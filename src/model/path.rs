@@ -1,7 +1,7 @@
 use indexmap::IndexSet;
-use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{Control, DfsEvent, depth_first_search}};
+use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{Control, DfsEvent, EdgeRef, depth_first_search}};
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashSet, fmt, iter::from_fn};
+use std::{cmp::Ordering, collections::HashSet, fmt, iter::from_fn, ops::Add};
 
 use super::{TimetableEdge, TimetableNode};
 
@@ -95,6 +95,39 @@ impl Path {
         real_arrival
     }
 
+    /// print this path as human readable traval plan
+    pub fn to_human_readable_string(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> String {
+
+        let mut result = String::new();
+
+        for edge in self.edges.iter() {
+
+            let edge_weight = &graph[*edge];
+
+
+            if edge_weight.is_trip() || edge_weight.is_walk() {
+                // only show edges for trips and walks
+
+                let (source_node, target_node) = graph.edge_endpoints(*edge).unwrap();
+
+                let source_node_string = graph[source_node].station_name();
+                let target_node_string = graph[target_node].station_name();
+
+
+                result = format!(
+                    "{}\n{} -> {} -> {}",
+                    result,
+                    source_node_string,
+                    edge_weight.kind_as_str(),
+                    target_node_string
+                );
+            }
+        }
+
+        result
+    }
+
+
     pub fn to_location_time_and_type(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> Vec<(String, u64, String)> {
 
         // For arrival nodes or departure nodes save the following: (station, time, kind) with kind=Arrival or kind=Departure
@@ -122,7 +155,7 @@ impl Path {
             let node_b = &graph[node_b_index];
 
             // if edge is ride or waiting_in_train -> currently in trip -> add duration and store current trip id
-            if edge.is_ride() || edge.is_wait_in_train() {
+            if edge.is_trip() || edge.is_wait_in_train() {
                 trip_duration += edge.duration();
                 current_trip = node_a.trip_id().unwrap();
             } else {
@@ -175,6 +208,26 @@ impl Path {
         }
     }
     
+
+    pub fn to_graph(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> DiGraph<TimetableNode, TimetableEdge> {
+        let mut new_graph = DiGraph::new();
+
+        for edge in self.edges.iter() {
+
+            let edge_weight = &graph[*edge];
+            
+            let (source_node, target_node) = &graph.edge_endpoints(*edge).unwrap();
+            let source_node_weight = graph[*source_node];
+            let target_node_weight = graph[*target_node];
+
+
+
+        }
+
+
+        new_graph
+    }
+
 
     // /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
     // /// if Vec empty -> all edges fit
