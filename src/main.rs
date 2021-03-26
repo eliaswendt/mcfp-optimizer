@@ -67,17 +67,19 @@ fn main() {
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
     // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
     // let mut groups_cloned = groups_with_at_least_one_path.clone();
-    let selection_state = optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &mut &groups_with_at_least_one_path, "eval/simulated_annealing.csv");
+    let selection_state = optimization::simulated_annealing_elias::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing.csv");
     //optimization::randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, "eval/randomized_best.csv");
 
-    // let new_state = SelectionState {
+    // let selection_state = SelectionState {
     //     groups: &Vec::new(),
     //     cost: 0, //state.cost, //SelectionState::generate_random_state(graph, groups); //state;
-    //     groups_paths_selection: Vec::new() //state.groups_paths_selection
+    //     groups_path_index: Vec::new() //state.groups_paths_selection
     // };
-    // optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, new_state, "eval/simulated_annealing_on_path.csv");
+    // let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, selection_state, "eval/simulated_annealing_on_path.csv");
 
     println!("Selected State: {}", selection_state);
+
+    selection_state.groups[10].paths[selection_state.groups_path_index[10]].display(&model.graph);
 
     println!("done with main() -> terminating")
 }

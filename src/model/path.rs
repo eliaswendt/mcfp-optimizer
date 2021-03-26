@@ -1,7 +1,7 @@
 use indexmap::IndexSet;
 use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{Control, DfsEvent, depth_first_search}};
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashSet, iter::from_fn};
+use std::{cmp::Ordering, collections::HashSet, fmt, iter::from_fn};
 
 use super::{TimetableEdge, TimetableNode};
 
@@ -14,7 +14,6 @@ pub struct Path {
 
     pub edges: IndexSet<EdgeIndex>,
 }
-
 
 impl Ord for Path {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -96,6 +95,86 @@ impl Path {
         real_arrival
     }
 
+    pub fn to_location_time_and_type(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> Vec<(String, u64, String)> {
+
+        // For arrival nodes or departure nodes save the following: (station, time, kind) with kind=Arrival or kind=Departure
+        // For walk edges save ("", duration, Walk)
+        // For trip edges save (trip_id, duration, Trip)
+        let mut travel = Vec::new();
+
+        // start with the first node if arrival (or departure, what should not be the case) 
+        let (node_a_index, _) = graph.edge_endpoints(self.edges[0]).unwrap();
+        let node_a = &graph[node_a_index];
+        if node_a.is_arrival() || node_a.is_departure() {
+            travel.push((node_a.station_name(), node_a.time().unwrap(), node_a.kind_as_str().to_string()));
+        }
+
+        // summed trip duration for consecutive trip edges
+        let mut trip_duration = 0;
+
+        // the trip id if currently in trip
+        let mut current_trip = 0;
+
+        for edge_index in &self.edges {
+            let edge = &graph[*edge_index];
+            let (node_a_index, node_b_index) = graph.edge_endpoints(*edge_index).unwrap();
+            let node_a = &graph[node_a_index];
+            let node_b = &graph[node_b_index];
+
+            // if edge is ride or waiting_in_train -> currently in trip -> add duration and store current trip id
+            if edge.is_ride() || edge.is_wait_in_train() {
+                trip_duration += edge.duration();
+                current_trip = node_a.trip_id().unwrap();
+            } else {
+
+                // if edge is not ride or wait in train and duration != 0 -> last edge before was trip edge -> save trip and node_a in travel
+                if trip_duration != 0 {
+                    travel.push((current_trip.to_string(), trip_duration, "Trip".to_string()));
+                    travel.push((node_a.station_name(), node_a.time().unwrap(), node_a.kind_as_str().to_string()));
+                    trip_duration = 0;
+                    current_trip = 0;
+                }
+
+                // if edge is walk
+                if edge.is_walk() {
+                    travel.push(("".to_string(), node_b.time().unwrap() - node_a.time().unwrap(), edge.kind_as_str().to_string()));
+                }
+                
+                // if node_b is arrival (after walk) or node_b is departure
+                if node_b.is_arrival() || node_b.is_departure() {
+                    travel.push((node_b.station_name(), node_b.time().unwrap(), node_b.kind_as_str().to_string()));
+                }
+            }
+        }
+
+        travel
+    }
+
+    pub fn display(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) {
+        for (location, time, kind) in self.to_location_time_and_type(graph) {
+            if kind == "Arrival" || kind == "Departure" {
+                println!(
+                    "{} at station {}, time={} ->", 
+                    kind,
+                    location,
+                    time,
+                )
+            } else {
+                let mut in_trip = "".to_string();
+                if location != "" {
+                    in_trip = format!(" in trip {}", location);
+                } 
+
+                println!(
+                    "{} with duration {}{} ->", 
+                    kind,
+                    time,
+                    in_trip
+                )
+            }
+        }
+    }
+    
 
     // /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
     // /// if Vec empty -> all edges fit
