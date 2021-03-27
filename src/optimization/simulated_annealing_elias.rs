@@ -1,4 +1,4 @@
-use std::{fs::File, io::{BufWriter, Write}};
+use std::{fs::File, io::{BufWriter, Write}, time::Instant};
 
 use colored::Colorize;
 use petgraph::graph::DiGraph;
@@ -10,7 +10,7 @@ use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, p
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
     // (100000.0 - time).powf(1.1)
-    1000.0 / time // cost=782, funktioniert schonmal ganz gut
+    25000.0 / time // cost=782, funktioniert schonmal ganz gut
     // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
 
@@ -27,17 +27,21 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
     writer.write("time,temperature,cost\n".as_bytes()).unwrap();
 
     let mut current = SelectionState::generate_random_state(graph, groups);
+    //et mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
     let mut time = 1;
+
+    let start_instant = Instant::now();
 
     loop {
         let temperature = time_to_temperature(time as f64);
         
-        print!("[time={}]: current_cost={}, current_delay={}, temp={}, ", time, current.cost, current.calculate_total_travel_delay(), temperature);
+        print!("[time={}]: current_cost={}, current_delay={}, temp={:.2}, ", time, current.cost, current.calculate_total_travel_delay(current.groups), temperature);
         writer.write(format!("{},{},{}\n", time, temperature, current.cost).as_bytes()).unwrap();
 
         // actually exactly zero, but difficult with float
         if temperature < 1.0 {
-            println!("-> return");
+            print!("-> return");
+            println!(" (done in {}s)", start_instant.elapsed().as_secs());
             return current;
         }
 
@@ -66,7 +70,7 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
             let probability = (delta_cost as f64 / temperature as f64).exp();
             let random = rng.gen_range(0.0..1.0);
 
-            print!("probability={}, random={} ", probability, random);
+            print!("probability={:.2}, random={:.2} ", probability, random);
 
             if random < probability {
                 println!("{}", format!("-> choosing worse neighbor").red());

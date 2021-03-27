@@ -188,26 +188,26 @@ impl Group {
             model.graph[destination].station_name(),
         );
 
-        self.paths = path::Path::all_paths_iddfs(
+        // self.paths = path::Path::all_paths_iddfs(
+        //     &model.graph,
+        //     start,
+        //     destination,
+        //     self.passengers as u64,
+        //     max_duration,
+        //     self.arrival,
+        //     &vec![50, 75, 100],
+        // );
+
+        // if self.paths.len() == 0 {
+
+        self.paths = path::Path::dfs_visitor_search(
             &model.graph,
             start,
             destination,
             self.passengers as u64,
-            max_duration,
             self.arrival,
-            &vec![50, 75, 100],
+            0,
         );
-
-        // if self.paths.len() == 0 {
-
-        //     self.paths = path::Path::dfs_visitor_search(
-        //         &model.graph,
-        //         start,
-        //         destination,
-        //         self.passengers as u64,
-        //         self.arrival,
-        //         0,
-        //     );
         // }
 
         // filter out paths that exceed duration or do not fulfill minium capacity

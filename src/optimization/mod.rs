@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt};
+use std::{collections::HashSet, fmt, fs::File, io::{BufWriter, Write}};
 
 use indexmap::IndexSet;
 use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
@@ -74,13 +74,61 @@ impl<'a> SelectionState<'a> {
             .sum()
     }
 
-    pub fn calculate_total_travel_delay(&self) -> i64 {
-        let mut delay = 0;
+    pub fn calculate_total_travel_delay(&self, groups: &Vec<Group>) -> i64 {
+        groups
+            .iter()
+            .zip(self.groups_path_index.iter())
+            .map(|(group, group_path_index)| group.paths[*group_path_index].travel_delay())
+            .sum()
+    }
+
+    pub fn save_groups_to_csv(&self, graph: &DiGraph<TimetableNode, TimetableEdge>, filepath: &str) {
+        let mut writer = BufWriter::new(
+            File::create(filepath).expect(&format!("Could not create file \"{}\"", filepath))
+        );
+
+        writer.write("group_id|planned_time|real_time|delay|delay in %|path\n".as_bytes()).unwrap();
         for (group_index, group) in self.groups.iter().enumerate() {
             let path_index = self.groups_path_index[group_index];
-            delay += group.paths[path_index].travel_delay();
+            let path = &group.paths[path_index];
+
+            let planned = group.arrival - group.departure;
+            let real = path.duration();
+            let delay = real as i64 - planned as i64;
+            let delay_p = 100 * delay / planned as i64;
+            let path_string = path.to_string(graph);
+
+            writer.write(format!("{}|{}|{}|{}|{}|{}\n", group.id, planned, real, delay, delay_p, path_string).as_bytes()).unwrap();
+        } 
+    }
+
+    pub fn save_strained_trip_edges_to_csv(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>, filepath: &str) {
+        let mut writer = BufWriter::new(
+            File::create(filepath).expect(&format!("Could not create file \"{}\"", filepath))
+        );
+
+        writer.write("edge_index|duration|capacity|utilization\n".as_bytes()).unwrap();
+        
+        let mut strained_edges: HashSet<EdgeIndex> = HashSet::new();
+
+        // first: strain all selected paths to TimetableGraph
+        for (group_index, path_index) in self.groups_path_index.iter().enumerate() {
+            let path = &self.groups[group_index].paths[*path_index];
+            path.strain_to_graph(graph, &mut strained_edges);
         }
-        delay
+
+        // find a random overcrowded edge
+        for edge_index in &strained_edges {
+            let edge = &graph[*edge_index];
+            if edge.is_trip() {
+                writer.write(format!("{:?}|{}|{}|{}\n", edge_index, edge.duration(), edge.capacity(), edge.utilization()).as_bytes()).unwrap();
+            }
+        }
+
+        // third: relieve all selected paths to TimetableGraph
+        for (group_index, path_index) in self.groups_path_index.iter().enumerate() {
+            self.groups[group_index].paths[*path_index].relieve_from_graph(graph, &mut strained_edges);
+        }
     }
 
     pub fn generate_random_state(
@@ -94,6 +142,45 @@ impl<'a> SelectionState<'a> {
         for group in groups.iter() {
             // iterate over all groups and generate a random index (in range of #paths of current group)
             groups_path_index.push(rng.gen::<usize>() % group.paths.len());
+        }
+
+        let mut strained_edges: HashSet<EdgeIndex> = HashSet::new();
+
+        // first: strain all selected paths to TimetableGraph
+        for (group_index, path_index) in groups_path_index.iter().enumerate() {
+            let path = &groups[group_index].paths[*path_index];
+            path.strain_to_graph(graph, &mut strained_edges);
+        }
+
+        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64
+            + Self::calculate_cost_sum_of_selected_paths(groups, &groups_path_index);
+
+        // third: relieve all selected paths to TimetableGraph
+        for (group_index, path_index) in groups_path_index.iter().enumerate() {
+            groups[group_index].paths[*path_index].relieve_from_graph(graph, &mut strained_edges);
+        }
+
+        Self {
+            groups,
+            cost,
+            groups_path_index,
+        }
+    }
+
+    pub fn generate_state_with_best_path_per_group(
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>,
+        groups: &'a Vec<Group>,
+    ) -> Self {
+
+        let mut groups_path_index = Vec::with_capacity(groups.len());
+
+        for group in groups.iter() {
+            // iterate over all groups and generate a random index (in range of #paths of current group)
+            let paths = group.paths.clone();
+            let mut paths_sorted = paths.iter().enumerate().collect::<Vec<_>>();
+            paths_sorted.sort_unstable_by_key(|(_, path)| path.travel_delay());
+
+            groups_path_index.push(paths_sorted[0].0);
         }
 
         let mut strained_edges: HashSet<EdgeIndex> = HashSet::new();
@@ -347,11 +434,12 @@ impl<'a> SelectionState<'a> {
             path.strain_to_graph(graph, &mut strained_edges);
         }
 
-        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+        let mut cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+        cost += Self::calculate_cost_sum_of_selected_paths(&groups, &groups_paths_selection);
 
         // third: relieve all selected paths to TimetableGraph
         for (group_index, path_index) in groups_paths_selection.iter().enumerate() {
-            groups[group_index].paths[*path_index].relieve_from_graph(graph, &mut strained_edges);
+            &groups[group_index].paths[*path_index].relieve_from_graph(graph, &mut strained_edges);
         }
 
         Self {
@@ -413,48 +501,184 @@ impl<'a> SelectionState<'a> {
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         groups: &mut Vec<Group>,
         group_indices: Vec<usize>,
-        edge: EdgeIndex,
+        edge: Option<EdgeIndex>,
         rng: &mut ThreadRng,
     ) -> (usize, Option<Path>) {
         // select random group for detour
-        let random_group_index = rng.gen::<usize>() % group_indices.len();
-        let random_group = group_indices[random_group_index];
+        let random_group_index;
+        let random_group;
+        if group_indices.len() == 0 {
+            random_group_index = rng.gen::<usize>() % groups.len();
+            random_group = random_group_index;
+        } else {
+            random_group_index = rng.gen::<usize>() % group_indices.len();
+            random_group = group_indices[random_group_index];
+        }
 
         // get path of the selected random group
         let path_index = self.groups_path_index[random_group];
-        let path = groups[random_group].paths[path_index].clone();
+        let path = &groups[random_group].paths[path_index].clone();
 
-        // find all edges before chosen overcrowded edge in path
-        let mut edges_before_edge = IndexSet::new();
-        // find all edges after chosen overcrowded edge in path
-        let mut edges_after_edge = IndexSet::new();
+        match edge { 
+            Some(edge) => {
+                // find all edges before chosen overcrowded edge in path
+                let mut edges_before_edge = IndexSet::new();
+                // find all edges after chosen overcrowded edge in path
+                let mut edges_after_edge = IndexSet::new();
 
-        let mut switched = false;
-        for edge_index in &path.edges {
-            if *edge_index == edge {
-                switched = true;
-            }
-            if switched {
-                edges_after_edge.insert(*edge_index);
-            } else {
-                edges_before_edge.insert(*edge_index);
+                let mut switched = false;
+                for edge_index in &path.edges {
+                    if *edge_index == edge {
+                        switched = true;
+                        continue;
+                    }
+                    if switched {
+                        edges_after_edge.insert(*edge_index);
+                    } else {
+                        edges_before_edge.insert(*edge_index);
+                    }
+                }
+
+                // start with edge before selected overcrowded edge
+                edges_before_edge.reverse();
+
+                Self::strategie_1(graph, groups, random_group, &mut edges_before_edge, graph.edge_endpoints(*edges_after_edge.last().unwrap()).unwrap().1, Some(rng))
+                //Self::strategie_2(graph, groups, random_group, &mut edges_before_edge, &mut edges_after_edge, Some(rng))
+            },
+            None => {
+                let edge_index = rng.gen::<usize>() % path.edges.len();
+                let edge = path.edges[edge_index];
+
+                // find all edges before chosen overcrowded edge in path
+                let mut edges_before_edge = IndexSet::new();
+                // find all edges after chosen overcrowded edge in path
+                let mut edges_after_edge = IndexSet::new();
+
+                let mut switched = false;
+                for edge_index in &path.edges {
+                    if *edge_index == edge {
+                        switched = true;
+                        continue;
+                    }
+                    if switched {
+                        edges_after_edge.insert(*edge_index);
+                    } else {
+                        edges_before_edge.insert(*edge_index);
+                    }
+                }
+
+                // start with edge before selected overcrowded edge
+                edges_before_edge.reverse();
+
+                Self::strategie_1(graph, groups, random_group, &mut edges_before_edge, graph.edge_endpoints(*path.edges.last().unwrap()).unwrap().1, None)
+                //Self::strategie_2(graph, groups, random_group, &mut edges_before_edge, &mut edges_after_edge, None)
             }
         }
+    }
 
-        // start with edge before selected overcrowded edge
-        edges_before_edge.reverse();
+    fn strategie_2(
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>, 
+        groups: &mut Vec<Group>, 
+        random_group: usize, 
+        edges_before_edge: &mut IndexSet<EdgeIndex>, 
+        edges_after_edge: &mut IndexSet<EdgeIndex>,
+        rng: Option<&mut ThreadRng>
+    ) -> (usize, Option<Path>) {
 
-        Self::strategie_1(
-            graph,
-            groups,
-            random_group,
-            &mut edges_before_edge,
-            graph
-                .edge_endpoints(*edges_after_edge.last().unwrap())
-                .unwrap()
-                .1,
-            rng,
-        )
+        let mut current_start_edge_index = 0;
+        let mut current_end_edge_index = 0;
+    
+        loop {
+            if current_start_edge_index == edges_before_edge.len() && current_end_edge_index == edges_after_edge.len() {
+                break
+            }
+            let current_start_edge;
+            let current_end_edge;
+            if current_start_edge_index < edges_before_edge.len() {
+                current_start_edge = edges_before_edge[current_start_edge_index];
+            } else {
+                current_start_edge = edges_before_edge[edges_before_edge.len()-1];
+            }
+            if current_end_edge_index < edges_after_edge.len() {
+                current_end_edge = edges_after_edge[current_end_edge_index];
+            } else {
+                current_end_edge = edges_after_edge[edges_after_edge.len()-1];
+            }
+
+            // get start node 
+            let (start, _) = graph.edge_endpoints(current_start_edge).unwrap();
+            // get end node 
+            let (_, end) = graph.edge_endpoints(current_end_edge).unwrap();
+
+            // get possible paths from current start node to end node
+            let mut possible_paths = path::Path::dfs_visitor_search(
+                graph,
+                start,
+                end,
+                groups[random_group].passengers as u64,
+                groups[random_group].arrival,
+                0,
+            );
+            // let possible_paths = path::Path::search_recursive_dfs(
+            //     graph,
+            //     start,
+            //     end,
+            //     groups[random_group].passengers as u64,
+            //     groups[random_group].arrival,
+            //     1000,
+            //     100
+            // );
+
+            //println!("{}", possible_paths.len());
+            // if we have more paths as before 
+            if possible_paths.len() > 4 {              
+                let path_index;
+                match rng {
+                    Some(rng) => path_index = rng.gen::<usize>() % possible_paths.len(),
+                    None => {
+                        possible_paths.sort_unstable_by_key(|p| p.travel_delay());
+                        path_index = 0;
+                    }
+                } 
+
+                let mut new_path = IndexSet::new();
+
+                // build new path completely
+                edges_before_edge.reverse();
+                for next_edge_index in edges_before_edge.iter() {
+                    if *next_edge_index == current_start_edge {
+                        break;
+                    }
+                    new_path.insert(*next_edge_index);
+                }
+                for next_edge_index in possible_paths[path_index].edges.iter() {
+                    new_path.insert(*next_edge_index);
+                }
+                let mut found = false;
+                for next_edge_index in edges_after_edge.iter() {
+                    if found {
+                        new_path.insert(*next_edge_index);
+                    }
+                    
+                    if *next_edge_index == current_end_edge {
+                        found = true;
+                    }
+                    
+                }
+
+                return (random_group, Some(Path::new(
+                    graph,
+                    new_path,
+                    groups[random_group].passengers as u64,
+                    groups[random_group].arrival
+                )))
+            }
+
+            current_start_edge_index += 1;
+            current_end_edge_index += 1;
+        }
+
+        (random_group, None)
     }
 
     fn strategie_1(
@@ -463,14 +687,14 @@ impl<'a> SelectionState<'a> {
         random_group: usize,
         edges_before_edge: &mut IndexSet<EdgeIndex>,
         end: NodeIndex,
-        rng: &mut ThreadRng,
+        rng: Option<&mut ThreadRng>,
     ) -> (usize, Option<Path>) {
         for edge_index in edges_before_edge.clone() {
             // get start node
             let (start, _) = graph.edge_endpoints(edge_index).unwrap();
 
             // get possible paths from current start node to end node
-            let possible_paths = path::Path::dfs_visitor_search(
+            let mut possible_paths = path::Path::dfs_visitor_search(
                 graph,
                 start,
                 end,
@@ -478,10 +702,28 @@ impl<'a> SelectionState<'a> {
                 groups[random_group].arrival,
                 0,
             );
+            //println!("{}", possible_paths.len());
+
+            // let possible_paths = path::Path::search_recursive_dfs(
+            //     graph,
+            //     start,
+            //     end,
+            //     groups[random_group].passengers as u64,
+            //     groups[random_group].arrival,
+            //     500,
+            //     75
+            // );
 
             // if we have more paths as before
-            if possible_paths.len() > 2 {
-                let random_path_index = rng.gen::<usize>() % possible_paths.len();
+            if possible_paths.len() > 1 {
+                let path_index;
+                match rng {
+                    Some(rng) => path_index = rng.gen::<usize>() % possible_paths.len(),
+                    None => {
+                        possible_paths.sort_unstable_by_key(|p| p.travel_delay());
+                        path_index = 0;
+                    }
+                } 
 
                 let mut new_path = IndexSet::new();
 
@@ -493,7 +735,7 @@ impl<'a> SelectionState<'a> {
                     }
                     new_path.insert(*next_edge_index);
                 }
-                for next_edge_index in possible_paths[random_path_index].edges.iter() {
+                for next_edge_index in possible_paths[path_index].edges.iter() {
                     new_path.insert(*next_edge_index);
                 }
 

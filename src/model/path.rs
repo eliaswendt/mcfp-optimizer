@@ -47,7 +47,7 @@ impl Path {
             duration += edge_weight.duration();
         }
 
-        let real_arrival = Self::get_real_arrival(graph, &edges);
+        let real_arrival = Self::get_arrival(graph, &edges);
 
         let travel_delay = real_arrival as i64 - planned_arrival as i64;
 
@@ -85,9 +85,10 @@ impl Path {
         self.edges.intersection(&other.edges).cloned().collect()
     }
 
-    pub fn get_real_arrival(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: &IndexSet<EdgeIndex>) -> u64 {
-        let last_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().0;
-        let timetable_node = graph.node_weight(last_node).unwrap();
+    /// calculate arrival of a path by its last arrival node
+    pub fn get_arrival(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: &IndexSet<EdgeIndex>) -> u64 {
+        let last_arrival_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().0;
+        let timetable_node = graph.node_weight(last_arrival_node).unwrap();
         let real_arrival = match timetable_node.is_arrival() {
             true => timetable_node.time().unwrap(),
             false => { println!("Warning! Second last node of path is not arrival node."); 0 }
@@ -127,7 +128,7 @@ impl Path {
         result
     }
 
-
+    /// format path to a reduced readable consecutive sequence of Arrival/Departure nodes and Trip/Walk edges  
     pub fn to_location_time_and_type(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> Vec<(String, u64, String)> {
 
         // For arrival nodes or departure nodes save the following: (station, time, kind) with kind=Arrival or kind=Departure
@@ -184,7 +185,7 @@ impl Path {
     }
 
     pub fn display(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) {
-        for (location, time, kind) in self.to_location_time_and_type(graph) {
+        for (location, time, kind) in self.to_location_time_and_type(graph) { 
             if kind == "Arrival" || kind == "Departure" {
                 println!(
                     "{} at station {}, time={} ->", 
@@ -208,6 +209,15 @@ impl Path {
         }
     }
     
+    pub fn to_string(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> String {
+        let mut path_string = String::new();
+        for (location, time, kind) in self.to_location_time_and_type(graph) { 
+            path_string += &format!("{}.{}.{}->", location, time, kind);
+        }
+        path_string.pop();
+        path_string.pop();
+        path_string
+    }
 
     /// builds subgraph that only contains nodes connected by edges
     pub fn create_subgraph_from_edges(&self, graph: &DiGraph<TimetableNode, TimetableEdge>, filepath: &str) {
@@ -378,7 +388,7 @@ impl Path {
                 duration: max_duration - remaining_duration,
 
                 utilization,
-                travel_delay: Self::get_real_arrival(graph, &edges) as i64 - planned_arrival as i64,
+                travel_delay: Self::get_arrival(graph, &edges) as i64 - planned_arrival as i64,
 
                 edges: edges.into_iter().collect(),
             })
@@ -419,10 +429,10 @@ impl Path {
                     && edge_weight_cost <= remaining_budget
                 {
                     // edge can handle the minium required capacity and does not take longer then the remaining duration
-
+                    
                     // add next_edge for next call
                     path.insert(next_edge);
-
+                    
                     &mut Self::search_recursive_dfs_helper(
                         graph,
                         paths,

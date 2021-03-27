@@ -18,16 +18,16 @@ use crate::model::{
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
     //(5000.0 / time).powf(1.2)
-    2000.0 / time // cost=782, funktioniert schonmal ganz gut
+    5000.0 / time // cost=782, funktioniert schonmal ganz gut
                   // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
 
 pub fn simulated_annealing<'a>(
     graph: &'a mut DiGraph<TimetableNode, TimetableEdge>,
-    groups: &mut Vec<Group>,
+    groups: &'a Vec<Group>,
     state: SelectionState,
     filepath: &str,
-) {
+) -> SelectionState<'a> {
     println!("simulated_annealing()");
 
     let mut rng = rand::thread_rng();
@@ -38,9 +38,10 @@ pub fn simulated_annealing<'a>(
 
     writer.write("time,temperature,cost\n".as_bytes()).unwrap();
 
-    let new_group_list = groups.clone();
-    let mut current_state = SelectionState::generate_random_state(graph, &new_group_list);
+    let mut new_group_list = groups.clone();
+    //let mut current_state = SelectionState::generate_random_state(graph, groups);
     //let mut current_state = state;
+    let mut current_state = SelectionState::generate_state_with_best_path_per_group(graph, groups);
     let mut time = 1;
 
     let start_instant = Instant::now();
@@ -52,7 +53,11 @@ pub fn simulated_annealing<'a>(
         if steps_without_changes > 200 || current_state.cost <= 0 {
             print!("-> return with costs={} ", current_state.cost);
             println!("(done in {}s)", start_instant.elapsed().as_secs());
-            return;
+            return SelectionState {
+                groups: groups,
+                cost: current_state.cost,
+                groups_path_index: current_state.groups_path_index.clone(),
+            };
         }
 
         // get new temperature
@@ -60,7 +65,7 @@ pub fn simulated_annealing<'a>(
 
         print!(
             "[time={}]: current_cost={:5.}, current_delay={}, temp={:.2}, ",
-            time, current_state.cost, current_state.calculate_total_travel_delay(), temperature
+            time, current_state.cost, current_state.calculate_total_travel_delay(&new_group_list), temperature
         );
         writer
             .write(format!("{},{},{}\n", time, temperature, current_state.cost).as_bytes())
@@ -69,29 +74,52 @@ pub fn simulated_annealing<'a>(
         // actually exactly zero, but difficult with float
         if temperature < 1.0 {
             print!("-> return");
-            println!("(done in {}s)", start_instant.elapsed().as_secs());
-            return;
+            println!(" (done in {}s)", start_instant.elapsed().as_secs());
+            return SelectionState { // todo
+                groups: groups,
+                cost: current_state.cost,
+                groups_path_index: current_state.groups_path_index.clone(),
+            };
         }
 
-        // get one random overcrowded edge and its occupying groups by index
-        let (edge, group_indices) =
-            current_state.get_random_overcrowded_edge_with_groups(graph, groups, &mut rng);
+        let group_index;
+        let path;
 
-        // find a detour for a random group in previously found groups
-        let (group_index, path) =
-            current_state.find_detour_for_random_group(graph, groups, group_indices, edge, &mut rng);
+        // if time % 2 == 0 {
 
+        //     // get one random overcrowded edge and its occupying groups by index
+        //     let (edge, group_indices) =
+        //         current_state.get_random_overcrowded_edge_with_groups(graph, &mut new_group_list, &mut rng);
+
+        //     // find a detour for a random group in previously found groups
+        //     let detour =
+        //         current_state.find_detour_for_random_group(graph, &mut new_group_list, group_indices, Some(edge), &mut rng);
+        //         //current_state.find_detour_for_random_group(graph, &mut new_group_list, Vec::new(), None, &mut rng);
+        //     group_index = detour.0;
+        //     path = detour.1
+        // } else {
+
+            // find a detour for a random group in previously found groups
+            let detour =
+                //current_state.find_detour_for_random_group(graph, groups, group_indices, Some(edge), &mut rng);
+                current_state.find_detour_for_random_group(graph, &mut new_group_list, Vec::new(), None, &mut rng);
+            group_index = detour.0;
+            path = detour.1;
+        //}
         
         match path {
             // Another path was found
             Some(path) => {
+                let old_path_index = current_state.groups_path_index[group_index];
 
                 // add path to paths of group
-                groups[group_index].paths.insert(0, path.clone());
+                new_group_list[group_index].paths.insert(0, path.clone());
+
+                //new_group_list = groups.clone();
 
                 // create new state
                 let next =
-                    current_state.group_neighbor_from_group_and_path(graph, groups, group_index, 0);
+                    current_state.group_neighbor_from_group_and_path(graph, &mut new_group_list, group_index, 0);
 
                 // if next_state is better than current_state -> delta positive
                 // if next_state is worse than current_state -> delta negative
@@ -104,7 +132,7 @@ pub fn simulated_annealing<'a>(
                     steps_without_changes = 0;
                     println!("{}", format!("-> replacing current state").green());
                 } else {
-                    let probability = (delta_cost as f64 / temperature as f64).exp();
+                    let probability = (delta_cost as f64 / 50.0 / temperature as f64).exp();
                     let random = rng.gen_range(0.0..1.0);
 
                     print!("probability={:.2}, random={:.2} ", probability, random);
@@ -119,6 +147,7 @@ pub fn simulated_annealing<'a>(
                         }
                     } else {
                         println!("-> skipping");
+                        current_state.groups_path_index[group_index] = old_path_index + 1;
                         steps_without_changes += 1;
                     }
                 }
