@@ -83,5 +83,8 @@ fn main() {
     
     println!("{}", selection_state.groups[10].paths[selection_state.groups_path_index[10]].to_human_readable_string(&model.graph));
 
+    selection_state.groups[10].paths[selection_state.groups_path_index[10]].create_subgraph_from_edges(&model.graph, "graphs/group_10_selected_path.dot");
+
+    
     println!("done with main() -> terminating")
 }

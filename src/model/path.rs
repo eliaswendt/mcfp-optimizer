@@ -1,7 +1,7 @@
 use indexmap::IndexSet;
-use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{Control, DfsEvent, EdgeRef, depth_first_search}};
+use petgraph::{EdgeDirection::Outgoing, dot::Dot, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{Control, DfsEvent, EdgeRef, depth_first_search}};
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashSet, fmt, iter::from_fn, ops::Add};
+use std::{cmp::Ordering, collections::HashSet, fmt, fs::File, io::{BufWriter, Write}, iter::from_fn, ops::Add};
 
 use super::{TimetableEdge, TimetableNode};
 
@@ -209,23 +209,35 @@ impl Path {
     }
     
 
-    pub fn to_graph(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> DiGraph<TimetableNode, TimetableEdge> {
-        let mut new_graph = DiGraph::new();
+    /// builds subgraph that only contains nodes connected by edges
+    pub fn create_subgraph_from_edges(&self, graph: &DiGraph<TimetableNode, TimetableEdge>, filepath: &str) {
+        let new_graph = graph.filter_map(
+            |node_index, node_weight| {
+                // check if at least one incoming/outgoing edge of current node is in HashSet of edges
+                let mut walker = graph.neighbors_undirected(node_index).detach();
+                while let Some((current_edge, _)) = walker.next(graph) {
+                    if self.edges.contains(&current_edge) {
+                        return Some(node_weight.clone());
+                    }
+                }
 
-        for edge in self.edges.iter() {
+                // no edge in set -> do not include node in graph
+                None
+            },
+            |edge_index, edge_weight| {
+                if self.edges.contains(&edge_index) {
+                    Some(edge_weight.clone())
+                } else {
+                    None
+                }
+            },
+        );
 
-            let edge_weight = &graph[*edge];
-            
-            let (source_node, target_node) = &graph.edge_endpoints(*edge).unwrap();
-            let source_node_weight = graph[*source_node];
-            let target_node_weight = graph[*target_node];
+        let dot_code = format!("{:?}", Dot::with_config(&new_graph, &[]));
 
-
-
-        }
-
-
-        new_graph
+        BufWriter::new(
+            File::create(filepath).expect(&format!("Could not create dot-file at {}", filepath))
+        ).write(dot_code.as_bytes()).unwrap();
     }
 
 
@@ -504,33 +516,6 @@ impl Path {
 
 
 
-/// builds subgraph that only contains nodes connected by edges
-pub fn create_subgraph_from_edges(
-    graph: &DiGraph<TimetableNode, TimetableEdge>,
-    edges: &HashSet<EdgeIndex>,
-) -> DiGraph<TimetableNode, TimetableEdge> {
-    graph.filter_map(
-        |node_index, node_weight| {
-            // check if at least one incoming/outgoing edge of current node is in HashSet of edges
-            let mut walker = graph.neighbors_undirected(node_index).detach();
-            while let Some((current_edge, _)) = walker.next(graph) {
-                if edges.contains(&current_edge) {
-                    return Some(node_weight.clone());
-                }
-            }
-
-            // no edge in set -> do not include node in graph
-            None
-        },
-        |edge_index, edge_weight| {
-            if edges.contains(&edge_index) {
-                Some(edge_weight.clone())
-            } else {
-                None
-            }
-        },
-    )
-}
 
 /// working too good
 fn all_simple_paths_dfs_dorian(

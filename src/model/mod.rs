@@ -166,7 +166,7 @@ impl Model {
         let dot_code = format!("{:?}", Dot::with_config(&model.graph, &[]));
 
         BufWriter::new(
-            File::create(filepath).expect(&format!("Could create dot-file at {}", filepath))
+            File::create(filepath).expect(&format!("Could not create dot-file at {}", filepath))
         ).write(dot_code.as_bytes()).unwrap();
     }
 
