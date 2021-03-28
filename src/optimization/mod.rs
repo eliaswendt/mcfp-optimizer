@@ -40,9 +40,9 @@ impl fmt::Display for SelectionState<'_> {
                 f, 
                 "\n[group_id={}]: {} ({}) -> {} ({}), travel_cost={}, travel_delay={}", 
                 group.id,
-                group.start,
+                group.start_station_id,
                 group.departure,
-                group.destination,
+                group.destination_station_id,
                 group.arrival,
                 group.paths[*group_path_index].travel_cost(),
                 group.paths[*group_path_index].travel_delay()
@@ -176,16 +176,7 @@ impl<'a> SelectionState<'a> {
         groups: &'a Vec<Group>,
     ) -> Self {
 
-        let mut groups_path_index = Vec::with_capacity(groups.len());
-
-        for group in groups.iter() {
-            // iterate over all groups and generate a random index (in range of #paths of current group)
-            let paths = group.paths.clone();
-            let mut paths_sorted = paths.iter().enumerate().collect::<Vec<_>>();
-            paths_sorted.sort_unstable_by_key(|(_, path)| path.travel_delay());
-
-            groups_path_index.push(paths_sorted[0].0);
-        }
+        let mut groups_path_index = vec![0; groups.len()];
 
         let mut strained_edges: HashSet<EdgeIndex> = HashSet::new();
 
@@ -628,7 +619,7 @@ impl<'a> SelectionState<'a> {
             let mut possible_paths = path::Path::dfs_visitor_search(
                 graph,
                 start,
-                end,
+                graph[end].station_id(),
                 groups[random_group].passengers as u64,
                 groups[random_group].arrival,
                 0,
@@ -711,7 +702,7 @@ impl<'a> SelectionState<'a> {
             let mut possible_paths = path::Path::dfs_visitor_search(
                 graph,
                 start,
-                end,
+                graph[end].station_id(),
                 groups[random_group].passengers as u64,
                 groups[random_group].arrival,
                 0,

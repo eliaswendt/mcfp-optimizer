@@ -22,8 +22,8 @@ use super::{
 pub struct Group {
     pub id: u64,
 
-    pub start: String,       // Start-Halt für die Alternativensuche (Station ID)
-    pub destination: String, // Ziel der Gruppe (Station ID)
+    pub start_station_id: u64,       // Start-Halt für die Alternativensuche (Station ID)
+    pub destination_station_id: u64, // Ziel der Gruppe (Station ID)
 
     pub departure: u64, // Frühstmögliche Abfahrtszeit am Start-Halt (Integer)
     pub arrival: u64,   // Ursprünglich geplante Ankunftszeit am Ziel (Integer)
@@ -57,8 +57,8 @@ impl Group {
 
             groups.push(Self {
                 id,
-                start: group_map.get("start").unwrap().clone(),
-                destination: group_map.get("destination").unwrap().clone(),
+                start_station_id: group_map.get("start").unwrap().parse().unwrap(),
+                destination_station_id: group_map.get("destination").unwrap().parse().unwrap(),
                 departure: group_map.get("departure").unwrap().parse().unwrap(),
                 arrival: group_map.get("arrival").unwrap().parse().unwrap(),
                 passengers: group_map.get("passengers").unwrap().parse().unwrap(),
@@ -116,7 +116,7 @@ impl Group {
                 // println!("start={}, in_trip={}, departure={}", self.start, in_trip, self.departure);
 
                 // FIRST: get all arrival nodes of the start station
-                let start_station_arrivals = model.stations_arrivals.get(&self.start).unwrap();
+                let start_station_arrivals = model.stations_arrivals.get(&self.start_station_id).unwrap();
 
                 // SECOND: search all arrivals for trip_id == in_trip AND time == start at start station
                 let mut selected_station_arrival = None;
@@ -142,7 +142,7 @@ impl Group {
 
                 let mut selected_station_transfer = None;
 
-                match model.stations_transfers.get(&self.start) {
+                match model.stations_transfers.get(&self.start_station_id) {
                     Some(station_transfers) => {
                         // iterate until we find a departure time >= the time we want to start
                         for station_transfer in station_transfers.iter() {
@@ -161,7 +161,7 @@ impl Group {
 
         let destination = model
             .stations_main_arrival
-            .get(&self.destination)
+            .get(&self.destination_station_id)
             .map(|main_arrival| *main_arrival)
             .expect("Could not find destination station");
 
@@ -195,19 +195,19 @@ impl Group {
         //     self.passengers as u64,
         //     max_duration,
         //     self.arrival,
-        //     &vec![50, 75, 100],
+        //     &vec![100, 150, 200], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
         // );
 
         // if self.paths.len() == 0 {
 
-        self.paths = path::Path::dfs_visitor_search(
-            &model.graph,
-            start,
-            destination,
-            self.passengers as u64,
-            self.arrival,
-            0,
-        );
+            self.paths = path::Path::dfs_visitor_search(
+                &model.graph,
+                start,
+                model.graph[destination].station_id(),
+                self.passengers as u64,
+                self.arrival,
+                0,
+            );
         // }
 
         // filter out paths that exceed duration or do not fulfill minium capacity
@@ -235,6 +235,6 @@ impl Group {
     }
 
     fn calculate_max_travel_duration(travel_time: u64) -> u64 {
-        2 * travel_time + 50
+        2 * travel_time + 60
     }
 }

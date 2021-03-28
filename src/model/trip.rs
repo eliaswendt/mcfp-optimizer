@@ -8,9 +8,9 @@ use super::{station::Station, TimetableEdge, TimetableNode};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trip {
     pub id: u64,
-    pub from_station: String,
+    pub from_station: u64,
     pub departure: u64,
-    pub to_station: String,
+    pub to_station: u64,
     pub arrival: u64,
     pub capacity: u64,
 }
@@ -23,8 +23,8 @@ impl Trip {
 
         for trip_map in trip_maps.iter() {
             let id = trip_map.get("id").unwrap().parse().unwrap();
-            let from_station = trip_map.get("from_station").unwrap().clone();
-            let to_station = trip_map.get("to_station").unwrap().clone();
+            let from_station = trip_map.get("from_station").unwrap().parse().unwrap();
+            let to_station = trip_map.get("to_station").unwrap().parse().unwrap();
 
             // println!("{}_{}->{}", id, from_station, to_station);
 
@@ -44,7 +44,7 @@ impl Trip {
     pub fn connect(
         self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-        stations: &mut HashMap<String, Station>,
+        stations: &mut HashMap<u64, Station>,
     ) {
         let from_station = stations.get_mut(&self.from_station).expect(&format!(
             "from_station {} of trip {} could not be found",

@@ -7,25 +7,25 @@ pub enum TimetableNode {
     Departure { // departure of a train ride
         trip_id: u64,
         time: u64,
-        station_id: String,
+        station_id: u64,
         station_name: String,
     },
 
     Arrival { // arrival of a train ride
         trip_id: u64,
         time: u64,
-        station_id: String,
+        station_id: u64,
         station_name: String,
     },
 
     Transfer { // transfer node at a station, existing for every departure at that station
         time: u64,
-        station_id: String,
+        station_id: u64,
         station_name: String,
     },
 
     MainArrival {
-        station_id: String,
+        station_id: u64,
         station_name: String,
     }
 }
@@ -43,13 +43,12 @@ impl TimetableNode {
     }
 
     #[inline]
-    pub fn station_id(&self) -> Option<String> {
+    pub fn station_id(&self) -> u64 {
         match self {
-            Self::Departure {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
-            Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => Some(station_id.clone()),
-            Self::Transfer {time: _, station_id, station_name: _} => Some(station_id.clone()),
-            Self::MainArrival {station_id, station_name: _} => Some(station_id.clone()),
-            _ => None
+            Self::Departure {trip_id: _, time: _, station_id, station_name: _} => *station_id,
+            Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => *station_id,
+            Self::Transfer {time: _, station_id, station_name: _} => *station_id,
+            Self::MainArrival {station_id, station_name: _} => *station_id
         }
     }
 
@@ -64,9 +63,9 @@ impl TimetableNode {
     }
 
     #[inline]
-    pub fn is_arrival_at_station(&self, target_station_id: &str) -> bool {
+    pub fn is_arrival_at_station(&self, target_station_id: u64) -> bool {
         match self {
-            Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => station_id == target_station_id,
+            Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => *station_id == target_station_id,
             _ => false
         }
     }

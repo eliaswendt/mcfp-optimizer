@@ -32,13 +32,13 @@ pub struct Model {
 
     // we need to store all transfer and arrival nodes for all stations at all times
     // required as entry-/endpoints for search
-    stations_transfers: HashMap<String, Vec<NodeIndex>>,
+    stations_transfers: HashMap<u64, Vec<NodeIndex>>,
 
     // required for "in_trip" column of groups (groups could start in a train instead of a station)
-    stations_arrivals: HashMap<String, Vec<NodeIndex>>, 
+    stations_arrivals: HashMap<u64, Vec<NodeIndex>>, 
 
     // connected to all arrivals of this station via zero-cost edge
-    stations_main_arrival: HashMap<String, NodeIndex>,
+    stations_main_arrival: HashMap<u64, NodeIndex>,
 }
 
 impl Model {
@@ -88,9 +88,9 @@ impl Model {
             }
 
             // save references to all transfers and to arrival_main
-            stations_transfers.insert(station_id.clone(), transfers);
-            stations_arrivals.insert(station_id.clone(), arrivals);
-            stations_main_arrival.insert(station_id.clone(),main_arrival);
+            stations_transfers.insert(station_id, transfers);
+            stations_arrivals.insert(station_id, arrivals);
+            stations_main_arrival.insert(station_id,main_arrival);
         }
 
         let mut successful_footpath_counter = 0;
@@ -312,8 +312,8 @@ mod tests {
                         // Arrival node and node b have same stations
                         if node_b_weight.is_departure() || node_b_weight.is_main_arrival() {
                             // same stations
-                            let same_stations = node_a_weight.station_id().unwrap() == node_b_weight.station_id().unwrap();
-                            assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.kind_as_str(), node_a_weight.station_id().unwrap(), node_b_weight.station_id().unwrap()));
+                            let same_stations = node_a_weight.station_id() == node_b_weight.station_id();
+                            assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.kind_as_str(), node_a_weight.station_id(), node_b_weight.station_id()));
                         }
                     },
                     TimetableNode::Transfer {time: _, station_id: _, station_name: _} => {
@@ -343,8 +343,8 @@ mod tests {
                         }
 
                         // both nodes have same station
-                        let same_stations = node_a_weight.station_id().unwrap() == node_b_weight.station_id().unwrap();
-                        assert!(same_stations, format!("Transfer node and {} node have not same station! {} vs. {}", node_b_weight.kind_as_str(), node_a_weight.station_id().unwrap(), node_b_weight.station_id().unwrap()));                   
+                        let same_stations = node_a_weight.station_id() == node_b_weight.station_id();
+                        assert!(same_stations, format!("Transfer node and {} node have not same station! {} vs. {}", node_b_weight.kind_as_str(), node_a_weight.station_id(), node_b_weight.station_id()));                   
                     },
                     TimetableNode::MainArrival {station_id: _, station_name: _} => {
                         

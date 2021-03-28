@@ -5,8 +5,8 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use super::{TimetableEdge, TimetableNode};
 
 pub struct Footpath {
-    pub from_station: String,
-    pub to_station: String,
+    pub from_station: u64,
+    pub to_station: u64,
     pub duration: u64,
 }
 
@@ -18,8 +18,8 @@ impl Footpath {
 
         for footpath_map in footpath_maps.iter() {
             footpaths_vec.push(Self {
-                from_station: footpath_map.get("from_station").unwrap().clone(),
-                to_station: footpath_map.get("to_station").unwrap().clone(),
+                from_station: footpath_map.get("from_station").unwrap().parse().unwrap(),
+                to_station: footpath_map.get("to_station").unwrap().parse().unwrap(),
                 duration: footpath_map.get("duration").unwrap().parse().unwrap(),
             });
         }

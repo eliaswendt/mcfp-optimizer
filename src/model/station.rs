@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use super::{TimetableEdge, TimetableNode};
 pub struct Station {
-    pub id: String,
+    pub id: u64,
     pub transfer_time: u64, // transfer time (minutes) at this station
     pub name: String,
 
@@ -15,19 +15,19 @@ pub struct Station {
 }
 
 impl Station {
-    pub fn from_maps_to_map(station_maps: &Vec<HashMap<String, String>>) -> HashMap<String, Self> {
+    pub fn from_maps_to_map(station_maps: &Vec<HashMap<String, String>>) -> HashMap<u64, Self> {
         println!("parsing {} station(s)", station_maps.len());
 
         let mut stations_map = HashMap::with_capacity(station_maps.len());
 
         for station_map in station_maps.iter() {
-            let id = station_map.get("id").unwrap().clone();
+            let id = station_map.get("id").unwrap().parse().expect("Could not parse station id!");
             let name = station_map.get("name").unwrap().clone();
 
             stations_map.insert(
-                id.clone(),
+                id,
                 Self {
-                    id: id.clone(),
+                    id: id,
                     transfer_time: station_map.get("transfer").unwrap().parse().unwrap(),
                     name: name.clone(),
 

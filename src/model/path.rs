@@ -17,7 +17,7 @@ pub struct Path {
 
 impl Ord for Path {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.travel_cost.cmp(&other.travel_cost)
+        self.cost().cmp(&other.cost())
     }
 }
 
@@ -29,7 +29,7 @@ impl PartialOrd for Path {
 
 impl PartialEq for Path {
     fn eq(&self, other: &Self) -> bool {
-        self.travel_cost == other.travel_cost
+        self.cost() == other.cost()
     }
 }
 
@@ -87,11 +87,12 @@ impl Path {
 
     /// calculate arrival of a path by its last arrival node
     pub fn get_arrival(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: &IndexSet<EdgeIndex>) -> u64 {
-        let last_arrival_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().0;
+        let last_arrival_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().1; // todo .1 or .0 depends on final implementation
         let timetable_node = graph.node_weight(last_arrival_node).unwrap();
-        let real_arrival = match timetable_node.is_arrival() {
+        let arrival_or_transfer = timetable_node.is_arrival() || timetable_node.is_transfer();
+        let real_arrival = match arrival_or_transfer {
             true => timetable_node.time().unwrap(),
-            false => { println!("Warning! Second last node of path is not arrival node."); 0 }
+            false => { println!("Warning! Last node of path is not arrival or transfer node."); 0 }
         };
         real_arrival
     }
@@ -458,7 +459,7 @@ impl Path {
     pub fn dfs_visitor_search(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
-        destination: NodeIndex, // condition that determines whether goal node was found
+        destination_station_id: u64, // condition that determines whether goal node was found
         
         utilization: u64, // number of passengers, weight of load, etc.
         planned_arrival: u64,
@@ -469,17 +470,27 @@ impl Path {
         let mut paths = Vec::new();
 
         let mut predecessor = vec![NodeIndex::end(); graph.node_count()];
+
+        let start_time = graph[start].time().unwrap();
+
         depth_first_search(graph, Some(start), | event| {
 
             if let DfsEvent::TreeEdge(u, v) = event {
                 predecessor[v.index()] = u;
 
+                let timetable_node = &graph[v];
+                if let Some(current_time) = timetable_node.time() {
+                    if current_time - start_time > 4 * (planned_arrival - start_time) + 60 {
+                        return Control::Prune
+                    }
+                }
+                
 
-                if v == destination {
+                if graph[v].station_id() == destination_station_id {
                     // we found destination node -> use predecessor map to look-up edge path
                     // start at destination node (to) and "walk" back to start (from), collect all nodes in path vec and then reverse vec
         
-                    let mut next = destination;
+                    let mut next = v; //destination_station_id;
                     let mut node_path = vec![next];
 
                     while next != start {

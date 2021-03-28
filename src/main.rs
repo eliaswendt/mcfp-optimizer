@@ -67,7 +67,7 @@ fn main() {
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
     // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
     // let mut groups_cloned = groups_with_at_least_one_path.clone();
-    let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing.csv");
+    // let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing_cost.csv");
     //optimization::randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, "eval/randomized_best.csv");
 
     // let selection_state = SelectionState {
@@ -75,7 +75,7 @@ fn main() {
     //     cost: 0, //state.cost, //SelectionState::generate_random_state(graph, groups); //state;
     //     groups_path_index: Vec::new() //state.groups_paths_selection
     // };
-    // let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &selection_state.groups, selection_state, "eval/simulated_annealing_on_path.csv");
+    //let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &selection_state.groups, selection_state, "eval/simulated_annealing_on_path.csv");
 
     // println!("Selected State: {}", selection_state);
 
@@ -86,7 +86,7 @@ fn main() {
     // selection_state.save_groups_to_csv(&model.graph, "eval/groups.csv");
     // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/edges.csv");
 
-    selection_state.groups[10].paths[selection_state.groups_path_index[10]].create_subgraph_from_edges(&model.graph, "graphs/group_10_selected_path.dot");
+    // selection_state.groups[10].paths[selection_state.groups_path_index[10]].create_subgraph_from_edges(&model.graph, "graphs/group_10_selected_path.dot");
 
     
     println!("done with main() -> terminating")
