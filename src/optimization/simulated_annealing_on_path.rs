@@ -56,6 +56,8 @@ pub fn simulated_annealing<'a>(
             return SelectionState {
                 groups: groups,
                 cost: current_state.cost,
+                strained_edges_cost: current_state.strained_edges_cost,
+                travel_delay_cost: current_state.travel_delay_cost,
                 groups_path_index: current_state.groups_path_index.clone(),
             };
         }
@@ -78,6 +80,8 @@ pub fn simulated_annealing<'a>(
             return SelectionState { // todo
                 groups: groups,
                 cost: current_state.cost,
+                strained_edges_cost: current_state.strained_edges_cost,
+                travel_delay_cost: current_state.travel_delay_cost,
                 groups_path_index: current_state.groups_path_index.clone(),
             };
         }
@@ -87,24 +91,24 @@ pub fn simulated_annealing<'a>(
 
         // if time % 2 == 0 {
 
-        //     // get one random overcrowded edge and its occupying groups by index
-        //     let (edge, group_indices) =
-        //         current_state.get_random_overcrowded_edge_with_groups(graph, &mut new_group_list, &mut rng);
-
-        //     // find a detour for a random group in previously found groups
-        //     let detour =
-        //         current_state.find_detour_for_random_group(graph, &mut new_group_list, group_indices, Some(edge), &mut rng);
-        //         //current_state.find_detour_for_random_group(graph, &mut new_group_list, Vec::new(), None, &mut rng);
-        //     group_index = detour.0;
-        //     path = detour.1
-        // } else {
+            // get one random overcrowded edge and its occupying groups by index
+            let (edge, group_indices) =
+                current_state.get_random_overcrowded_edge_with_groups(graph, &mut new_group_list, &mut rng);
 
             // find a detour for a random group in previously found groups
             let detour =
-                //current_state.find_detour_for_random_group(graph, groups, group_indices, Some(edge), &mut rng);
-                current_state.find_detour_for_random_group(graph, &mut new_group_list, Vec::new(), None, &mut rng);
+                current_state.find_detour_for_random_group(graph, &mut new_group_list, group_indices, Some(edge), &mut rng);
+                //current_state.find_detour_for_random_group(graph, &mut new_group_list, Vec::new(), None, &mut rng);
             group_index = detour.0;
             path = detour.1;
+        // } else {
+
+            // find a detour for a random group in previously found groups
+            // let detour =
+            //     //current_state.find_detour_for_random_group(graph, groups, group_indices, Some(edge), &mut rng);
+            //     current_state.find_detour_for_random_group(graph, &mut new_group_list, Vec::new(), None, &mut rng);
+            // group_index = detour.0;
+            // path = detour.1;
         //}
         
         match path {
@@ -132,7 +136,7 @@ pub fn simulated_annealing<'a>(
                     steps_without_changes = 0;
                     println!("{}", format!("-> replacing current state").green());
                 } else {
-                    let probability = (delta_cost as f64 / 50.0 / temperature as f64).exp();
+                    let probability = (delta_cost as f64 / temperature as f64).exp();
                     let random = rng.gen_range(0.0..1.0);
 
                     print!("probability={:.2}, random={:.2} ", probability, random);

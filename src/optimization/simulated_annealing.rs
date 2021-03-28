@@ -9,7 +9,7 @@ use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, p
 
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
-    // (100000.0 - time).powf(1.1)
+    //(25000.0 - time).powf(1.1)
     25000.0 / time // cost=782, funktioniert schonmal ganz gut
     // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
@@ -24,19 +24,19 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
         File::create(filepath).expect(&format!("Could not create file \"{}\"", filepath))
     );
 
-    writer.write("time,temperature,cost\n".as_bytes()).unwrap();
+    writer.write("time,temperature,cost,edge_cost,delay_cost\n".as_bytes()).unwrap();
 
-    let mut current = SelectionState::generate_random_state(graph, groups);
-    //et mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
+    //let mut current = SelectionState::generate_random_state(graph, groups);
+    let mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
     let mut time = 1;
 
     let start_instant = Instant::now();
 
     loop {
         let temperature = time_to_temperature(time as f64);
-        
-        print!("[time={}]: current_cost={}, current_delay={}, temp={:.2}, ", time, current.cost, current.calculate_total_travel_delay(current.groups), temperature);
-        writer.write(format!("{},{},{}\n", time, temperature, current.cost).as_bytes()).unwrap();
+
+        print!("[time={}]: current_cost={}, current_edge_cost={}, current_delay={}, temp={:.2}, ", time, current.cost, current.strained_edges_cost, current.travel_delay_cost, temperature);
+        writer.write(format!("{},{},{},{},{}\n", time, temperature, current.cost, current.strained_edges_cost, current.travel_delay_cost).as_bytes()).unwrap();
 
         // actually exactly zero, but difficult with float
         if temperature < 1.0 {

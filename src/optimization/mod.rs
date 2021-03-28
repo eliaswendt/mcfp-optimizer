@@ -20,7 +20,9 @@ pub(crate) mod simulated_annealing_on_path;
 #[derive(Debug, Clone)]
 pub struct SelectionState<'a> {
     pub groups: &'a Vec<Group>,
-    pub cost: i64,                     // cost of this path selection
+    pub cost: i64,                     // total cost of this path selection
+    pub strained_edges_cost: i64,
+    pub travel_delay_cost: i64,
     pub groups_path_index: Vec<usize>, // array of indices (specifies selected path for each group)
 }
 
@@ -151,8 +153,9 @@ impl<'a> SelectionState<'a> {
             path.strain_to_graph(graph, &mut strained_edges);
         }
 
-        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64
-            + Self::calculate_cost_sum_of_selected_paths(groups, &groups_path_index);
+        let strained_edges_cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+        let travel_delay_cost = Self::calculate_cost_sum_of_selected_paths(groups, &groups_path_index);
+        let cost = strained_edges_cost + travel_delay_cost;
 
         // third: relieve all selected paths to TimetableGraph
         for (group_index, path_index) in groups_path_index.iter().enumerate() {
@@ -162,6 +165,8 @@ impl<'a> SelectionState<'a> {
         Self {
             groups,
             cost,
+            strained_edges_cost,
+            travel_delay_cost,
             groups_path_index,
         }
     }
@@ -190,8 +195,9 @@ impl<'a> SelectionState<'a> {
             path.strain_to_graph(graph, &mut strained_edges);
         }
 
-        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64
-            + Self::calculate_cost_sum_of_selected_paths(groups, &groups_path_index);
+        let strained_edges_cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+        let travel_delay_cost = Self::calculate_cost_sum_of_selected_paths(groups, &groups_path_index);
+        let cost = strained_edges_cost + travel_delay_cost;
 
         // third: relieve all selected paths to TimetableGraph
         for (group_index, path_index) in groups_path_index.iter().enumerate() {
@@ -201,6 +207,8 @@ impl<'a> SelectionState<'a> {
         Self {
             groups,
             cost,
+            strained_edges_cost,
+            travel_delay_cost,
             groups_path_index,
         }
     }
@@ -241,7 +249,7 @@ impl<'a> SelectionState<'a> {
                 self.groups[group_index].paths[path_index]
                     .strain_to_graph(graph, &mut strained_edges);
                 // calculate cost of all strained edges
-                let mut cost =
+                let strained_edges_cost = 
                     Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
                 // relieve new path from graph
                 self.groups[group_index].paths[path_index]
@@ -250,15 +258,16 @@ impl<'a> SelectionState<'a> {
                 let mut groups_paths_selection_clone = self.groups_path_index.clone();
                 groups_paths_selection_clone[group_index] = path_index; // set current path_index as selected
 
-                cost += Self::calculate_cost_sum_of_selected_paths(
-                    &self.groups,
-                    &groups_paths_selection_clone,
-                );
+                let travel_delay_cost = 
+                    Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection_clone);
+                let cost = strained_edges_cost + travel_delay_cost;
+
 
                 let selection_state = Self {
                     groups: self.groups,
-
                     cost,
+                    strained_edges_cost,
+                    travel_delay_cost,
                     groups_path_index: groups_paths_selection_clone,
                 };
 
@@ -315,21 +324,21 @@ impl<'a> SelectionState<'a> {
                 self.groups[group_index].paths[actual_selected_path_index - 1]
                     .strain_to_graph(graph, &mut strained_edges);
                 // calculate cost of all strained edges
-                let mut cost =
+                let strained_edges_cost =
                     Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
                 // relieve new path from graph
                 self.groups[group_index].paths[actual_selected_path_index - 1]
                     .relieve_from_graph(graph, &mut strained_edges);
 
-                cost += Self::calculate_cost_sum_of_selected_paths(
-                    &self.groups,
-                    &groups_paths_selection_clone,
-                );
+                let travel_delay_cost = 
+                    Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection_clone);
+                let cost = strained_edges_cost + travel_delay_cost;
 
                 let selection_state = Self {
                     groups: self.groups,
-
                     cost,
+                    strained_edges_cost,
+                    travel_delay_cost,
                     groups_path_index: groups_paths_selection_clone,
                 };
 
@@ -344,21 +353,21 @@ impl<'a> SelectionState<'a> {
                 self.groups[group_index].paths[actual_selected_path_index + 1]
                     .strain_to_graph(graph, &mut strained_edges);
                 // calculate cost of all strained edges
-                let mut cost =
+                let strained_edges_cost =
                     Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
                 // relieve new path from graph
                 self.groups[group_index].paths[actual_selected_path_index + 1]
                     .relieve_from_graph(graph, &mut strained_edges);
 
-                cost += Self::calculate_cost_sum_of_selected_paths(
-                    &self.groups,
-                    &groups_paths_selection_clone,
-                );
+                let travel_delay_cost = 
+                    Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection_clone);
+                let cost = strained_edges_cost + travel_delay_cost;
 
                 let selection_state = Self {
                     groups: self.groups,
-
                     cost,
+                    strained_edges_cost,
+                    travel_delay_cost,
                     groups_path_index: groups_paths_selection_clone,
                 };
 
@@ -399,8 +408,9 @@ impl<'a> SelectionState<'a> {
             path.strain_to_graph(graph, &mut strained_edges);
         }
 
-        let cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64
-            + Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection);
+        let strained_edges_cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+        let travel_delay_cost = Self::calculate_cost_sum_of_selected_paths(&self.groups, &groups_paths_selection);
+        let cost = strained_edges_cost + travel_delay_cost;
 
         // third: relieve all selected paths to TimetableGraph
         for (group_index, path_index) in groups_paths_selection.iter().enumerate() {
@@ -411,6 +421,8 @@ impl<'a> SelectionState<'a> {
         Self {
             groups: self.groups,
             cost,
+            strained_edges_cost,
+            travel_delay_cost,
             groups_path_index: groups_paths_selection,
         }
     }
@@ -433,8 +445,9 @@ impl<'a> SelectionState<'a> {
             path.strain_to_graph(graph, &mut strained_edges);
         }
 
-        let mut cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
-        cost += Self::calculate_cost_sum_of_selected_paths(&groups, &groups_paths_selection);
+        let strained_edges_cost = Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
+        let travel_delay_cost = Self::calculate_cost_sum_of_selected_paths(&groups, &groups_paths_selection);
+        let cost = strained_edges_cost + travel_delay_cost;
 
         // third: relieve all selected paths to TimetableGraph
         for (group_index, path_index) in groups_paths_selection.iter().enumerate() {
@@ -444,6 +457,8 @@ impl<'a> SelectionState<'a> {
         Self {
             groups: self.groups,
             cost,
+            strained_edges_cost,
+            travel_delay_cost,
             groups_path_index: groups_paths_selection,
         }
     }
