@@ -13,7 +13,6 @@ use crate::model::{
 pub mod randomized_best;
 pub mod randomized_hillclimb;
 pub mod simulated_annealing;
-pub mod simulated_annealing_elias;
 pub(crate) mod simulated_annealing_on_path;
 
 /// formalizing a system state
