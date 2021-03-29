@@ -1,16 +1,16 @@
 use indexmap::IndexSet;
 use petgraph::{EdgeDirection::Outgoing, dot::Dot, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{Control, DfsEvent, EdgeRef, depth_first_search}};
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashSet, fmt, fs::File, io::{BufWriter, Write}, iter::from_fn, ops::Add};
+use std::{cmp::Ordering, collections::HashSet, fmt, fs::File, io::{self, BufWriter, Write}, iter::from_fn, ops::Add};
 
 use super::{TimetableEdge, TimetableNode};
 
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
     travel_cost: u64, // cost for this path
-    duration: u64, // duration of this path
-    utilization: u64, // number of passengers
+    travel_duration: u64, // duration of this path
     travel_delay: i64,  // time between planned and real arrival
+    utilization: u64, // number of passengers
 
     pub edges: IndexSet<EdgeIndex>,
 }
@@ -35,8 +35,8 @@ impl PartialEq for Path {
 
 
 impl Path {
-
-    pub fn new(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: IndexSet<EdgeIndex>, utilization: u64, planned_arrival: u64) -> Self {
+    /// edges must not be empty
+    pub fn new(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: Vec<EdgeIndex>, utilization: u64, planned_arrival_time: u64) -> Self {
 
         let mut travel_cost: u64 = 0;
         let mut duration: u64 = 0;
@@ -47,16 +47,19 @@ impl Path {
             duration += edge_weight.duration();
         }
 
-        let real_arrival = Self::get_arrival(graph, &edges);
+        // get time of arrival node
+        let last_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().1; // todo .1 or .0 depends on final implementation
+        let real_arrival_time = graph[last_node].time().unwrap();
 
-        let travel_delay = real_arrival as i64 - planned_arrival as i64;
+        // calculate delay between planned and real_arrival
+        let travel_delay = real_arrival_time as i64 - planned_arrival_time as i64;
 
         Self {
             travel_cost,
-            duration,
+            travel_duration: duration,
             utilization,
             travel_delay,
-            edges
+            edges: edges.into_iter().collect()
         }
     }
 
@@ -70,7 +73,7 @@ impl Path {
     }
 
     pub fn duration(&self) -> u64 {
-        self.duration
+        self.travel_duration
     }
 
     pub fn utilization(&self) -> u64 {
@@ -83,18 +86,6 @@ impl Path {
 
     pub fn intersecting_edges(&self, other: &Self) -> Vec<EdgeIndex> {
         self.edges.intersection(&other.edges).cloned().collect()
-    }
-
-    /// calculate arrival of a path by its last arrival node
-    pub fn get_arrival(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: &IndexSet<EdgeIndex>) -> u64 {
-        let last_arrival_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().1; // todo .1 or .0 depends on final implementation
-        let timetable_node = graph.node_weight(last_arrival_node).unwrap();
-        let arrival_or_transfer = timetable_node.is_arrival() || timetable_node.is_transfer();
-        let real_arrival = match arrival_or_transfer {
-            true => timetable_node.time().unwrap(),
-            false => { println!("Warning! Last node of path is not arrival or transfer node."); 0 }
-        };
-        real_arrival
     }
 
     /// print this path as human readable traval plan
@@ -321,33 +312,28 @@ impl Path {
     pub fn all_paths_iddfs(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
-        destination: NodeIndex, // condition that determines whether goal node was found
+        destination_station_id: u64, // condition that determines whether goal node was found
 
-        min_capacity: u64,
         max_duration: u64,
-
-        planned_arrival: u64,
-
         budgets: &[u64] // maximum number of transfers to follow
-    ) -> Vec<Self> {
+    ) -> Vec<Vec<EdgeIndex>> {
 
         for budget in budgets {
-
             print!("budget={} ... ", budget);
+            io::stdout().flush().unwrap();
 
-            let paths = Self::search_recursive_dfs(
+            let edge_sets = Self::recursive_dfs_search(
                 graph,
                 start,
-                destination,
-                min_capacity,
-                planned_arrival,
+                destination_station_id,
+
                 max_duration,
                 *budget,
             );
 
-            if paths.len() > 0 {
+            if edge_sets.len() > 0 {
                 // found at least one path -> return
-                return paths;
+                return edge_sets;
             }
         }
 
@@ -356,98 +342,108 @@ impl Path {
 
     // launcher of recursive implementation of dfs
     // returns a vec of paths along with their remaining_duration
-    pub fn search_recursive_dfs(
+    pub fn recursive_dfs_search(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
-        destination: NodeIndex, // condition that determines whether goal node was found
+        destination_station_id: u64,
         
-        utilization: u64, // number of passengers, weight of load, etc.
-        planned_arrival: u64,
         max_duration: u64,
         budget: u64, // initial search budget (each edge has cost that needs to be payed)
-    ) -> Vec<Self> {
+    ) -> Vec<Vec<EdgeIndex>> {
         // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
 
-        let mut paths = Vec::new();
-        let mut visited = IndexSet::new();
+        let mut results = Vec::new();
+        let mut edge_stack = Vec::new();
 
-        Self::search_recursive_dfs_helper(
+        let mut counter_out_of_duration = 0;
+        let mut counter_out_of_budget = 0;
+
+        Self::recursive_dfs_search_helper(
             graph,
-            &mut paths,
+            &mut results,
             start,
-            destination,
-            &mut visited,
-            utilization,
+            destination_station_id,
+            &mut edge_stack,
             max_duration,
             budget,
+
+            &mut counter_out_of_duration,
+            &mut counter_out_of_budget
         );
 
-        paths
-            .into_iter()
-            .map(|(remaining_duration, remaining_budget, edges)| Self {
-                travel_cost: budget - remaining_budget,
-                duration: max_duration - remaining_duration,
+        print!("[ood={}, oob={}] ", counter_out_of_duration, counter_out_of_budget);
 
-                utilization,
-                travel_delay: Self::get_arrival(graph, &edges) as i64 - planned_arrival as i64,
-
-                edges: edges.into_iter().collect(),
-            })
-            .collect()
+        results
     }
 
-    fn search_recursive_dfs_helper(
+
+    fn recursive_dfs_search_helper(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
-        paths: &mut Vec<(u64, u64, IndexSet<EdgeIndex>)>, // paths found until now
-        current: NodeIndex,
-        destination: NodeIndex,
-        path: &mut IndexSet<EdgeIndex>, // visited edges (in order of visit)
+        results: &mut Vec<Vec<EdgeIndex>>, // paths found until now
+        current_node: NodeIndex,
+        destination_station_id: u64,
+        edge_stack: &mut Vec<EdgeIndex>, // visited edges (in order of visit)
 
         // recursion anchors (if zero)
-        min_capacity: u64,
         remaining_duration: u64,
         remaining_budget: u64,
-    ) {
-        // println!("all_paths_dfs_recursive(current={:?}, goal={:?}, visited.len()={}, min_capacity={}, remaining_duration={})", current, to, visited.len(), min_capacity, remaining_duration);
-        // println!("remaining_duration: {}", remaining_duration);
 
-        if current == destination {
-            // found destination node
-            paths.push((remaining_duration, remaining_budget, path.clone()));
+        counter_out_of_duration: &mut u64,
+        counter_out_of_budget: &mut u64
+    ) {
+        if graph[current_node].station_id() == destination_station_id {
+
+            // found destination node -> don't further continue this path
+            results.push(edge_stack.clone());
 
         } else {
 
-            let mut walker = graph.neighbors(current).detach();
+            let mut walker = graph.neighbors(current_node).detach();
 
             // iterate over all outgoing edges
             while let Some((next_edge, next_node)) = walker.next(graph) {
+
+                // lookup edge's cost
                 let edge_weight = &graph[next_edge];
-                let edge_weight_duration = edge_weight.duration();
                 let edge_weight_cost = edge_weight.travel_cost();
-
-                if edge_weight_duration <= remaining_duration
-                    // && edge_weight.capacity_hard_limit() >= min_capacity
-                    && edge_weight_cost <= remaining_budget
-                {
-                    // edge can handle the minium required capacity and does not take longer then the remaining duration
-                    
-                    // add next_edge for next call
-                    path.insert(next_edge);
-                    
-                    &mut Self::search_recursive_dfs_helper(
-                        graph,
-                        paths,
-                        next_node,
-                        destination,
-                        path,
-                        min_capacity,
-                        remaining_duration - edge_weight_duration,
-                        remaining_budget - edge_weight_cost,
-                    );
-
-                    // remove next_edge from visited
-                    path.pop();
+                
+                if edge_stack.len() == 90 {
+                    return
                 }
+                
+                if edge_weight_cost > remaining_budget {
+                    *counter_out_of_budget += 1;
+                    return
+                }
+                
+                let edge_weight_duration = edge_weight.duration();
+                if edge_weight_duration > remaining_duration {
+                    *counter_out_of_duration += 1;
+                    return
+                }
+
+                // -> we can "afford" going using next_edge
+                
+                // add next_edge to stack
+                edge_stack.push(next_edge);
+                
+                // make recursive call
+                &mut Self::recursive_dfs_search_helper(
+                    graph,
+                    results,
+                    next_node,
+                    destination_station_id,
+                    edge_stack,
+                    remaining_duration - edge_weight_duration,
+                    remaining_budget - edge_weight_cost,
+
+                    counter_out_of_duration,
+                    counter_out_of_budget
+                );
+
+                // remove next_edge from stack
+                edge_stack.pop();
+                
             }
         }
     }
@@ -501,13 +497,13 @@ impl Path {
                     node_path.reverse();
 
                     // found_destinations.push(to.clone());
-                    let mut edges = IndexSet::new();
+                    let mut edges = Vec::new();
 
                     for transfer_slice in node_path.windows(2) {
                         // iterate over all pairs of nodes in node_path
 
                         // add index of edge between node pair to edges
-                        edges.insert(
+                        edges.push(
                             graph.find_edge(transfer_slice[0], transfer_slice[1]).unwrap()
                         );
                     }

@@ -26,7 +26,7 @@ fn main() {
 
     let snapshot_folder_path = "snapshot/";
 
-    let (mut model, groups) = if let Some(csv_folderpath) = csv_folderpath_option {
+    let (model, groups) = if let Some(csv_folderpath) = csv_folderpath_option {
         println!(
             "creating new model with_stations_trips_and_footpaths({}) and groups",
             csv_folderpath
@@ -36,7 +36,7 @@ fn main() {
         let groups = model.find_paths_for_groups(&format!("{}/groups.csv", csv_folderpath));
 
         println!("create snapshot of model and groups for next run");
-        Model::save_to_file(&model, snapshot_folder_path);
+        model.save_to_file(snapshot_folder_path);
         Group::save_to_file(&groups, snapshot_folder_path);
 
         if csv_folderpath.contains("sample_data") {

@@ -22,11 +22,6 @@ pub enum TimetableNode {
         time: u64,
         station_id: u64,
         station_name: String,
-    },
-
-    MainArrival {
-        station_id: u64,
-        station_name: String,
     }
 }
 
@@ -48,7 +43,6 @@ impl TimetableNode {
             Self::Departure {trip_id: _, time: _, station_id, station_name: _} => *station_id,
             Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => *station_id,
             Self::Transfer {time: _, station_id, station_name: _} => *station_id,
-            Self::MainArrival {station_id, station_name: _} => *station_id
         }
     }
 
@@ -58,7 +52,6 @@ impl TimetableNode {
             Self::Departure {trip_id: _, time: _, station_id: _, station_name} => station_name.clone(),
             Self::Arrival {trip_id: _, time: _, station_id: _, station_name} => station_name.clone(),
             Self::Transfer {time: _, station_id: _, station_name} => station_name.clone(),
-            Self::MainArrival { station_id: _, station_name } => station_name.clone()
         }
     }
 
@@ -95,20 +88,11 @@ impl TimetableNode {
     }
 
     #[inline]
-    pub fn is_main_arrival(&self) -> bool {
-        match self {
-            Self::MainArrival {station_id: _, station_name: _} => true,
-            _ => false
-        }
-    }
-
-    #[inline]
     pub fn kind_as_str(&self) -> &str {
         match self {
             Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
             Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => "Arrival",
             Self::Transfer {time: _, station_id: _, station_name: _}  => "Transfer",
-            Self::MainArrival {station_id: _, station_name: _} => "MainArrival",
         }
     }
 
@@ -118,7 +102,6 @@ impl TimetableNode {
             Self::Departure {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
             Self::Arrival {trip_id, time: _, station_id: _, station_name: _} => Some(*trip_id),
             Self::Transfer {time: _, station_id: _, station_name: _}  => None,
-            Self::MainArrival {station_id: _, station_name: _} => None,
         }
     }
 
@@ -152,8 +135,6 @@ pub enum TimetableEdge {
     Walk { // edge between arrival and next transfer node at other station
         duration: u64
     },
-
-    MainArrivalRelation // connects all arrivals to MainArrival node
 }
 
 
@@ -164,12 +145,11 @@ impl TimetableEdge {
     pub fn travel_cost(&self) -> u64 {
         match self {
             Self::Trip {duration: _, capacity: _, utilization: _} => 2,
-            Self::WaitInTrain {duration: _} => 1,
+            Self::WaitInTrain {duration: _} => 2,
             Self::Alight {duration: _} => 4,
-            Self::WaitAtStation {duration: _} => 3,
+            Self::WaitAtStation {duration} => *duration,
             Self::Walk {duration: _} => 10,
-            Self::Board => 5,
-            Self::MainArrivalRelation => 0 // no cost, just a "meta" edge
+            Self::Board => 4,
         }
     }
 
@@ -259,14 +239,6 @@ impl TimetableEdge {
             _ => false
         }
     }
-    
-    #[inline]
-    pub fn is_main_arrival_relation(&self) -> bool {
-        match self {
-            Self::MainArrivalRelation => true,
-            _ => false
-        }
-    }
 
     /// get duration of self, defaults to 0
     #[inline]
@@ -332,7 +304,6 @@ impl TimetableEdge {
             Self::Alight {duration: _} => "Alight",
             Self::WaitAtStation {duration: _} => "WaitAtStation",
             Self::Walk {duration: _} => "Walk",
-            Self::MainArrivalRelation => "MainArrivalRelation"
         }
     }
 }

@@ -2,6 +2,7 @@ use std::{collections::HashMap, fs::File, time::Instant};
 use serde::{Deserialize, Serialize};
 use std::io::{BufWriter, Write};
 use std::io::BufReader;
+use crossbeam_utils::thread;
 
 pub mod group;
 pub mod footpath;
@@ -31,14 +32,11 @@ pub struct Model {
     pub graph: DiGraph<TimetableNode, TimetableEdge>,
 
     // we need to store all transfer and arrival nodes for all stations at all times
-    // required as entry-/endpoints for search
+    // required as entry-/endpoints for path search
     stations_transfers: HashMap<u64, Vec<NodeIndex>>,
 
     // required for "in_trip" column of groups (groups could start in a train instead of a station)
-    stations_arrivals: HashMap<u64, Vec<NodeIndex>>, 
-
-    // connected to all arrivals of this station via zero-cost edge
-    stations_main_arrival: HashMap<u64, NodeIndex>,
+    stations_arrivals: HashMap<u64, Vec<NodeIndex>>
 }
 
 impl Model {
@@ -61,7 +59,6 @@ impl Model {
         let mut stations = station::Station::from_maps_to_map(&station_maps);
         let mut stations_transfers = HashMap::with_capacity(stations.len());
         let mut stations_arrivals = HashMap::with_capacity(stations.len());
-        let mut stations_main_arrival = HashMap::with_capacity(stations.len());
 
         // also save a HashMap of trips to parse group's "in_trip" column
         let trips = trip::Trip::from_maps_to_vec(&trip_maps);
@@ -75,22 +72,9 @@ impl Model {
             let station_name = station.name.clone();
             let (transfers, arrivals) = station.connect(&mut graph);
 
-            // create main arrival node
-            let main_arrival = graph.add_node(TimetableNode::MainArrival {
-                station_id: station_id.clone(),
-                station_name
-            });
-
-            // connect all arrival nodes to the main arrival
-            for arrival in arrivals.iter() {
-                // connect arrival to station's main node
-                graph.add_edge(*arrival, main_arrival, TimetableEdge::MainArrivalRelation);
-            }
-
             // save references to all transfers and to arrival_main
             stations_transfers.insert(station_id, transfers);
             stations_arrivals.insert(station_id, arrivals);
-            stations_main_arrival.insert(station_id,main_arrival);
         }
 
         let mut successful_footpath_counter = 0;
@@ -125,12 +109,11 @@ impl Model {
             graph,
             stations_transfers,
             stations_arrivals,
-            stations_main_arrival,
         }
     }
 
     /// save model to file (for later runs)
-    pub fn save_to_file(model: &Self, model_folder_path: &str) {
+    pub fn save_to_file(&self, model_folder_path: &str) {
         print!("saving model to {} ... ", model_folder_path);
         let start = Instant::now();
 
@@ -138,7 +121,7 @@ impl Model {
             File::create(&format!("{}model.bincode", model_folder_path)).expect(&format!("Could not open file {}model.bincode", model_folder_path))
         );
 
-        bincode::serialize_into(writer, model).expect("Could not dump model");
+        bincode::serialize_into(writer, self).expect("Could not dump model");
         //serde_json::to_writer(writer, model).expect("Could not dump model");
 
         println!("done ({}ms)", start.elapsed().as_millis());
@@ -181,24 +164,32 @@ impl Model {
 
         let groups_len = groups.len();
   
-        
         let start = Instant::now();
-        let mut n_groups_with_at_least_one_path: u64 = 0;
 
-        for (index, group) in groups.iter_mut().enumerate() {
+        let n_threads: usize = 8;
+        let chunk_size = groups_len / n_threads;
 
-            print!("[group={}/{}]: ", index+1, groups_len);
-            group.search_paths(&self);
-            
-            if group.paths.len() != 0 {
-                n_groups_with_at_least_one_path += 1;
+        // use multiple threads to find paths
+        thread::scope(|s| {
+            for (thread_id, group_chunk) in groups.chunks_mut(chunk_size).enumerate() {
+                s.spawn(move |_| {
+                          
+                    for group in group_chunk.iter_mut() {
+
+                        print!("[group={}]: ", group.id);
+                        group.search_paths(&self);
+                    }
+
+                });
             }
-        }
+        }).unwrap();
+
+        let n_groups_with_at_least_one_path = groups.iter().filter(|g| !g.paths.is_empty()).count();
 
         println!(
             "Found at least one path for {}/{} groups ({}%) in {}s ({}min)", 
             n_groups_with_at_least_one_path, groups.len(),
-            (100 * n_groups_with_at_least_one_path) / groups.len() as u64,
+            (100 * n_groups_with_at_least_one_path) / groups.len(),
             start.elapsed().as_secs(),
             start.elapsed().as_secs() / 60
         );
@@ -269,8 +260,8 @@ mod tests {
 
                         // Outgoing edge is WaitInTrain, Alight, Walk, or MainArrivalRelation
                         let edge_is_correct = edge_weight.is_wait_in_train() || edge_weight.is_alight()
-                            || edge_weight.is_walk() || edge_weight.is_main_arrival_relation();
-                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight, Walk, or MainArrivalRelation but {}!", edge_weight.kind_as_str()));
+                            || edge_weight.is_walk();
+                        assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight or Walk but {}!", edge_weight.kind_as_str()));
                         
                         // if edge is WaitInTrain -> Nodes have same trip and node b is departure
                         if edge_weight.is_wait_in_train() {
@@ -296,13 +287,6 @@ mod tests {
                             assert!(arrival_to_walk, format!("Node Arrival does not end in Transfer node after Walk edge but in {}!", node_b_weight.kind_as_str()));
                         }
 
-                        // if edge is MainStationRelation -> node b is MainArrival
-                        if edge_weight.is_main_arrival_relation() {
-                            let arrival_to_main_arrival = node_b_weight.is_main_arrival();
-                            assert!(arrival_to_main_arrival, format!("Node Arrival does not end in Transfer node after MainArrivalRelation edge but in {}!", node_b_weight.kind_as_str()));
-                            num_main_arrival += 1;
-                        }
-
                         // Arrival node has time before node b
                         if node_b_weight.is_departure() || node_b_weight.is_transfer() {
                             let arrival_before_departure_transfer = node_a_weight.time().unwrap() <= node_b_weight.time().unwrap();
@@ -310,7 +294,7 @@ mod tests {
                         }
 
                         // Arrival node and node b have same stations
-                        if node_b_weight.is_departure() || node_b_weight.is_main_arrival() {
+                        if node_b_weight.is_departure() {
                             // same stations
                             let same_stations = node_a_weight.station_id() == node_b_weight.station_id();
                             assert!(same_stations, format!("Arrival node and {} node have not same station! {} vs. {}", node_b_weight.kind_as_str(), node_a_weight.station_id(), node_b_weight.station_id()));
@@ -345,11 +329,6 @@ mod tests {
                         // both nodes have same station
                         let same_stations = node_a_weight.station_id() == node_b_weight.station_id();
                         assert!(same_stations, format!("Transfer node and {} node have not same station! {} vs. {}", node_b_weight.kind_as_str(), node_a_weight.station_id(), node_b_weight.station_id()));                   
-                    },
-                    TimetableNode::MainArrival {station_id: _, station_name: _} => {
-                        
-                        // todo: Panic because MainArrival node has no outgoing edges
-                        assert!(false, "MainArrival node has outgoing edge!")
                     }
                 }
             }
@@ -381,12 +360,6 @@ mod tests {
 
                     // Only one outoging board edge
                     assert!(num_board == 1, format!("Transfer node has {} outgoing Board edges instead of 1!", num_board));
-                },
-                TimetableNode::MainArrival {station_id: _, station_name: _} => {
-                        
-                    // has no outgoing edges
-                    let outoging_edge_count = graph.edges_directed(node_a_index, Outgoing).count();
-                    assert!(outoging_edge_count == 0, format!("MainArrival node has {} outgoing Board edges instead of 0!", outoging_edge_count));
                 }
             }
         }

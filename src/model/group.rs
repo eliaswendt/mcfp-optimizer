@@ -3,10 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::max,
     collections::HashMap,
+    fmt,
     fs::File,
     io::{BufReader, BufWriter},
     time::Instant,
-    fmt
 };
 
 use colored::Colorize;
@@ -22,13 +22,13 @@ use super::{
 pub struct Group {
     pub id: u64,
 
-    pub start_station_id: u64,       // Start-Halt für die Alternativensuche (Station ID)
+    pub start_station_id: u64, // Start-Halt für die Alternativensuche (Station ID)
     pub destination_station_id: u64, // Ziel der Gruppe (Station ID)
 
-    pub departure: u64, // Frühstmögliche Abfahrtszeit am Start-Halt (Integer)
-    pub arrival: u64,   // Ursprünglich geplante Ankunftszeit am Ziel (Integer)
+    pub departure_time: u64, // Frühstmögliche Abfahrtszeit am Start-Halt (Integer)
+    pub arrival_time: u64,   // Ursprünglich geplante Ankunftszeit am Ziel (Integer)
 
-    pub passengers: usize, // Größe der Gruppe (Integer)
+    pub passengers: u64, // Größe der Gruppe (Integer)
 
     // Hier gibt es zwei Möglichkeiten (siehe auch unten):
     // Wenn der Wert leer ist, befindet sich die Gruppe am Start-Halt.
@@ -37,7 +37,6 @@ pub struct Group {
 
     pub paths: Vec<Path>, // possible paths for this group
 }
-
 
 impl Group {
     pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
@@ -59,8 +58,8 @@ impl Group {
                 id,
                 start_station_id: group_map.get("start").unwrap().parse().unwrap(),
                 destination_station_id: group_map.get("destination").unwrap().parse().unwrap(),
-                departure: group_map.get("departure").unwrap().parse().unwrap(),
-                arrival: group_map.get("arrival").unwrap().parse().unwrap(),
+                departure_time: group_map.get("departure").unwrap().parse().unwrap(),
+                arrival_time: group_map.get("arrival").unwrap().parse().unwrap(),
                 passengers: group_map.get("passengers").unwrap().parse().unwrap(),
                 in_trip,
                 paths: Vec::new(),
@@ -116,7 +115,8 @@ impl Group {
                 // println!("start={}, in_trip={}, departure={}", self.start, in_trip, self.departure);
 
                 // FIRST: get all arrival nodes of the start station
-                let start_station_arrivals = model.stations_arrivals.get(&self.start_station_id).unwrap();
+                let start_station_arrivals =
+                    model.stations_arrivals.get(&self.start_station_id).unwrap();
 
                 // SECOND: search all arrivals for trip_id == in_trip AND time == start at start station
                 let mut selected_station_arrival = None;
@@ -124,7 +124,7 @@ impl Group {
                     let arrival = &model.graph[*start_station_arrival];
 
                     if arrival.trip_id().unwrap() == in_trip
-                        && arrival.time().unwrap() == self.departure
+                        && arrival.time().unwrap() == self.departure_time
                     {
                         selected_station_arrival = Some(*start_station_arrival);
                         // println!("Found arrival={:?}", arrival);
@@ -134,7 +134,7 @@ impl Group {
 
                 selected_station_arrival.expect(&format!(
                     "Could not find arrival for in_trip={} and departure={}",
-                    in_trip, self.departure
+                    in_trip, self.departure_time
                 ))
             }
             None => {
@@ -146,7 +146,8 @@ impl Group {
                     Some(station_transfers) => {
                         // iterate until we find a departure time >= the time we want to start
                         for station_transfer in station_transfers.iter() {
-                            if self.departure <= model.graph[*station_transfer].time().unwrap() {
+                            if self.departure_time <= model.graph[*station_transfer].time().unwrap()
+                            {
                                 selected_station_transfer = Some(*station_transfer);
                                 break;
                             }
@@ -159,24 +160,23 @@ impl Group {
             }
         };
 
-        let destination = model
-            .stations_main_arrival
-            .get(&self.destination_station_id)
-            .map(|main_arrival| *main_arrival)
-            .expect("Could not find destination station");
+        let destination_station_name = model.graph
+            [model.stations_arrivals.get(&self.start_station_id).unwrap()[0]]
+            .station_name();
 
-        if self.departure > self.arrival {
-            self.paths = Vec::new();
+        if self.departure_time > self.arrival_time {
+            // invalid time
+
             println!(
-                "{} -> {} ... data invalid!",
+                "{} -> {} ... arrival_time before departure_time -> skipping",
                 model.graph[start].station_name(),
-                model.graph[destination].station_name()
+                destination_station_name
             );
             return;
         }
 
         // max duration should depend on the original travel time
-        let travel_time = self.arrival - self.departure;
+        let travel_time = self.arrival_time - self.departure_time;
 
         //let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
         let max_duration = Group::calculate_max_travel_duration(travel_time);
@@ -185,29 +185,35 @@ impl Group {
         print!(
             "{} -> {} ... ",
             model.graph[start].station_name(),
-            model.graph[destination].station_name(),
+            destination_station_name
         );
 
-        // self.paths = path::Path::all_paths_iddfs(
-        //     &model.graph,
-        //     start,
-        //     destination,
-        //     self.passengers as u64,
-        //     max_duration,
-        //     self.arrival,
-        //     &vec![100, 150, 200], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
-        // );
+        // use iterative deepening search to find edge paths
+        let edge_sets = path::Path::all_paths_iddfs(
+            &model.graph,
+            start,
+            self.destination_station_id,
+            max_duration,
+            &vec![50, 60, 70, 80, 90, 100], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
+        );
+
+        // transform each edge_set into a full Path object
+        self.paths = edge_sets
+            .into_iter()
+            .filter(|edge_set| edge_set.len() != 0) // filter out empty edge_sets (paths that don't have a single edge)
+            .map(|edge_set| Path::new(&model.graph, edge_set, self.passengers, self.arrival_time))
+            .collect();
 
         // if self.paths.len() == 0 {
 
-            self.paths = path::Path::dfs_visitor_search(
-                &model.graph,
-                start,
-                model.graph[destination].station_id(),
-                self.passengers as u64,
-                self.arrival,
-                0,
-            );
+        // self.paths = path::Path::dfs_visitor_search(
+        //     &model.graph,
+        //     start,
+        //     self.destination_station_id,
+        //     self.passengers as u64,
+        //     self.arrival,
+        //     0,
+        // );
         // }
 
         // filter out paths that exceed duration or do not fulfill minium capacity
