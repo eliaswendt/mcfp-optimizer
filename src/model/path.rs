@@ -385,7 +385,7 @@ impl Path {
 
         // use this hashmap to track at which time the station's transfer was already visited (only replace with earlier times)
         // station_id -> time
-        let mut visited_stations: HashMap<u64, u64> = HashMap::with_capacity(6000000);
+        let mut visited_stations: HashMap<u64, u64> = HashMap::with_capacity(graph.node_count());
 
         let mut counter_already_visited_earlier = 0;
         let mut counter_out_of_calls = 0;
@@ -444,7 +444,7 @@ impl Path {
             results.push(edge_stack.clone());
         } else {
             if current_station_weight.is_arrival() {
-                // check we visited current station's transfer at an earlier point already
+                // check we visited current station's arrival at an earlier point already
                 // we would then stop following current path
                 match visited_stations.get(&current_station_weight_id) {
                     Some(last_station_time) => {
@@ -486,10 +486,10 @@ impl Path {
                     return;
                 }
 
-                // if edge_weight_duration > remaining_duration {
-                //     *counter_out_of_duration += 1;
-                //     return;
-                // }
+                if next_edge_weight_duration > remaining_duration {
+                    *counter_out_of_duration += 1;
+                    return;
+                }
 
                 // -> we can "afford" going using next_edge
 

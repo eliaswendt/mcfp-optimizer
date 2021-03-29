@@ -26,8 +26,8 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
 
     writer.write("time,temperature,cost,edge_cost,delay_cost\n".as_bytes()).unwrap();
 
-    let mut current = SelectionState::generate_random_state(graph, groups);
-    //let mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
+    //let mut current = SelectionState::generate_random_state(graph, groups);
+    let mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
     let mut time = 1;
 
     let start_instant = Instant::now();

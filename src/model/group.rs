@@ -193,8 +193,8 @@ impl Group {
             &model.graph,
             start,
             self.destination_station_id,
-            u64::MAX,//max_duration,
-            &vec![50, 60, 70, 80, 90, 100], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
+            max_duration,
+            &vec![u64::MAX], //&vec![5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
         );
 
         // transform each edge_set into a full Path object
@@ -241,6 +241,6 @@ impl Group {
     }
 
     fn calculate_max_travel_duration(travel_time: u64) -> u64 {
-        2 * travel_time + 60
+        travel_time + 60
     }
 }

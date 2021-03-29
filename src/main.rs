@@ -26,7 +26,7 @@ fn main() {
 
     let snapshot_folder_path = "snapshot/";
 
-    let (model, groups) = if let Some(csv_folderpath) = csv_folderpath_option {
+    let (mut model, groups) = if let Some(csv_folderpath) = csv_folderpath_option {
         println!(
             "creating new model with_stations_trips_and_footpaths({}) and groups",
             csv_folderpath
@@ -67,7 +67,7 @@ fn main() {
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
     // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
     // let mut groups_cloned = groups_with_at_least_one_path.clone();
-    // let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing_cost.csv");
+    let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing_cost.csv");
     //optimization::randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, "eval/randomized_best.csv");
 
     // let selection_state = SelectionState {
