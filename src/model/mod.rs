@@ -170,7 +170,7 @@ impl Model {
         let start = Instant::now();
 
         // use multiple threads to find paths
-        let n_threads: usize = 8;
+        let n_threads: usize = 1;
         thread::scope(|s| {
             for thread_id in 0..n_threads {
 
