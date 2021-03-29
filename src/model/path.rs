@@ -104,6 +104,41 @@ impl Path {
         self.edges.intersection(&other.edges).cloned().collect()
     }
 
+    pub fn get_walks(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
+        self.edges
+            .iter()
+            .map(|edge| if graph[*edge].is_walk() { 1 } else { 0 })
+            .sum()
+    }
+
+    pub fn get_waiting_time(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
+        self.edges
+            .iter()
+            .map(|edge| {
+                let edge_weight = &graph[*edge];
+                if edge_weight.is_wait_at_station() {
+                    edge_weight.duration()
+                } else {
+                    0
+                }
+            })
+            .sum()
+    }
+
+    pub fn get_in_trip_time(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
+        self.edges
+            .iter()
+            .map(|edge| {
+                let edge_weight = &graph[*edge];
+                if edge_weight.is_trip() || edge_weight.is_wait_in_train() {
+                    edge_weight.duration()
+                } else {
+                    0
+                }
+            })
+            .sum()
+    }
+
     /// print this path as human readable traval plan
     pub fn to_human_readable_string(
         &self,
@@ -145,15 +180,17 @@ impl Path {
         // For trip edges save (trip_id, duration, Trip)
         let mut travel = Vec::new();
 
-        // start with the first node if arrival (or departure, what should not be the case)
+        // start with the first node if arrival
         let (node_a_index, _) = graph.edge_endpoints(self.edges[0]).unwrap();
         let node_a = &graph[node_a_index];
-        if node_a.is_arrival() || node_a.is_departure() {
+        if node_a.is_arrival() {
             travel.push((
                 node_a.station_name(),
                 node_a.time(),
                 node_a.kind_as_str().to_string(),
             ));
+        } else if node_a.is_departure() {
+            print!("Warning! First node in path is departure!")
         }
 
         // summed trip duration for consecutive trip edges
@@ -196,8 +233,27 @@ impl Path {
 
                 // if node_b is arrival (after walk) or node_b is departure
                 if node_b.is_arrival() || node_b.is_departure() {
-                    travel.push((node_b.station_name(), node_b.time(), node_b.kind_as_str().to_string()));
+                    travel.push((
+                        node_b.station_name(),
+                        node_b.time(),
+                        node_b.kind_as_str().to_string(),
+                    ));
                 }
+            }
+        }
+
+        if trip_duration > 0 {
+            travel.push((current_trip.to_string(), trip_duration, "Trip".to_string()));
+
+            if let Some((_, node_b_index)) = graph.edge_endpoints(*self.edges.last().unwrap()) {
+                let node_b = &graph[node_b_index];
+                travel.push((
+                    node_b.station_name(),
+                    node_b.time(),
+                    node_b.kind_as_str().to_string(),
+                ));
+            } else {
+                println!("Warning! Last node is not arrival but edge was trip!")
             }
         }
 
@@ -347,17 +403,12 @@ impl Path {
 
         durations: &[u64], // maximum number of transfers to follow
     ) -> Vec<Vec<EdgeIndex>> {
-
         for duration in durations {
             print!("duration={} ... ", duration);
             io::stdout().flush().unwrap();
 
-            let edge_sets = Self::recursive_dfs_search(
-                graph,
-                start,
-                destination_station_id,
-                *duration,
-            );
+            let edge_sets =
+                Self::recursive_dfs_search(graph, start, destination_station_id, *duration);
 
             if edge_sets.len() >= min_edge_sets {
                 // found at least one path -> return
@@ -395,11 +446,9 @@ impl Path {
             &mut results,
             start,
             destination_station_id,
-
             &mut edge_stack,
             &mut visited_stations,
             max_duration,
-
             &mut counter_already_visited_earlier,
             &mut counter_out_of_calls,
             &mut counter_out_of_duration,
@@ -407,9 +456,7 @@ impl Path {
 
         print!(
             "[ave={} ooc={} ood={}] ",
-            counter_already_visited_earlier,
-            counter_out_of_calls,
-            counter_out_of_duration,
+            counter_already_visited_earlier, counter_out_of_calls, counter_out_of_duration,
         );
 
         results
@@ -452,12 +499,14 @@ impl Path {
                             return;
                         } else {
                             // we found an earlier visit -> replace time an continue search
-                            visited_stations.insert(current_station_weight_id, current_station_weight_time);
+                            visited_stations
+                                .insert(current_station_weight_id, current_station_weight_time);
                         }
                     }
                     None => {
                         // we did not visit this station before -> insert current visit time and continue search
-                        visited_stations.insert(current_station_weight_id, current_station_weight_time);
+                        visited_stations
+                            .insert(current_station_weight_id, current_station_weight_time);
                     }
                 }
             }
@@ -469,7 +518,6 @@ impl Path {
                 // lookup edge's cost
                 let next_edge_weight = &graph[next_edge];
                 let next_edge_weight_duration = next_edge_weight.duration();
-
 
                 if next_edge_weight_duration > remaining_duration {
                     *counter_out_of_duration += 1;
@@ -489,10 +537,8 @@ impl Path {
                     destination_station_id,
                     edge_stack,
                     visited_stations,
-
                     remaining_duration - next_edge_weight_duration,
                     counter_already_visited_earlier,
-
                     counter_out_of_calls,
                     counter_out_of_duration,
                 );

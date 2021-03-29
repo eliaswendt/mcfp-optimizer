@@ -57,6 +57,7 @@ pub fn simulated_annealing<'a>(
                 groups: groups,
                 cost: current_state.cost,
                 strained_edges_cost: current_state.strained_edges_cost,
+                travel_cost: current_state.travel_cost,
                 travel_delay_cost: current_state.travel_delay_cost,
                 groups_path_index: current_state.groups_path_index.clone(),
             };
@@ -67,7 +68,7 @@ pub fn simulated_annealing<'a>(
 
         print!(
             "[time={}]: current_cost={:5.}, current_delay={}, temp={:.2}, ",
-            time, current_state.cost, current_state.calculate_total_travel_delay(&new_group_list), temperature
+            time, current_state.cost, current_state.travel_delay_cost, temperature
         );
         writer
             .write(format!("{},{},{}\n", time, temperature, current_state.cost).as_bytes())
@@ -81,6 +82,7 @@ pub fn simulated_annealing<'a>(
                 groups: groups,
                 cost: current_state.cost,
                 strained_edges_cost: current_state.strained_edges_cost,
+                travel_cost: current_state.travel_cost,
                 travel_delay_cost: current_state.travel_delay_cost,
                 groups_path_index: current_state.groups_path_index.clone(),
             };

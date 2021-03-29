@@ -161,7 +161,7 @@ impl Group {
         };
 
         let destination_station_name = model.graph
-            [model.stations_arrivals.get(&self.start_station_id).unwrap()[0]]
+            [model.stations_arrivals.get(&self.destination_station_id).unwrap()[0]]
             .station_name();
 
         if self.departure_time > self.arrival_time {
