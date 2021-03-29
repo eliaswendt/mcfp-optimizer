@@ -1,7 +1,7 @@
 use indexmap::IndexSet;
 use petgraph::{EdgeDirection::Outgoing, dot::Dot, graph::{DiGraph, Edge, EdgeIndex, NodeIndex}, visit::{depth_first_search, Control, DfsEvent, EdgeRef}};
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::{HashMap, HashSet, VecDeque}, fmt, fs::File, io::{self, BufWriter, Write}, iter::from_fn, ops::Add, rc::Rc};
+use std::{cmp::Ordering, collections::{HashMap, HashSet, VecDeque}, fmt, fs::File, io::{self, BufWriter, Write}, iter::from_fn, ops::{Add, Index}, rc::Rc};
 
 use super::{TimetableEdge, TimetableNode};
 
@@ -643,10 +643,10 @@ impl Path {
 // indexed by NodeIndex
 // u64 stores cost to reach this node
 // EdgeIndex is edge to reach predecessor node
-type Predecessors = Vec<(u64, EdgeIndex)>;
+type Predecessors = Vec<EdgeIndex>;
 
 
-pub fn collect_paths_backwards_recursive(graph: &DiGraph<TimetableNode, TimetableEdge>, predecessors: &Vec<Predecessors>, current: NodeIndex, current_cost: u64, mut path: Vec<EdgeIndex>) -> Vec<Vec<EdgeIndex>> {
+pub fn collect_paths_recursive(graph: &DiGraph<TimetableNode, TimetableEdge>, predecessors: &Vec<Predecessors>, current: NodeIndex, mut path: Vec<EdgeIndex>) -> Vec<Vec<EdgeIndex>> {
 
     // recursion anchor
     if predecessors[current.index()].len() == 0 {
@@ -658,22 +658,15 @@ pub fn collect_paths_backwards_recursive(graph: &DiGraph<TimetableNode, Timetabl
 
         // collect edge_sets from recursive calls for all predecessors
         let mut edge_sets = Vec::new();
-        for (cost_until, backward_edge) in predecessors[current.index()].iter() {
+        for backward_edge in predecessors[current.index()].iter() {
             // iterate and remove all predecessor edges
     
-            let backward_edge_weight = &graph[*backward_edge];
-            let backward_edge_weight_cost = backward_edge_weight.travel_cost();
-            let backward_cost = current_cost - backward_edge_weight_cost;
-
-            println!("cost_until={}, current_cost={}, backward_edge_weight_cost={}", cost_until, current_cost, backward_edge_weight_cost);
-
             path.push(*backward_edge);
     
-            edge_sets.append(&mut collect_paths_backwards_recursive(
+            edge_sets.append(&mut collect_paths_recursive(
                 graph, 
                 predecessors, 
                 graph.edge_endpoints(*backward_edge).unwrap().0, // get starting node of edge 
-                backward_cost,
                 path.clone()
             ));
     
@@ -685,47 +678,49 @@ pub fn collect_paths_backwards_recursive(graph: &DiGraph<TimetableNode, Timetabl
     }
 }
 
-pub fn collect_path(graph: &DiGraph<TimetableNode, TimetableEdge>, predecessors: &mut Vec<Predecessors>, mut current: NodeIndex, mut current_cost: u64) -> Vec<EdgeIndex> {
+// pub fn collect_path(graph: &DiGraph<TimetableNode, TimetableEdge>, predecessors: &mut Vec<Predecessors>, mut current: NodeIndex, mut current_cost: u64) -> Vec<EdgeIndex> {
 
-    let mut path = Vec::new();
+//     let mut path = Vec::new();
 
-    loop {
-        let mut direct_predecessor_index = None;
+//     loop {
+//         // println!("collect_path(): current={:?}, path={:?}", graph[current], path);
 
-        for (index, (cost, _)) in predecessors[current.index()].iter().enumerate() {
-            if *cost == current_cost {
-                direct_predecessor_index = Some(index);
-                break;
-            }
-        }
+//         let mut direct_predecessor_index = None;
 
-        match direct_predecessor_index {
-            Some(index) => {
-                let (_, previous_edge) = predecessors[current.index()].remove(index);
+//         for (index, (cost, _)) in predecessors[current.index()].iter().enumerate() {
+//             if *cost == current_cost {
+//                 direct_predecessor_index = Some(index);
+//                 break;
+//             }
+//         }
 
-                path.push(previous_edge);
+//         match direct_predecessor_index {
+//             Some(index) => {
+//                 let (_, previous_edge) = &predecessors[current.index()][index];
 
-                // set new current to start point of previous_edge
-                current = graph.edge_endpoints(previous_edge).unwrap().0;
+//                 path.push(*previous_edge);
+
+//                 // set new current to start point of previous_edge
+//                 current = graph.edge_endpoints(*previous_edge).unwrap().0;
                                 
-                // reduce cost by cost of this edge
-                current_cost -= &graph[previous_edge].travel_cost();
-            },
-            None => {
-                // direct predecessor could not be found -> return path
-                path.reverse();
-                return path
-            }
-        }
-    }    
-}
+//                 // reduce cost by cost of this edge
+//                 current_cost -= &graph[*previous_edge].travel_cost();
+//             },
+//             None => {
+//                 // direct predecessor could not be found -> return path
+//                 path.reverse();
+//                 return path
+//             }
+//         }
+//     }    
+// }
 
 pub fn bfs(
     graph: &DiGraph<TimetableNode, TimetableEdge>,
     start: NodeIndex,
     destination_station_id: u64,
 
-    max_edge_sets: usize,
+    max_edge_vecs: usize,
 
     max_duration: u64,
     max_budget: u64,
@@ -738,34 +733,42 @@ pub fn bfs(
         predecessors.push(
             Vec::new()
         );
-    }    
+    }
+
+    let mut n_reached_destinations = 0;
+    let mut discovered_destination_nodes = HashSet::new();
 
     // found edge paths from start to destination_node_id
     let mut edge_vecs = Vec::new();
 
     // stores all the nodes we have to visit
-    let mut queue: VecDeque<(u64, NodeIndex)> = VecDeque::with_capacity(graph.node_count());
+    let mut queue: VecDeque<(u64, u64, NodeIndex)> = VecDeque::with_capacity(40000000);
     queue.push_back((
-        0, // cost until start is zero
+        0, // cost until start is zero,
+        0,
         start,
     ));
 
     // each iteration takes the first element from the queue
-    while let Some((current_cost, current)) = queue.pop_front() {
+    while let Some((current_cost, current_duration, current)) = queue.pop_front() {
+
+        if queue.len() >= 40000000 {
+            // emergency break 16GiB
+            print!("emergency break ");
+            break
+        }
 
         let current_node_weight = &graph[current];
         let current_node_weight_station_id = current_node_weight.station_id();
 
         if current_node_weight_station_id == destination_station_id {
-            // found destination node -> do not further follow this path and perform backwalk to collect edges to root
 
-            // edge_sets.append(
-            //     &mut collect_paths_backwards_recursive(graph, &mut predecessors, current, current_cost, Vec::new())
-            // );
+            n_reached_destinations += 1;
+            discovered_destination_nodes.insert(current);
 
-            edge_vecs.push(collect_path(graph, &mut predecessors, current, current_cost));
+            // edge_vecs.push(collect_path(graph, &mut predecessors, current, current_cost));
 
-            if edge_vecs.len() == 1 {
+            if n_reached_destinations == max_edge_vecs {
                 break
             }
         } else {
@@ -775,23 +778,41 @@ pub fn bfs(
     
                 let next_edge_weight = &graph[next_edge];
                 let next_edge_weight_cost = next_edge_weight.travel_cost();
+                let next_edge_weight_duration = next_edge_weight.duration();
 
                 let next_cost = current_cost + next_edge_weight_cost;
+                let next_duration = current_duration + next_edge_weight_duration;
+
+                if next_cost > max_budget {
+                    continue
+                }
+
+                if next_duration > max_duration {
+                    continue
+                }
 
                 // add current as predecessor of next_node
-                predecessors[next_node.index()].push((
-                    next_cost,
+                predecessors[next_node.index()].push(
                     next_edge,
-                ));
+                );
 
 
                 // push next_node at the end of queue
                 queue.push_back((
                     next_cost,
+                    next_duration,
                     next_node
                 ));
             }
         }
+    }
+
+
+    for discovered_destination_node in discovered_destination_nodes {
+
+        edge_vecs.append(
+            &mut collect_paths_recursive(graph, &predecessors, discovered_destination_node, Vec::new())
+        );
     }
 
     edge_vecs

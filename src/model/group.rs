@@ -179,13 +179,17 @@ impl Group {
         let travel_time = self.arrival_time - self.departure_time;
 
         //let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
-        let max_duration = Group::calculate_max_travel_duration(travel_time);
+        let max_duration = 1200 + (1.5 * travel_time as f64) as u64;
+        let max_budget = 130 + (1.5 * travel_time as f64) as u64;
+
 
         let start_instant = Instant::now();
         print!(
-            "{} -> {} ... ",
+            "{} -> {} max_bdg={}, max_dur={} .. ",
             model.graph[start].station_name(),
-            destination_station_name
+            destination_station_name,
+            max_budget,
+            max_duration
         );
 
         // // use iterative deepening search to find edge paths
@@ -204,31 +208,30 @@ impl Group {
             start,
             self.destination_station_id,
 
-            500,
-
-            0,
-            0
+            1,
+            max_duration,
+            max_budget
         );
 
 
-        for (index, edge_set) in edge_sets.iter().enumerate() {
+        // for (index, edge_set) in edge_sets.iter().enumerate() {
 
+        //     println!();
 
-            print!("[path_{}]: ", index);
-            for edge in edge_set.iter() {
-                print!("{:?} ", model.graph[*edge]);
-            }
-            println!();
+        //     print!("[path_{}]: ", index);
+        //     for edge in edge_set.iter() {
+        //         print!("{:?} ", model.graph[*edge]);
+        //     }
 
-            println!("\nexpected start_node_station_id={:?}", model.graph[start].station_id());
-            println!("expected destination_node_station_id={}", self.destination_station_id);
+        //     println!("\nexpected start_node_station_id={:?}", model.graph[start].station_id());
+        //     println!("expected destination_node_station_id={}", self.destination_station_id);
 
-            println!("path_start={}, path_end={}",
-                model.graph[model.graph.edge_endpoints(*edge_set.first().unwrap()).unwrap().0].station_id(),
+        //     println!("path_start={}, path_end={}",
+        //         model.graph[model.graph.edge_endpoints(*edge_set.first().unwrap()).unwrap().0].station_id(),
 
-                model.graph[model.graph.edge_endpoints(*edge_set.last().unwrap()).unwrap().1].station_id(),
-            );
-        }
+        //         model.graph[model.graph.edge_endpoints(*edge_set.last().unwrap()).unwrap().1].station_id(),
+        //     );
+        // }
 
         // transform each edge_set into a full Path object
         self.paths = edge_sets
