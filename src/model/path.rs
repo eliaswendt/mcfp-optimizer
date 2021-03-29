@@ -196,7 +196,11 @@ impl Path {
 
                 // if node_b is arrival (after walk) or node_b is departure
                 if node_b.is_arrival() || node_b.is_departure() {
-                    travel.push((node_b.station_name(), node_b.time(), node_b.kind_as_str().to_string()));
+                    travel.push((
+                        node_b.station_name(),
+                        node_b.time(),
+                        node_b.kind_as_str().to_string(),
+                    ));
                 }
             }
         }
@@ -346,8 +350,8 @@ impl Path {
         min_edge_sets: usize,
 
         durations: &[u64], // maximum number of transfers to follow
+        max_budget: u64,
     ) -> Vec<Vec<EdgeIndex>> {
-
         for duration in durations {
             print!("duration={} ... ", duration);
             io::stdout().flush().unwrap();
@@ -357,6 +361,7 @@ impl Path {
                 start,
                 destination_station_id,
                 *duration,
+                max_budget,
             );
 
             if edge_sets.len() >= min_edge_sets {
@@ -376,11 +381,13 @@ impl Path {
         destination_station_id: u64,
 
         max_duration: u64,
+        max_budget: u64,
     ) -> Vec<Vec<EdgeIndex>> {
         // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
 
         let mut results = Vec::new();
         let mut edge_stack = Vec::new();
+        let mut station_arrival_stack = IndexSet::new();
 
         // use this hashmap to track at which time the station's transfer was already visited (only replace with earlier times)
         // station_id -> time
@@ -388,28 +395,33 @@ impl Path {
 
         let mut counter_already_visited_earlier = 0;
         let mut counter_out_of_calls = 0;
+        let mut counter_out_of_budget = 0;
         let mut counter_out_of_duration = 0;
+
 
         Self::recursive_dfs_search_helper(
             graph,
             &mut results,
             start,
             destination_station_id,
-
             &mut edge_stack,
+            &mut station_arrival_stack,
             &mut visited_stations,
             max_duration,
+            max_budget,
 
             &mut counter_already_visited_earlier,
             &mut counter_out_of_calls,
-            &mut counter_out_of_duration,
+            &mut counter_out_of_budget,
+            &mut counter_out_of_duration
         );
 
         print!(
-            "[ave={} ooc={} ood={}] ",
+            "[ave={} ooc={} oob={} ood={}] ",
             counter_already_visited_earlier,
             counter_out_of_calls,
-            counter_out_of_duration,
+            counter_out_of_budget,
+            counter_out_of_duration
         );
 
         results
@@ -421,47 +433,47 @@ impl Path {
         current_node: NodeIndex,
         destination_station_id: u64,
         edge_stack: &mut Vec<EdgeIndex>, // visited edges (in order of visit)
+        station_arrival_stack: &mut IndexSet<u64>,
 
         // recursion anchors (if zero)
         visited_stations: &mut HashMap<u64, u64>,
         remaining_duration: u64,
+        remaining_budget: u64,
 
         counter_already_visited_earlier: &mut u64,
         counter_out_of_calls: &mut u64,
+        counter_out_of_budget: &mut u64,
         counter_out_of_duration: &mut u64,
-    ) {
-        let current_station_weight = &graph[current_node];
-        let current_station_weight_id = current_station_weight.station_id();
-        let current_station_weight_time = current_station_weight.time();
 
-        if current_station_weight_id == destination_station_id {
+    ) {
+        if edge_stack.len() == 45 {
+            // recursion depth reached -> break search here
+            *counter_out_of_calls += 1;
+            return
+        }
+
+        // println!("stack: {:?}", station_arrival_stack.len());
+
+        let current_node_weight = &graph[current_node];
+        let current_node_weight_station_id = current_node_weight.station_id();
+
+        let mut added_station_arrival = false;
+
+        if current_node_weight.is_arrival() {
+            if station_arrival_stack.insert(current_node_weight_station_id) {
+                // never visited an arrival of this station -> push onto stack
+                added_station_arrival = true;
+            } else {
+                // already visited an arrival at this station at an earlier time
+                *counter_already_visited_earlier += 1;
+                return;
+            }
+        }
+
+        if current_node_weight_station_id == destination_station_id {
             // found destination node -> don't further continue this path
             results.push(edge_stack.clone());
         } else {
-            if current_station_weight.is_arrival() {
-                // check we visited current station's arrival at an earlier point already
-                // we would then stop following current path
-                match visited_stations.get(&current_station_weight_id) {
-                    Some(last_station_time) => {
-                        // we visited this station before
-                        // now check if we visited it earlier
-
-                        if *last_station_time <= current_station_weight_time {
-                            // we visited this station earlier
-                            *counter_already_visited_earlier += 1;
-                            return;
-                        } else {
-                            // we found an earlier visit -> replace time an continue search
-                            visited_stations.insert(current_station_weight_id, current_station_weight_time);
-                        }
-                    }
-                    None => {
-                        // we did not visit this station before -> insert current visit time and continue search
-                        visited_stations.insert(current_station_weight_id, current_station_weight_time);
-                    }
-                }
-            }
-
             let mut walker = graph.neighbors(current_node).detach();
 
             // iterate over all outgoing edges
@@ -469,11 +481,18 @@ impl Path {
                 // lookup edge's cost
                 let next_edge_weight = &graph[next_edge];
                 let next_edge_weight_duration = next_edge_weight.duration();
+                let next_edge_weight_cost = next_edge_weight.travel_cost();
 
+                if next_edge_weight_cost > remaining_budget {
+                    // not enough budget left
+                    *counter_out_of_budget += 1;
+                    continue
+                }
 
                 if next_edge_weight_duration > remaining_duration {
+                    // not enough duration left
                     *counter_out_of_duration += 1;
-                    return;
+                    continue
                 }
 
                 // -> we can "afford" going using next_edge
@@ -488,18 +507,23 @@ impl Path {
                     next_node,
                     destination_station_id,
                     edge_stack,
+                    station_arrival_stack,
                     visited_stations,
-
                     remaining_duration - next_edge_weight_duration,
+                    remaining_budget - next_edge_weight_cost,
                     counter_already_visited_earlier,
-
                     counter_out_of_calls,
-                    counter_out_of_duration,
+                    counter_out_of_budget,
+                    counter_out_of_duration
                 );
 
                 // remove next_edge from stack
                 edge_stack.pop();
             }
+        }
+
+        if added_station_arrival {
+            station_arrival_stack.pop();
         }
     }
 
