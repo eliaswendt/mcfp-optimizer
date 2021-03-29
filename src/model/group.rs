@@ -211,7 +211,15 @@ impl Group {
         );
 
 
-        for edge_set in edge_sets.iter() {
+        for (index, edge_set) in edge_sets.iter().enumerate() {
+
+
+            print!("[path_{}]: ", index);
+            for edge in edge_set.iter() {
+                print!("{:?} ", model.graph[*edge]);
+            }
+            println!();
+
             println!("\nexpected start_node_station_id={:?}", model.graph[start].station_id());
             println!("expected destination_node_station_id={}", self.destination_station_id);
 
