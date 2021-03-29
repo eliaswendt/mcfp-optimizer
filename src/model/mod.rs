@@ -170,7 +170,7 @@ impl Model {
         let start = Instant::now();
 
         // use multiple threads to find paths
-        let n_threads: usize = 8;
+        let n_threads: usize = 1;
         thread::scope(|s| {
             for thread_id in 0..n_threads {
 
@@ -262,8 +262,8 @@ mod tests {
                         assert!(departure_to_arrival, format!("Node Departure does not end in Arrival node but in {}!", node_b_weight.kind_as_str()));
                         
                         // Departure time is before Arrival time
-                        let departure_before_arrival = node_a_weight.time().unwrap() <= node_b_weight.time().unwrap();
-                        assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_a_weight.time().unwrap(), node_b_weight.time().unwrap()));
+                        let departure_before_arrival = node_a_weight.time() <= node_b_weight.time();
+                        assert!(departure_before_arrival, format!("Node Departure has greater time as Arrival node! {} vs {}", node_a_weight.time(), node_b_weight.time()));
                         
                         // Departure node has only one outgoing edge
                         let one_outgoing = graph.neighbors(node_a_index).enumerate().count();
@@ -307,8 +307,8 @@ mod tests {
 
                         // Arrival node has time before node b
                         if node_b_weight.is_departure() || node_b_weight.is_transfer() {
-                            let arrival_before_departure_transfer = node_a_weight.time().unwrap() <= node_b_weight.time().unwrap();
-                            assert!(arrival_before_departure_transfer, format!("Node Arrival has greater time as {} node! {} vs {}", node_b_weight.kind_as_str(), node_a_weight.time().unwrap(), node_b_weight.time().unwrap()));
+                            let arrival_before_departure_transfer = node_a_weight.time() <= node_b_weight.time();
+                            assert!(arrival_before_departure_transfer, format!("Node Arrival has greater time as {} node! {} vs {}", node_b_weight.kind_as_str(), node_a_weight.time(), node_b_weight.time()));
                         }
 
                         // Arrival node and node b have same stations
@@ -329,8 +329,8 @@ mod tests {
                             let transfer_to_departure = node_b_weight.is_departure();
                             assert!(transfer_to_departure, format!("Node Transfer does not end in Departure node after Board edge but in {}!", node_b_weight.kind_as_str()));
 
-                            let same_time = node_a_weight.time().unwrap() == node_b_weight.time().unwrap();
-                            assert!(same_time, format!("Transfer node and Departure node have not same time! {} vs. {}", node_a_weight.time().unwrap(), node_b_weight.time().unwrap()));
+                            let same_time = node_a_weight.time() == node_b_weight.time();
+                            assert!(same_time, format!("Transfer node and Departure node have not same time! {} vs. {}", node_a_weight.time(), node_b_weight.time()));
                         
                             num_board += 1;
                         }
@@ -340,8 +340,8 @@ mod tests {
                             let transfer_to_transfer = node_b_weight.is_transfer();
                             assert!(transfer_to_transfer, format!("Node Transfer does not end in Transfer node after WaitAtStation edge but in {}!", node_b_weight.kind_as_str()));
                         
-                            let transfer_before_transfer = node_a_weight.time().unwrap() <= node_b_weight.time().unwrap();
-                            assert!(transfer_before_transfer, format!("Transfer node has not time less or equal Transfer node! {} vs. {}", node_a_weight.time().unwrap(), node_b_weight.time().unwrap()));
+                            let transfer_before_transfer = node_a_weight.time() <= node_b_weight.time();
+                            assert!(transfer_before_transfer, format!("Transfer node has not time less or equal Transfer node! {} vs. {}", node_a_weight.time(), node_b_weight.time()));
                         }
 
                         // both nodes have same station

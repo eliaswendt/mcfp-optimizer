@@ -124,7 +124,7 @@ impl Group {
                     let arrival = &model.graph[*start_station_arrival];
 
                     if arrival.trip_id().unwrap() == in_trip
-                        && arrival.time().unwrap() == self.departure_time
+                        && arrival.time() == self.departure_time
                     {
                         selected_station_arrival = Some(*start_station_arrival);
                         // println!("Found arrival={:?}", arrival);
@@ -146,7 +146,7 @@ impl Group {
                     Some(station_transfers) => {
                         // iterate until we find a departure time >= the time we want to start
                         for station_transfer in station_transfers.iter() {
-                            if self.departure_time <= model.graph[*station_transfer].time().unwrap()
+                            if self.departure_time <= model.graph[*station_transfer].time()
                             {
                                 selected_station_transfer = Some(*station_transfer);
                                 break;

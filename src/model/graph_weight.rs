@@ -28,12 +28,11 @@ pub enum TimetableNode {
 impl TimetableNode {
 
     #[inline]
-    pub fn time(&self) -> Option<u64> {
+    pub fn time(&self) -> u64 {
         match self {
-            Self::Departure {trip_id: _, time, station_id: _, station_name: _} => Some(*time),
-            Self::Arrival {trip_id: _, time, station_id: _, station_name: _} => Some(*time),
-            Self::Transfer {time, station_id: _, station_name: _} => Some(*time),
-            _ => None
+            Self::Departure {trip_id: _, time, station_id: _, station_name: _} => *time,
+            Self::Arrival {trip_id: _, time, station_id: _, station_name: _} => *time,
+            Self::Transfer {time, station_id: _, station_name: _} => *time,
         }
     }
 

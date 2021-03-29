@@ -39,7 +39,7 @@ impl Footpath {
 
         // for every arrival at the from_station try to find the next transfer node at the to_station
         for arrival in from_station_arrivals.iter() {
-            let arrival_time = graph[*arrival].time().unwrap();
+            let arrival_time = graph[*arrival].time();
 
             // timestamp of arrival at the footpaths to_station
             let earliest_transfer_time = arrival_time + self.duration;
@@ -48,7 +48,7 @@ impl Footpath {
 
             // try to find next transfer node at to_station (requires transfers to be sorted, earliest first)
             for transfer in to_station_transfers.iter() {
-                if earliest_transfer_time <= graph[*transfer].time().unwrap() {
+                if earliest_transfer_time <= graph[*transfer].time() {
                     graph.add_edge(
                         *arrival,
                         *transfer,

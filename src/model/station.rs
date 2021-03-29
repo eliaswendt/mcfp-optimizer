@@ -113,13 +113,13 @@ impl Station {
     ) -> (Vec<NodeIndex>, Vec<NodeIndex>) {
 
         // FIRST: sort transfers list by time (first tuple element)
-        self.transfers.sort_unstable_by_key(|transfer| graph[*transfer].time().unwrap());
+        self.transfers.sort_unstable_by_key(|transfer| graph[*transfer].time());
 
         // SECOND: connect all transfers with each other (only pairwise)
         for transfer_slice in self.transfers.windows(2) {
 
-            let transfer_a_time = graph[transfer_slice[0]].time().unwrap();
-            let transfer_b_time = graph[transfer_slice[1]].time().unwrap();
+            let transfer_a_time = graph[transfer_slice[0]].time();
+            let transfer_b_time = graph[transfer_slice[1]].time();
 
             graph.add_edge(
                 transfer_slice[0],
@@ -132,12 +132,12 @@ impl Station {
 
         // THIRD: iterate over all arrivals and connect them to the station's next available transfer
         for arrival in self.arrivals.values().flatten() {
-            let arrival_time = graph[*arrival].time().unwrap();
+            let arrival_time = graph[*arrival].time();
             let earliest_transfer_time = arrival_time + self.transfer_time;
 
             // try to find next transfer node at this station (requires transfers to be sorted (earliest first))
             for transfer in self.transfers.iter() {
-                if earliest_transfer_time <= graph[*transfer].time().unwrap() {
+                if earliest_transfer_time <= graph[*transfer].time() {
                     graph.add_edge(
                         *arrival,
                         *transfer,
@@ -159,8 +159,8 @@ impl Station {
 
             // from here on we have two vecs of arrivals and departures of the same trip
             for (arrival, departure) in arrivals_of_trip.iter().zip(departures_of_trip.iter()) {
-                let arrival_time = graph[*arrival].time().unwrap();
-                let departure_time = graph[*departure].time().unwrap();
+                let arrival_time = graph[*arrival].time();
+                let departure_time = graph[*departure].time();
 
                 // only create edge between arrival and departure only if arrival is before (time) departure
                 // this is required, as it otherwise would also connect start-/end station of a trip with equal start/destination
