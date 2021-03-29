@@ -193,8 +193,8 @@ impl Group {
             &model.graph,
             start,
             self.destination_station_id,
-            max_duration,
-            &vec![50, 60, 70, 80, 90, 100], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
+            u64::MAX,//max_duration,
+            &vec![50, 60, 70, 80, 90, 100, 110], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
         );
 
         // transform each edge_set into a full Path object

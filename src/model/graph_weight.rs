@@ -143,12 +143,12 @@ impl TimetableEdge {
     #[inline]
     pub fn travel_cost(&self) -> u64 {
         match self {
-            Self::Trip {duration: _, capacity: _, utilization: _} => 2,
-            Self::WaitInTrain {duration: _} => 2,
-            Self::Alight {duration: _} => 4,
-            Self::WaitAtStation {duration} => *duration,
-            Self::Walk {duration: _} => 10,
-            Self::Board => 4,
+            Self::Trip {duration: _, capacity: _, utilization: _} => 0,
+            Self::WaitInTrain {duration: _} => 0,
+            Self::Alight {duration: _} => 1,
+            Self::WaitAtStation {duration: _} => 0,
+            Self::Walk {duration: _} => 1,
+            Self::Board => 1,
         }
     }
 

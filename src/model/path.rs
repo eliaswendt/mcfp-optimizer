@@ -1,16 +1,29 @@
 use indexmap::IndexSet;
-use petgraph::{EdgeDirection::Outgoing, dot::Dot, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{Control, DfsEvent, EdgeRef, depth_first_search}};
+use petgraph::{
+    dot::Dot,
+    graph::{DiGraph, EdgeIndex, NodeIndex},
+    visit::{depth_first_search, Control, DfsEvent, EdgeRef},
+    EdgeDirection::Outgoing,
+};
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashSet, fmt, fs::File, io::{self, BufWriter, Write}, iter::from_fn, ops::Add};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    fmt,
+    fs::File,
+    io::{self, BufWriter, Write},
+    iter::from_fn,
+    ops::Add,
+};
 
 use super::{TimetableEdge, TimetableNode};
 
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
-    travel_cost: u64, // cost for this path
+    travel_cost: u64,     // cost for this path
     travel_duration: u64, // duration of this path
-    travel_delay: i64,  // time between planned and real arrival
-    utilization: u64, // number of passengers
+    travel_delay: i64,    // time between planned and real arrival
+    utilization: u64,     // number of passengers
 
     pub edges: IndexSet<EdgeIndex>,
 }
@@ -33,11 +46,14 @@ impl PartialEq for Path {
     }
 }
 
-
 impl Path {
     /// edges must not be empty
-    pub fn new(graph: &DiGraph<TimetableNode, TimetableEdge>, edges: Vec<EdgeIndex>, utilization: u64, planned_arrival_time: u64) -> Self {
-
+    pub fn new(
+        graph: &DiGraph<TimetableNode, TimetableEdge>,
+        edges: Vec<EdgeIndex>,
+        utilization: u64,
+        planned_arrival_time: u64,
+    ) -> Self {
         let mut travel_cost: u64 = 0;
         let mut duration: u64 = 0;
 
@@ -48,8 +64,8 @@ impl Path {
         }
 
         // get time of arrival node
-        let last_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().1; // todo .1 or .0 depends on final implementation
-        let real_arrival_time = graph[last_node].time().unwrap();
+        let last_node = graph.edge_endpoints(edges[edges.len() - 1]).unwrap().1; // todo .1 or .0 depends on final implementation
+        let real_arrival_time = graph[last_node].time();
 
         // calculate delay between planned and real_arrival
         let travel_delay = real_arrival_time as i64 - planned_arrival_time as i64;
@@ -59,7 +75,7 @@ impl Path {
             travel_duration: duration,
             utilization,
             travel_delay,
-            edges: edges.into_iter().collect()
+            edges: edges.into_iter().collect(),
         }
     }
 
@@ -89,14 +105,14 @@ impl Path {
     }
 
     /// print this path as human readable traval plan
-    pub fn to_human_readable_string(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> String {
-
+    pub fn to_human_readable_string(
+        &self,
+        graph: &DiGraph<TimetableNode, TimetableEdge>,
+    ) -> String {
         let mut result = String::new();
 
         for edge in self.edges.iter() {
-
             let edge_weight = &graph[*edge];
-
 
             if edge_weight.is_trip() || edge_weight.is_walk() {
                 // only show edges for trips and walks
@@ -105,7 +121,6 @@ impl Path {
 
                 let source_node_string = graph[source_node].station_name();
                 let target_node_string = graph[target_node].station_name();
-
 
                 result = format!(
                     "{}\n{} -> {} -> {}",
@@ -121,18 +136,24 @@ impl Path {
     }
 
     /// format path to a reduced readable consecutive sequence of Arrival/Departure nodes and Trip/Walk edges  
-    pub fn to_location_time_and_type(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> Vec<(String, u64, String)> {
-
+    pub fn to_location_time_and_type(
+        &self,
+        graph: &DiGraph<TimetableNode, TimetableEdge>,
+    ) -> Vec<(String, u64, String)> {
         // For arrival nodes or departure nodes save the following: (station, time, kind) with kind=Arrival or kind=Departure
         // For walk edges save ("", duration, Walk)
         // For trip edges save (trip_id, duration, Trip)
         let mut travel = Vec::new();
 
-        // start with the first node if arrival (or departure, what should not be the case) 
+        // start with the first node if arrival (or departure, what should not be the case)
         let (node_a_index, _) = graph.edge_endpoints(self.edges[0]).unwrap();
         let node_a = &graph[node_a_index];
         if node_a.is_arrival() || node_a.is_departure() {
-            travel.push((node_a.station_name(), node_a.time().unwrap(), node_a.kind_as_str().to_string()));
+            travel.push((
+                node_a.station_name(),
+                node_a.time(),
+                node_a.kind_as_str().to_string(),
+            ));
         }
 
         // summed trip duration for consecutive trip edges
@@ -152,23 +173,34 @@ impl Path {
                 trip_duration += edge.duration();
                 current_trip = node_a.trip_id().unwrap();
             } else {
-
                 // if edge is not ride or wait in train and duration != 0 -> last edge before was trip edge -> save trip and node_a in travel
                 if trip_duration != 0 {
                     travel.push((current_trip.to_string(), trip_duration, "Trip".to_string()));
-                    travel.push((node_a.station_name(), node_a.time().unwrap(), node_a.kind_as_str().to_string()));
+                    travel.push((
+                        node_a.station_name(),
+                        node_a.time(),
+                        node_a.kind_as_str().to_string(),
+                    ));
                     trip_duration = 0;
                     current_trip = 0;
                 }
 
                 // if edge is walk
                 if edge.is_walk() {
-                    travel.push(("".to_string(), node_b.time().unwrap() - node_a.time().unwrap(), edge.kind_as_str().to_string()));
+                    travel.push((
+                        "".to_string(),
+                        node_b.time() - node_a.time(),
+                        edge.kind_as_str().to_string(),
+                    ));
                 }
-                
+
                 // if node_b is arrival (after walk) or node_b is departure
                 if node_b.is_arrival() || node_b.is_departure() {
-                    travel.push((node_b.station_name(), node_b.time().unwrap(), node_b.kind_as_str().to_string()));
+                    travel.push((
+                        node_b.station_name(),
+                        node_b.time(),
+                        node_b.kind_as_str().to_string(),
+                    ));
                 }
             }
         }
@@ -177,33 +209,23 @@ impl Path {
     }
 
     pub fn display(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) {
-        for (location, time, kind) in self.to_location_time_and_type(graph) { 
+        for (location, time, kind) in self.to_location_time_and_type(graph) {
             if kind == "Arrival" || kind == "Departure" {
-                println!(
-                    "{} at station {}, time={} ->", 
-                    kind,
-                    location,
-                    time,
-                )
+                println!("{} at station {}, time={} ->", kind, location, time,)
             } else {
                 let mut in_trip = "".to_string();
                 if location != "" {
                     in_trip = format!(" in trip {}", location);
-                } 
+                }
 
-                println!(
-                    "{} with duration {}{} ->", 
-                    kind,
-                    time,
-                    in_trip
-                )
+                println!("{} with duration {}{} ->", kind, time, in_trip)
             }
         }
     }
-    
+
     pub fn to_string(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> String {
         let mut path_string = String::new();
-        for (location, time, kind) in self.to_location_time_and_type(graph) { 
+        for (location, time, kind) in self.to_location_time_and_type(graph) {
             path_string += &format!("{}.{}.{}->", location, time, kind);
         }
         path_string.pop();
@@ -212,7 +234,11 @@ impl Path {
     }
 
     /// builds subgraph that only contains nodes connected by edges
-    pub fn create_subgraph_from_edges(&self, graph: &DiGraph<TimetableNode, TimetableEdge>, filepath: &str) {
+    pub fn create_subgraph_from_edges(
+        &self,
+        graph: &DiGraph<TimetableNode, TimetableEdge>,
+        filepath: &str,
+    ) {
         let new_graph = graph.filter_map(
             |node_index, node_weight| {
                 // check if at least one incoming/outgoing edge of current node is in HashSet of edges
@@ -238,10 +264,11 @@ impl Path {
         let dot_code = format!("{:?}", Dot::with_config(&new_graph, &[]));
 
         BufWriter::new(
-            File::create(filepath).expect(&format!("Could not create dot-file at {}", filepath))
-        ).write(dot_code.as_bytes()).unwrap();
+            File::create(filepath).expect(&format!("Could not create dot-file at {}", filepath)),
+        )
+        .write(dot_code.as_bytes())
+        .unwrap();
     }
-
 
     // /// returns a Vec<(missing capacity, edge)> that do not have enough capacity left for this path
     // /// if Vec empty -> all edges fit
@@ -263,7 +290,11 @@ impl Path {
 
     /// occupy self to graph (add utilization to edges)
     #[inline]
-    pub fn strain_to_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>, strained_edges: &mut HashSet<EdgeIndex>) {
+    pub fn strain_to_graph(
+        &self,
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>,
+        strained_edges: &mut HashSet<EdgeIndex>,
+    ) {
         for edge in self.edges.iter() {
             graph[*edge].increase_utilization(self.utilization);
 
@@ -274,9 +305,12 @@ impl Path {
 
     /// release self from graph (remove utilization from edges)
     #[inline]
-    pub fn relieve_from_graph(&self, graph: &mut DiGraph<TimetableNode, TimetableEdge>, strained_edges: &mut HashSet<EdgeIndex>) {
+    pub fn relieve_from_graph(
+        &self,
+        graph: &mut DiGraph<TimetableNode, TimetableEdge>,
+        strained_edges: &mut HashSet<EdgeIndex>,
+    ) {
         for edge in self.edges.iter() {
-
             let timetable_edge = &mut graph[*edge];
             timetable_edge.decrease_utilization(self.utilization);
 
@@ -315,9 +349,8 @@ impl Path {
         destination_station_id: u64, // condition that determines whether goal node was found
 
         max_duration: u64,
-        budgets: &[u64] // maximum number of transfers to follow
+        budgets: &[u64], // maximum number of transfers to follow
     ) -> Vec<Vec<EdgeIndex>> {
-
         for budget in budgets {
             print!("budget={} ... ", budget);
             io::stdout().flush().unwrap();
@@ -326,7 +359,6 @@ impl Path {
                 graph,
                 start,
                 destination_station_id,
-
                 max_duration,
                 *budget,
             );
@@ -346,7 +378,7 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
         destination_station_id: u64,
-        
+
         max_duration: u64,
         budget: u64, // initial search budget (each edge has cost that needs to be payed)
     ) -> Vec<Vec<EdgeIndex>> {
@@ -355,6 +387,12 @@ impl Path {
         let mut results = Vec::new();
         let mut edge_stack = Vec::new();
 
+        // use this hashmap to track at which time the station's transfer was already visited (only replace with earlier times)
+        // station_id -> time
+        let mut visited_stations: HashMap<u64, u64> = HashMap::with_capacity(10000000);
+
+        let mut counter_already_visited_earlier = 0;
+        let mut counter_out_of_calls = 0;
         let mut counter_out_of_duration = 0;
         let mut counter_out_of_budget = 0;
 
@@ -364,18 +402,25 @@ impl Path {
             start,
             destination_station_id,
             &mut edge_stack,
+            &mut visited_stations,
             max_duration,
             budget,
-
+            &mut counter_already_visited_earlier,
+            &mut counter_out_of_calls,
             &mut counter_out_of_duration,
-            &mut counter_out_of_budget
+            &mut counter_out_of_budget,
         );
 
-        print!("[ood={}, oob={}] ", counter_out_of_duration, counter_out_of_budget);
+        print!(
+            "[ave={} ooc={} ood={} oob={}] ",
+            counter_already_visited_earlier,
+            counter_out_of_calls,
+            counter_out_of_duration,
+            counter_out_of_budget
+        );
 
         results
     }
-
 
     fn recursive_dfs_search_helper(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
@@ -385,48 +430,76 @@ impl Path {
         edge_stack: &mut Vec<EdgeIndex>, // visited edges (in order of visit)
 
         // recursion anchors (if zero)
+        visited_stations: &mut HashMap<u64, u64>,
         remaining_duration: u64,
         remaining_budget: u64,
 
+        counter_already_visited_earlier: &mut u64,
+        counter_out_of_calls: &mut u64,
         counter_out_of_duration: &mut u64,
-        counter_out_of_budget: &mut u64
+        counter_out_of_budget: &mut u64,
     ) {
-        if graph[current_node].station_id() == destination_station_id {
+        let current_station_weight = &graph[current_node];
+        let current_station_weight_id = current_station_weight.station_id();
+        let current_station_weight_time = current_station_weight.time();
 
+        if current_station_weight_id == destination_station_id {
             // found destination node -> don't further continue this path
             results.push(edge_stack.clone());
-
         } else {
+            if current_station_weight.is_transfer() {
+                // check we visited current station's transfer at an earlier point already
+                // we would then stop following current path
+                match visited_stations.get(&current_station_weight_id) {
+                    Some(last_station_time) => {
+                        // we visited this station before
+                        // now check if we visited it earlier
+
+                        if *last_station_time <= current_station_weight_time {
+                            // we visited this station earlier
+                            *counter_already_visited_earlier += 1;
+                            return;
+                        } else {
+                            // we found an earlier visit -> replace time an continue search
+                            visited_stations.insert(current_station_weight_id, current_station_weight_time);
+                        }
+                    }
+                    None => {
+                        // we did not visit this station before -> insert current visit time and continue search
+                        visited_stations.insert(current_station_weight_id, current_station_weight_time);
+                    }
+                }
+            }
 
             let mut walker = graph.neighbors(current_node).detach();
 
             // iterate over all outgoing edges
             while let Some((next_edge, next_node)) = walker.next(graph) {
-
                 // lookup edge's cost
-                let edge_weight = &graph[next_edge];
-                let edge_weight_cost = edge_weight.travel_cost();
-                
-                if edge_stack.len() == 90 {
-                    return
-                }
-                
-                if edge_weight_cost > remaining_budget {
+                let next_edge_weight = &graph[next_edge];
+                let next_edge_weight_cost = next_edge_weight.travel_cost();
+                let next_edge_weight_duration = next_edge_weight.duration();
+
+                // if edge_stack.len() == 80 {
+                //     *counter_out_of_calls += 1;
+                //     return;
+                // }
+
+                if next_edge_weight_cost > remaining_budget {
                     *counter_out_of_budget += 1;
-                    return
+                    return;
                 }
-                
-                let edge_weight_duration = edge_weight.duration();
-                if edge_weight_duration > remaining_duration {
-                    *counter_out_of_duration += 1;
-                    return
-                }
+
+                // if edge_weight_duration > remaining_duration {
+                //     *counter_out_of_duration += 1;
+                //     return;
+                // }
 
                 // -> we can "afford" going using next_edge
-                
+
                 // add next_edge to stack
                 edge_stack.push(next_edge);
-                
+
                 // make recursive call
                 &mut Self::recursive_dfs_search_helper(
                     graph,
@@ -434,21 +507,20 @@ impl Path {
                     next_node,
                     destination_station_id,
                     edge_stack,
-                    remaining_duration - edge_weight_duration,
-                    remaining_budget - edge_weight_cost,
-
+                    visited_stations,
+                    remaining_duration - next_edge_weight_duration,
+                    remaining_budget - next_edge_weight_cost,
+                    counter_already_visited_earlier,
+                    counter_out_of_calls,
                     counter_out_of_duration,
-                    counter_out_of_budget
+                    counter_out_of_budget,
                 );
 
                 // remove next_edge from stack
                 edge_stack.pop();
-                
             }
         }
     }
-
-
 
     /// petgraph native depth first search (using visitors)
     /// currently fastest implementation (full traversation, no duration/budget/capacity limitation)
@@ -456,36 +528,31 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
         destination_station_id: u64, // condition that determines whether goal node was found
-        
+
         utilization: u64, // number of passengers, weight of load, etc.
         planned_arrival: u64,
 
         limit_paths: usize,
     ) -> Vec<Self> {
-
         let mut paths = Vec::new();
 
         let mut predecessor = vec![NodeIndex::end(); graph.node_count()];
 
-        let start_time = graph[start].time().unwrap();
+        let start_time = graph[start].time();
 
-        depth_first_search(graph, Some(start), | event| {
-
+        depth_first_search(graph, Some(start), |event| {
             if let DfsEvent::TreeEdge(u, v) = event {
                 predecessor[v.index()] = u;
 
                 let timetable_node = &graph[v];
-                if let Some(current_time) = timetable_node.time() {
-                    if current_time - start_time > 4 * (planned_arrival - start_time) + 60 {
-                        return Control::Prune
-                    }
+                if timetable_node.time() - start_time > 4 * (planned_arrival - start_time) + 60 {
+                    return Control::Prune;
                 }
-                
 
                 if graph[v].station_id() == destination_station_id {
                     // we found destination node -> use predecessor map to look-up edge path
                     // start at destination node (to) and "walk" back to start (from), collect all nodes in path vec and then reverse vec
-        
+
                     let mut next = v; //destination_station_id;
                     let mut node_path = vec![next];
 
@@ -504,25 +571,22 @@ impl Path {
 
                         // add index of edge between node pair to edges
                         edges.push(
-                            graph.find_edge(transfer_slice[0], transfer_slice[1]).unwrap()
+                            graph
+                                .find_edge(transfer_slice[0], transfer_slice[1])
+                                .unwrap(),
                         );
                     }
 
                     // create and insert Self
-                    paths.push(Self::new(
-                        graph,
-                        edges,
-                        utilization,
-                        planned_arrival,
-                    ));
+                    paths.push(Self::new(graph, edges, utilization, planned_arrival));
 
                     if limit_paths != 0 && paths.len() >= limit_paths {
-                        return Control::Break(v)
+                        return Control::Break(v);
                     }
-                    return Control::Prune
+                    return Control::Prune;
                 }
             }
-            
+
             // always continue dfs
             Control::<NodeIndex>::Continue
         });
@@ -530,9 +594,6 @@ impl Path {
         paths
     }
 }
-
-
-
 
 /// working too good
 fn all_simple_paths_dfs_dorian(
