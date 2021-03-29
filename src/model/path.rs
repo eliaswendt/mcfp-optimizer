@@ -196,11 +196,7 @@ impl Path {
 
                 // if node_b is arrival (after walk) or node_b is departure
                 if node_b.is_arrival() || node_b.is_departure() {
-                    travel.push((
-                        node_b.station_name(),
-                        node_b.time(),
-                        node_b.kind_as_str().to_string(),
-                    ));
+                    travel.push((node_b.station_name(), node_b.time(), node_b.kind_as_str().to_string()));
                 }
             }
         }
