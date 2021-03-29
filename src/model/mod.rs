@@ -236,8 +236,6 @@ mod tests {
             
             let mut children = graph.neighbors_directed(node_a_index, Outgoing).detach();
 
-            // Number of MainArrival node found for Arrival node
-            let mut num_main_arrival = 0;
             // Number of WaitInTrain edges for Arrival node
             let mut num_wait_in_train = 0;
             // Number of Board edges for Transfer node
@@ -276,7 +274,7 @@ mod tests {
 
                     TimetableNode::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
 
-                        // Outgoing edge is WaitInTrain, Alight, Walk, or MainArrivalRelation
+                        // Outgoing edge is WaitInTrain, Alight, or Walk
                         let edge_is_correct = edge_weight.is_wait_in_train() || edge_weight.is_alight()
                             || edge_weight.is_walk();
                         assert!(edge_is_correct, format!("Outgoing edge of arrival node is not WaitInStation, Alight or Walk but {}!", edge_weight.kind_as_str()));
@@ -361,16 +359,6 @@ mod tests {
                 },
                 TimetableNode::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => {
                     
-                    // Only one MainArrival node found
-                    if num_main_arrival != 1 {
-                        println!("Outgoing edges:");
-                        let mut children = graph.neighbors_directed(node_a_index, Outgoing).detach();
-                        while let Some((child_edge_index, child_node_index)) = children.next(&graph) {
-                            println!("{:?}", graph.edge_weight(child_edge_index).unwrap());
-                        }
-                    }
-                    assert!(num_main_arrival == 1, format!("Arrival node has {} MainArrival nodes instead of 1!", num_main_arrival));
-
                     // Max one WaitInTrain outgoing edge per Arrival
                     assert!(num_wait_in_train <= 1, format!("Arrival node has {} outgoing WaitInTrain edges instead of 0 or 1!", num_wait_in_train));
                 },

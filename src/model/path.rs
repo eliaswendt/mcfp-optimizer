@@ -49,7 +49,7 @@ impl Path {
 
         // get time of arrival node
         let last_node = graph.edge_endpoints(edges[edges.len()-1]).unwrap().1; // todo .1 or .0 depends on final implementation
-        let real_arrival_time = graph[last_node].time().unwrap();
+        let real_arrival_time = graph[last_node].time();
 
         // calculate delay between planned and real_arrival
         let travel_delay = real_arrival_time as i64 - planned_arrival_time as i64;
@@ -132,7 +132,7 @@ impl Path {
         let (node_a_index, _) = graph.edge_endpoints(self.edges[0]).unwrap();
         let node_a = &graph[node_a_index];
         if node_a.is_arrival() || node_a.is_departure() {
-            travel.push((node_a.station_name(), node_a.time().unwrap(), node_a.kind_as_str().to_string()));
+            travel.push((node_a.station_name(), node_a.time(), node_a.kind_as_str().to_string()));
         }
 
         // summed trip duration for consecutive trip edges
@@ -156,19 +156,19 @@ impl Path {
                 // if edge is not ride or wait in train and duration != 0 -> last edge before was trip edge -> save trip and node_a in travel
                 if trip_duration != 0 {
                     travel.push((current_trip.to_string(), trip_duration, "Trip".to_string()));
-                    travel.push((node_a.station_name(), node_a.time().unwrap(), node_a.kind_as_str().to_string()));
+                    travel.push((node_a.station_name(), node_a.time(), node_a.kind_as_str().to_string()));
                     trip_duration = 0;
                     current_trip = 0;
                 }
 
                 // if edge is walk
                 if edge.is_walk() {
-                    travel.push(("".to_string(), node_b.time().unwrap() - node_a.time().unwrap(), edge.kind_as_str().to_string()));
+                    travel.push(("".to_string(), node_b.time() - node_a.time(), edge.kind_as_str().to_string()));
                 }
                 
                 // if node_b is arrival (after walk) or node_b is departure
                 if node_b.is_arrival() || node_b.is_departure() {
-                    travel.push((node_b.station_name(), node_b.time().unwrap(), node_b.kind_as_str().to_string()));
+                    travel.push((node_b.station_name(), node_b.time(), node_b.kind_as_str().to_string()));
                 }
             }
         }
@@ -467,7 +467,7 @@ impl Path {
 
         let mut predecessor = vec![NodeIndex::end(); graph.node_count()];
 
-        let start_time = graph[start].time().unwrap();
+        let start_time = graph[start].time();
 
         depth_first_search(graph, Some(start), | event| {
 
@@ -475,13 +475,11 @@ impl Path {
                 predecessor[v.index()] = u;
 
                 let timetable_node = &graph[v];
-                if let Some(current_time) = timetable_node.time() {
-                    if current_time - start_time > 4 * (planned_arrival - start_time) + 60 {
+                let current_time = timetable_node.time();
+                if current_time - start_time > 4 * (planned_arrival - start_time) + 60 {
                         return Control::Prune
-                    }
                 }
                 
-
                 if graph[v].station_id() == destination_station_id {
                     // we found destination node -> use predecessor map to look-up edge path
                     // start at destination node (to) and "walk" back to start (from), collect all nodes in path vec and then reverse vec
