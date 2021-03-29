@@ -188,14 +188,26 @@ impl Group {
             destination_station_name
         );
 
-        // use iterative deepening search to find edge paths
-        let edge_sets = path::Path::all_paths_iddfs(
+        // // use iterative deepening search to find edge paths
+        // let edge_sets = path::Path::all_paths_iddfs(
+        //     &model.graph,
+        //     start,
+        //     self.destination_station_id,
+        //     1,
+
+        //     &vec![travel_time + 60, (1.5 * travel_time as f64) as u64 + 60], //&vec![5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
+        //     travel_time + 400,
+        // );
+
+        let edge_sets = path::bfs(
             &model.graph,
             start,
             self.destination_station_id,
-            5,
-            
-            &vec![travel_time + 60, 2 * travel_time + 60, 3 * travel_time + 60], //&vec![5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
+
+            500,
+
+            0,
+            0
         );
 
         // transform each edge_set into a full Path object

@@ -6,15 +6,7 @@ use petgraph::{
     EdgeDirection::Outgoing,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
-    fmt,
-    fs::File,
-    io::{self, BufWriter, Write},
-    iter::from_fn,
-    ops::Add,
-};
+use std::{cmp::Ordering, collections::{HashMap, HashSet, VecDeque}, fmt, fs::File, io::{self, BufWriter, Write}, iter::from_fn, ops::Add, rc::Rc};
 
 use super::{TimetableEdge, TimetableNode};
 
@@ -402,13 +394,19 @@ impl Path {
         min_edge_sets: usize,
 
         durations: &[u64], // maximum number of transfers to follow
+        max_budget: u64,
     ) -> Vec<Vec<EdgeIndex>> {
         for duration in durations {
             print!("duration={} ... ", duration);
             io::stdout().flush().unwrap();
 
-            let edge_sets =
-                Self::recursive_dfs_search(graph, start, destination_station_id, *duration);
+            let edge_sets = Self::recursive_dfs_search(
+                graph,
+                start,
+                destination_station_id,
+                *duration,
+                max_budget,
+            );
 
             if edge_sets.len() >= min_edge_sets {
                 // found at least one path -> return
@@ -427,11 +425,13 @@ impl Path {
         destination_station_id: u64,
 
         max_duration: u64,
+        max_budget: u64,
     ) -> Vec<Vec<EdgeIndex>> {
         // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
 
         let mut results = Vec::new();
         let mut edge_stack = Vec::new();
+        let mut station_arrival_stack = IndexSet::new();
 
         // use this hashmap to track at which time the station's transfer was already visited (only replace with earlier times)
         // station_id -> time
@@ -439,7 +439,9 @@ impl Path {
 
         let mut counter_already_visited_earlier = 0;
         let mut counter_out_of_calls = 0;
+        let mut counter_out_of_budget = 0;
         let mut counter_out_of_duration = 0;
+
 
         Self::recursive_dfs_search_helper(
             graph,
@@ -447,16 +449,23 @@ impl Path {
             start,
             destination_station_id,
             &mut edge_stack,
+            &mut station_arrival_stack,
             &mut visited_stations,
             max_duration,
+            max_budget,
+
             &mut counter_already_visited_earlier,
             &mut counter_out_of_calls,
-            &mut counter_out_of_duration,
+            &mut counter_out_of_budget,
+            &mut counter_out_of_duration
         );
 
         print!(
-            "[ave={} ooc={} ood={}] ",
-            counter_already_visited_earlier, counter_out_of_calls, counter_out_of_duration,
+            "[ave={} ooc={} oob={} ood={}] ",
+            counter_already_visited_earlier,
+            counter_out_of_calls,
+            counter_out_of_budget,
+            counter_out_of_duration
         );
 
         results
@@ -468,49 +477,47 @@ impl Path {
         current_node: NodeIndex,
         destination_station_id: u64,
         edge_stack: &mut Vec<EdgeIndex>, // visited edges (in order of visit)
+        station_arrival_stack: &mut IndexSet<u64>,
 
         // recursion anchors (if zero)
         visited_stations: &mut HashMap<u64, u64>,
         remaining_duration: u64,
+        remaining_budget: u64,
 
         counter_already_visited_earlier: &mut u64,
         counter_out_of_calls: &mut u64,
+        counter_out_of_budget: &mut u64,
         counter_out_of_duration: &mut u64,
-    ) {
-        let current_station_weight = &graph[current_node];
-        let current_station_weight_id = current_station_weight.station_id();
-        let current_station_weight_time = current_station_weight.time();
 
-        if current_station_weight_id == destination_station_id {
+    ) {
+        if edge_stack.len() == 45 {
+            // recursion depth reached -> break search here
+            *counter_out_of_calls += 1;
+            return
+        }
+
+        // println!("stack: {:?}", station_arrival_stack.len());
+
+        let current_node_weight = &graph[current_node];
+        let current_node_weight_station_id = current_node_weight.station_id();
+
+        let mut added_station_arrival = false;
+
+        if current_node_weight.is_arrival() {
+            if station_arrival_stack.insert(current_node_weight_station_id) {
+                // never visited an arrival of this station -> push onto stack
+                added_station_arrival = true;
+            } else {
+                // already visited an arrival at this station at an earlier time
+                *counter_already_visited_earlier += 1;
+                return;
+            }
+        }
+
+        if current_node_weight_station_id == destination_station_id {
             // found destination node -> don't further continue this path
             results.push(edge_stack.clone());
         } else {
-            if current_station_weight.is_arrival() {
-                // check we visited current station's arrival at an earlier point already
-                // we would then stop following current path
-                match visited_stations.get(&current_station_weight_id) {
-                    Some(last_station_time) => {
-                        // we visited this station before
-                        // now check if we visited it earlier
-
-                        if *last_station_time <= current_station_weight_time {
-                            // we visited this station earlier
-                            *counter_already_visited_earlier += 1;
-                            return;
-                        } else {
-                            // we found an earlier visit -> replace time an continue search
-                            visited_stations
-                                .insert(current_station_weight_id, current_station_weight_time);
-                        }
-                    }
-                    None => {
-                        // we did not visit this station before -> insert current visit time and continue search
-                        visited_stations
-                            .insert(current_station_weight_id, current_station_weight_time);
-                    }
-                }
-            }
-
             let mut walker = graph.neighbors(current_node).detach();
 
             // iterate over all outgoing edges
@@ -518,10 +525,18 @@ impl Path {
                 // lookup edge's cost
                 let next_edge_weight = &graph[next_edge];
                 let next_edge_weight_duration = next_edge_weight.duration();
+                let next_edge_weight_cost = next_edge_weight.travel_cost();
+
+                if next_edge_weight_cost > remaining_budget {
+                    // not enough budget left
+                    *counter_out_of_budget += 1;
+                    continue
+                }
 
                 if next_edge_weight_duration > remaining_duration {
+                    // not enough duration left
                     *counter_out_of_duration += 1;
-                    return;
+                    continue
                 }
 
                 // -> we can "afford" going using next_edge
@@ -536,16 +551,23 @@ impl Path {
                     next_node,
                     destination_station_id,
                     edge_stack,
+                    station_arrival_stack,
                     visited_stations,
                     remaining_duration - next_edge_weight_duration,
+                    remaining_budget - next_edge_weight_cost,
                     counter_already_visited_earlier,
                     counter_out_of_calls,
-                    counter_out_of_duration,
+                    counter_out_of_budget,
+                    counter_out_of_duration
                 );
 
                 // remove next_edge from stack
                 edge_stack.pop();
             }
+        }
+
+        if added_station_arrival {
+            station_arrival_stack.pop();
         }
     }
 
@@ -621,6 +643,98 @@ impl Path {
         paths
     }
 }
+
+
+// u64 stores cost to reach this node
+// EdgeIndex is edge to reach predecessor (NodeIndex)
+type Predecessors = Vec<(u64, EdgeIndex, NodeIndex)>;
+
+pub fn bfs(
+    graph: &DiGraph<TimetableNode, TimetableEdge>,
+    start: NodeIndex,
+    destination_station_id: u64,
+
+    max_edge_sets: usize,
+
+    max_duration: u64,
+    max_budget: u64,
+) -> Vec<Vec<EdgeIndex>> {
+
+    // first create a(n empty) VisitedNode object for each node in the graph
+    // print!("generating visited nodes array")
+    let mut predecessors_per_node: Vec<Predecessors> = Vec::with_capacity(graph.node_count());
+    for _ in graph.node_indices() {
+        predecessors_per_node.push(
+            Vec::new()
+        );
+    }    
+
+    // found edge paths from start to destination_node_id
+    let mut edge_sets = Vec::new();
+
+    // stores all the nodes we have to visit
+    let mut queue: VecDeque<(u64, NodeIndex)> = VecDeque::with_capacity(graph.node_count());
+    queue.push_back((
+        0, // cost until here
+        start
+    ));
+
+    // each iteration takes the first element from the queue
+    while let Some((cost, current)) = queue.pop_front() {
+
+        let current_node_weight = &graph[current];
+        let current_node_weight_station_id = current_node_weight.station_id();
+
+        if current_node_weight_station_id == destination_station_id {
+            // found destination node -> do not further follow this path and perform backwalk to collect edges to root
+
+            // todo: backwalk
+            println!("Found destination with predecessors: {:?}", predecessors_per_node[current.index()]);
+            
+            let mut edge_set = Vec::new();
+
+            let mut next = current;
+            loop {
+                let predecessors = predecessors_per_node[current.index()];
+                for (cost_until, pred_edge, pred_node) in predecessors.iter() {
+                    println!("Found path with cost={}");
+                }
+            }
+
+            if edge_sets.len() == max_edge_sets {
+                break
+            }
+        } else {
+            // iterate over all outgoing edges of current
+            let mut walker = graph.neighbors(current).detach();
+            while let Some((next_edge, next_node)) = walker.next(graph) {
+    
+                let next_edge_weight = &graph[next_edge];
+                let next_edge_weight_cost = next_edge_weight.travel_cost();
+
+                let next_cost = cost + next_edge_weight_cost;
+
+                // add current as predecessor of next_node
+                predecessors_per_node[next_node.index()].push((
+                    next_cost,
+                    next_edge,
+                    current
+                ));
+
+
+                // push next_node at the end of queue
+                queue.push_back((
+                    next_cost,
+                    next_node
+                ));
+            }
+        }
+    }
+
+    edge_sets
+}
+
+
 
 /// working too good
 fn all_simple_paths_dfs_dorian(
