@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, time::Instant};
+use std::{collections::HashMap, fs::File, sync::{Arc, Mutex}, time::Instant};
 use serde::{Deserialize, Serialize};
 use std::io::{BufWriter, Write};
 use std::io::BufReader;
@@ -159,30 +159,48 @@ impl Model {
         // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
         // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
 
-        let mut groups = Group::from_maps_to_vec(
-            &csv_reader::read_to_maps(groups_csv_filepath));
-
-        let groups_len = groups.len();
+        let unprocessed_groups = Arc::new(
+            Mutex::new(
+                Group::from_maps_to_vec(&csv_reader::read_to_maps(groups_csv_filepath))
+            )
+        );
+            
+        let processed_groups = Arc::new(Mutex::new(Vec::with_capacity(unprocessed_groups.lock().unwrap().len())));
   
         let start = Instant::now();
 
-        let n_threads: usize = 8;
-        let chunk_size = groups_len / n_threads;
-
         // use multiple threads to find paths
+        let n_threads: usize = 8;
         thread::scope(|s| {
-            for (thread_id, group_chunk) in groups.chunks_mut(chunk_size).enumerate() {
+            for thread_id in 0..n_threads {
+
+                let unprocessed_groups = Arc::clone(&unprocessed_groups);
+                let processed_groups = Arc::clone(&processed_groups);
+
                 s.spawn(move |_| {
-                          
-                    for group in group_chunk.iter_mut() {
+                    loop {
+                        let group_option = unprocessed_groups.lock().unwrap().pop();
 
-                        print!("[group={}]: ", group.id);
-                        group.search_paths(&self);
+                        match group_option {
+                            Some(mut group) => {
+                                print!("[group={}]: ", group.id);
+                                group.search_paths(&self);
+
+                                // add processed group to processed vec
+                                processed_groups.lock().unwrap().push(group)
+
+                            },
+                            None => {
+                                // no group left in unprocessed vec
+                                break
+                            }
+                        }
                     }
-
                 });
             }
         }).unwrap();
+
+        let groups = processed_groups.lock().unwrap().clone();
 
         let n_groups_with_at_least_one_path = groups.iter().filter(|g| !g.paths.is_empty()).count();
 
