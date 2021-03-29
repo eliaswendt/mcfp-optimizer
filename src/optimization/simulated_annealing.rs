@@ -24,7 +24,7 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
         File::create(filepath).expect(&format!("Could not create file \"{}\"", filepath))
     );
 
-    writer.write("time,temperature,cost,edge_cost,delay_cost\n".as_bytes()).unwrap();
+    writer.write("time,temperature,cost,edge_cost,travel_cost,delay_cost\n".as_bytes()).unwrap();
 
     //let mut current = SelectionState::generate_random_state(graph, groups);
     let mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
@@ -35,8 +35,8 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
     loop {
         let temperature = time_to_temperature(time as f64);
 
-        print!("[time={}]: current_cost={}, current_edge_cost={}, current_delay={}, temp={:.2}, ", time, current.cost, current.strained_edges_cost, current.travel_delay_cost, temperature);
-        writer.write(format!("{},{},{},{},{}\n", time, temperature, current.cost, current.strained_edges_cost, current.travel_delay_cost).as_bytes()).unwrap();
+        print!("[time={}]: cost={}, edge_cost={}, travel_cost={}, delay_cost={}, temp={:.2}, ", time, current.cost, current.strained_edges_cost, current.travel_cost, current.travel_delay_cost, temperature);
+        writer.write(format!("{},{},{},{},{},{}\n", time, temperature, current.cost, current.strained_edges_cost, current.travel_cost, current.travel_delay_cost).as_bytes()).unwrap();
 
         // actually exactly zero, but difficult with float
         if temperature < 1.0 {

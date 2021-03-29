@@ -373,43 +373,116 @@ mod tests {
         println!("[validate_graph_integrity()]: passed ({}ms)", start.elapsed().as_millis());
     }
 
-    // #[test]
-    // fn validate_groups_paths_integrity() {
+    #[test]
+    fn validate_groups_paths_integrity() {
 
-    //     let model = Model::with_stations_trips_and_footpaths("real_data");
-    //     let graph = &model.graph;
-    //     let groups = &model.find_paths_for_groups("real_data/groups.csv");
+        let snapshot_folder_path = "snapshot/";
+        let model = Model::load_from_file(snapshot_folder_path);
+        let graph = &model.graph;
+        let groups = Group::load_from_file(snapshot_folder_path);
 
-    //     for group in groups {
-    //         let paths = &group.paths;
+        // test all groups
+        for group in groups {
 
-    //         let from = model
-    //             .find_start_node_index(&group.start, group.departure)
-    //             .expect("Could not find departure at from_station");
-    //         let to = model
-    //             .find_end_node_index(&group.destination)
-    //             .expect("Could not find destination station");
+            // get all paths of group
+            let paths = &group.paths;
 
-    //         for path in paths {
-    //             let edges = &path.edges;
+            // get start and destination station id
+            let start_station_id = group.start_station_id;
+            let destination_station_id = group.destination_station_id;
 
-    //             let mut current_node_index = from;
+            // find start node id
+            let start: NodeIndex = match group.in_trip {
+                Some(in_trip) => {
+                    // in_trip is set -> start at arrival of current trip
+    
+                    // println!("start={}, in_trip={}, departure={}", self.start, in_trip, self.departure);
+    
+                    // FIRST: get all arrival nodes of the start station
+                    let start_station_arrivals =
+                        model.stations_arrivals.get(&group.start_station_id).unwrap();
+    
+                    // SECOND: search all arrivals for trip_id == in_trip AND time == start at start station
+                    let mut selected_station_arrival = None;
+                    for start_station_arrival in start_station_arrivals.iter() {
+                        let arrival = &model.graph[*start_station_arrival];
+    
+                        if arrival.trip_id().unwrap() == in_trip
+                            && arrival.time() == group.departure_time
+                        {
+                            selected_station_arrival = Some(*start_station_arrival);
+                            // println!("Found arrival={:?}", arrival);
+                            break;
+                        }
+                    }
+    
+                    selected_station_arrival.expect(&format!(
+                        "Could not find arrival for in_trip={} and departure={}",
+                        in_trip, group.departure_time
+                    ))
+                }
+                None => {
+                    // in_trip is not set -> start at station transfer
+    
+                    let mut selected_station_transfer = None;
+    
+                    match model.stations_transfers.get(&group.start_station_id) {
+                        Some(station_transfers) => {
+                            // iterate until we find a departure time >= the time we want to start
+                            for station_transfer in station_transfers.iter() {
+                                if group.departure_time <= model.graph[*station_transfer].time()
+                                {
+                                    selected_station_transfer = Some(*station_transfer);
+                                    break;
+                                }
+                            }
+                        }
+                        None => {}
+                    }
+    
+                    selected_station_transfer.expect("Could not find departure at from_station")
+                }
+            };
+    
+            // find destination station name
+            let destination_station_name = model.graph
+                [model.stations_arrivals.get(&group.destination_station_id).unwrap()[0]]
+                .station_name();
 
-    //             'outer: for edge in edges {
-    //                 let mut walker = graph.neighbors_directed(current_node_index, Outgoing).detach();
-    //                 while let Some((edge_index, node_index)) = walker.next(graph) {
-    //                     if *edge == edge_index {
-    //                         current_node_index = node_index;
-    //                         continue 'outer;
-    //                     }
-    //                 }
-    //                 assert!(false, "Path is not correctly connected!")
-    //             }
+            let start_timetable_node = &graph[start];
+            // test if start node's station id equals groups' start_station_id
+            assert!(start_timetable_node.station_id() == start_station_id, "Start node has not correct station id!");
+            // test if start node is transfer or arrival
+            assert!(start_timetable_node.is_arrival() || start_timetable_node.is_transfer(), "Start station is neither arrival nor transfer node!");
+            // test if time of start node is >= groups departure time
+            assert!(start_timetable_node.time() >= group.departure_time, "Start node's time is smaller than group's departure time!");
 
-    //             assert!(current_node_index == to, "Last node is not correct!")
-    //         }
-    //     }
-    // }
+            for path in paths {
+
+                let edges = &path.edges;
+
+                // test if first edge is correct node
+                assert!(graph.edge_endpoints(edges[0]).unwrap().0 == start, "First node in path does not equal start node!");
+
+                let mut current_node_index = start;
+
+                'outer: for edge in edges {
+                    let mut walker = graph.neighbors_directed(current_node_index, Outgoing).detach();
+                    while let Some((edge_index, node_index)) = walker.next(graph) {
+                        if *edge == edge_index {
+                            current_node_index = node_index;
+                            continue 'outer;
+                        }
+                    }
+                    assert!(false, "Path is not correctly connected!")
+                }
+                assert!(current_node_index == graph.edge_endpoints(*edges.last().unwrap()).unwrap().1, "Last edge node in path is not current edge!");
+                assert!(model.graph[current_node_index].station_id() == destination_station_id, "Last station id is not correct!");
+                assert!(model.graph[current_node_index].station_name() == destination_station_name, "Last station name is not correct!");
+                assert!(model.graph[current_node_index].is_arrival() || model.graph[current_node_index].is_transfer(), "Last node is not arrival!")
+            }
+        }
+    }
 }
 
 
