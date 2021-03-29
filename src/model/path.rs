@@ -343,23 +343,23 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
         destination_station_id: u64, // condition that determines whether goal node was found
+        min_edge_sets: usize,
 
-        max_duration: u64,
-        budgets: &[u64], // maximum number of transfers to follow
+        durations: &[u64], // maximum number of transfers to follow
     ) -> Vec<Vec<EdgeIndex>> {
-        for budget in budgets {
-            print!("budget={} ... ", budget);
+
+        for duration in durations {
+            print!("duration={} ... ", duration);
             io::stdout().flush().unwrap();
 
             let edge_sets = Self::recursive_dfs_search(
                 graph,
                 start,
                 destination_station_id,
-                max_duration,
-                *budget,
+                *duration,
             );
 
-            if edge_sets.len() > 0 {
+            if edge_sets.len() >= min_edge_sets {
                 // found at least one path -> return
                 return edge_sets;
             }
@@ -376,7 +376,6 @@ impl Path {
         destination_station_id: u64,
 
         max_duration: u64,
-        budget: u64, // initial search budget (each edge has cost that needs to be payed)
     ) -> Vec<Vec<EdgeIndex>> {
         // println!("all_paths_dfs(from={:?}, to={:?}, min_capacity={}, max_duration={})", from, to, min_capacity, max_duration);
 
@@ -390,29 +389,27 @@ impl Path {
         let mut counter_already_visited_earlier = 0;
         let mut counter_out_of_calls = 0;
         let mut counter_out_of_duration = 0;
-        let mut counter_out_of_budget = 0;
 
         Self::recursive_dfs_search_helper(
             graph,
             &mut results,
             start,
             destination_station_id,
+
             &mut edge_stack,
             &mut visited_stations,
             max_duration,
-            budget,
+
             &mut counter_already_visited_earlier,
             &mut counter_out_of_calls,
             &mut counter_out_of_duration,
-            &mut counter_out_of_budget,
         );
 
         print!(
-            "[ave={} ooc={} ood={} oob={}] ",
+            "[ave={} ooc={} ood={}] ",
             counter_already_visited_earlier,
             counter_out_of_calls,
             counter_out_of_duration,
-            counter_out_of_budget
         );
 
         results
@@ -428,12 +425,10 @@ impl Path {
         // recursion anchors (if zero)
         visited_stations: &mut HashMap<u64, u64>,
         remaining_duration: u64,
-        remaining_budget: u64,
 
         counter_already_visited_earlier: &mut u64,
         counter_out_of_calls: &mut u64,
         counter_out_of_duration: &mut u64,
-        counter_out_of_budget: &mut u64,
     ) {
         let current_station_weight = &graph[current_node];
         let current_station_weight_id = current_station_weight.station_id();
@@ -473,18 +468,8 @@ impl Path {
             while let Some((next_edge, next_node)) = walker.next(graph) {
                 // lookup edge's cost
                 let next_edge_weight = &graph[next_edge];
-                let next_edge_weight_cost = next_edge_weight.travel_cost();
                 let next_edge_weight_duration = next_edge_weight.duration();
 
-                // if edge_stack.len() == 80 {
-                //     *counter_out_of_calls += 1;
-                //     return;
-                // }
-
-                if next_edge_weight_cost > remaining_budget {
-                    *counter_out_of_budget += 1;
-                    return;
-                }
 
                 if next_edge_weight_duration > remaining_duration {
                     *counter_out_of_duration += 1;
@@ -504,12 +489,12 @@ impl Path {
                     destination_station_id,
                     edge_stack,
                     visited_stations,
+
                     remaining_duration - next_edge_weight_duration,
-                    remaining_budget - next_edge_weight_cost,
                     counter_already_visited_earlier,
+
                     counter_out_of_calls,
                     counter_out_of_duration,
-                    counter_out_of_budget,
                 );
 
                 // remove next_edge from stack
