@@ -210,6 +210,18 @@ impl Group {
             0
         );
 
+
+        for edge_set in edge_sets.iter() {
+            println!("\nexpected start_node_station_id={:?}", model.graph[start].station_id());
+            println!("expected destination_node_station_id={}", self.destination_station_id);
+
+            println!("path_start={}, path_end={}",
+                model.graph[model.graph.edge_endpoints(*edge_set.first().unwrap()).unwrap().0].station_id(),
+
+                model.graph[model.graph.edge_endpoints(*edge_set.last().unwrap()).unwrap().1].station_id(),
+            );
+        }
+
         // transform each edge_set into a full Path object
         self.paths = edge_sets
             .into_iter()

@@ -1,10 +1,5 @@
 use indexmap::IndexSet;
-use petgraph::{
-    dot::Dot,
-    graph::{DiGraph, EdgeIndex, NodeIndex},
-    visit::{depth_first_search, Control, DfsEvent, EdgeRef},
-    EdgeDirection::Outgoing,
-};
+use petgraph::{EdgeDirection::Outgoing, dot::Dot, graph::{DiGraph, Edge, EdgeIndex, NodeIndex}, visit::{depth_first_search, Control, DfsEvent, EdgeRef}};
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::{HashMap, HashSet, VecDeque}, fmt, fs::File, io::{self, BufWriter, Write}, iter::from_fn, ops::Add, rc::Rc};
 
@@ -593,9 +588,51 @@ impl Path {
 }
 
 
+// indexed by EdgeIndex
 // u64 stores cost to reach this node
-// EdgeIndex is edge to reach predecessor (NodeIndex)
-type Predecessors = Vec<(u64, EdgeIndex, NodeIndex)>;
+// EdgeIndex is edge to reach predecessor node
+type Predecessors = Vec<(u64, EdgeIndex)>;
+
+
+pub fn collect_paths_backwards_recursive(graph: &DiGraph<TimetableNode, TimetableEdge>, predecessors: &mut Vec<Predecessors>, current: NodeIndex, current_cost: u64, mut path: Vec<EdgeIndex>) -> Vec<Vec<EdgeIndex>> {
+
+    if predecessors[current.index()].len() == 0 {
+        // if current has no predecessors (we reached the start of the path) -> set path as single 
+        path.reverse();
+        vec![path]
+
+    } else {
+
+        // collect edge_sets from recursive calls for all predecessors
+        let mut edge_sets = Vec::new();
+        while let Some((cost_until, backward_edge)) = predecessors[current.index()].pop() {
+            // iterate and remove all predecessor edges
+    
+            let backward_edge_weight = &graph[backward_edge];
+            let backward_edge_weight_cost = backward_edge_weight.travel_cost();
+            let backward_cost = current_cost - backward_edge_weight_cost;
+
+            println!("cost_until={}, backward_cost={} ({} - {})", cost_until, backward_cost, current_cost, backward_edge_weight_cost);
+
+
+            path.push(backward_edge);
+    
+            edge_sets.append(&mut collect_paths_backwards_recursive(
+                graph, 
+                predecessors, 
+                graph.edge_endpoints(backward_edge).unwrap().0, // get starting node of edge 
+                backward_cost,
+                path.clone()
+            ));
+    
+            // remove *backward_edge
+            path.pop();
+        }
+
+        edge_sets
+    }
+}
+
 
 pub fn bfs(
     graph: &DiGraph<TimetableNode, TimetableEdge>,
@@ -610,9 +647,9 @@ pub fn bfs(
 
     // first create a(n empty) VisitedNode object for each node in the graph
     // print!("generating visited nodes array")
-    let mut predecessors_per_node: Vec<Predecessors> = Vec::with_capacity(graph.node_count());
+    let mut predecessors: Vec<Predecessors> = Vec::with_capacity(graph.node_count());
     for _ in graph.node_indices() {
-        predecessors_per_node.push(
+        predecessors.push(
             Vec::new()
         );
     }    
@@ -623,12 +660,12 @@ pub fn bfs(
     // stores all the nodes we have to visit
     let mut queue: VecDeque<(u64, NodeIndex)> = VecDeque::with_capacity(graph.node_count());
     queue.push_back((
-        0, // cost until here
-        start
+        0, // cost until start is zero
+        start,
     ));
 
     // each iteration takes the first element from the queue
-    while let Some((cost, current)) = queue.pop_front() {
+    while let Some((current_cost, current)) = queue.pop_front() {
 
         let current_node_weight = &graph[current];
         let current_node_weight_station_id = current_node_weight.station_id();
@@ -636,18 +673,13 @@ pub fn bfs(
         if current_node_weight_station_id == destination_station_id {
             // found destination node -> do not further follow this path and perform backwalk to collect edges to root
 
-            // todo: backwalk
-            println!("Found destination with predecessors: {:?}", predecessors_per_node[current.index()]);
-            
-            let mut edge_set = Vec::new();
+            edge_sets.append(
+                &mut collect_paths_backwards_recursive(graph, &mut predecessors, current, current_cost, Vec::new())
+            );
 
-            let mut next = current;
-            loop {
-                let predecessors = predecessors_per_node[current.index()];
-                for (cost_until, pred_edge, pred_node) in predecessors.iter() {
-                    println!("Found path with cost={}");
-                }
-            }
+            println!("edge_sets: {:?}", edge_sets);
+            // println!("Found destination_node_id, collected paths: {:?}", edge_sets);
+            std::process::exit(0);
 
             if edge_sets.len() == max_edge_sets {
                 break
@@ -660,13 +692,12 @@ pub fn bfs(
                 let next_edge_weight = &graph[next_edge];
                 let next_edge_weight_cost = next_edge_weight.travel_cost();
 
-                let next_cost = cost + next_edge_weight_cost;
+                let next_cost = current_cost + next_edge_weight_cost;
 
                 // add current as predecessor of next_node
-                predecessors_per_node[next_node.index()].push((
+                predecessors[next_node.index()].push((
                     next_cost,
                     next_edge,
-                    current
                 ));
 
 
