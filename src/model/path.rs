@@ -6,15 +6,7 @@ use petgraph::{
     EdgeDirection::Outgoing,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
-    fmt,
-    fs::File,
-    io::{self, BufWriter, Write},
-    iter::from_fn,
-    ops::Add,
-};
+use std::{cmp::Ordering, collections::{HashMap, HashSet, VecDeque}, fmt, fs::File, io::{self, BufWriter, Write}, iter::from_fn, ops::Add, rc::Rc};
 
 use super::{TimetableEdge, TimetableNode};
 
@@ -599,6 +591,98 @@ impl Path {
         paths
     }
 }
+
+
+// u64 stores cost to reach this node
+// EdgeIndex is edge to reach predecessor (NodeIndex)
+type Predecessors = Vec<(u64, EdgeIndex, NodeIndex)>;
+
+pub fn bfs(
+    graph: &DiGraph<TimetableNode, TimetableEdge>,
+    start: NodeIndex,
+    destination_station_id: u64,
+
+    max_edge_sets: usize,
+
+    max_duration: u64,
+    max_budget: u64,
+) -> Vec<Vec<EdgeIndex>> {
+
+    // first create a(n empty) VisitedNode object for each node in the graph
+    // print!("generating visited nodes array")
+    let mut predecessors_per_node: Vec<Predecessors> = Vec::with_capacity(graph.node_count());
+    for _ in graph.node_indices() {
+        predecessors_per_node.push(
+            Vec::new()
+        );
+    }    
+
+    // found edge paths from start to destination_node_id
+    let mut edge_sets = Vec::new();
+
+    // stores all the nodes we have to visit
+    let mut queue: VecDeque<(u64, NodeIndex)> = VecDeque::with_capacity(graph.node_count());
+    queue.push_back((
+        0, // cost until here
+        start
+    ));
+
+    // each iteration takes the first element from the queue
+    while let Some((cost, current)) = queue.pop_front() {
+
+        let current_node_weight = &graph[current];
+        let current_node_weight_station_id = current_node_weight.station_id();
+
+        if current_node_weight_station_id == destination_station_id {
+            // found destination node -> do not further follow this path and perform backwalk to collect edges to root
+
+            // todo: backwalk
+            println!("Found destination with predecessors: {:?}", predecessors_per_node[current.index()]);
+            
+            let mut edge_set = Vec::new();
+
+            let mut next = current;
+            loop {
+                let predecessors = predecessors_per_node[current.index()];
+                for (cost_until, pred_edge, pred_node) in predecessors.iter() {
+                    println!("Found path with cost={}");
+                }
+            }
+
+            if edge_sets.len() == max_edge_sets {
+                break
+            }
+        } else {
+            // iterate over all outgoing edges of current
+            let mut walker = graph.neighbors(current).detach();
+            while let Some((next_edge, next_node)) = walker.next(graph) {
+    
+                let next_edge_weight = &graph[next_edge];
+                let next_edge_weight_cost = next_edge_weight.travel_cost();
+
+                let next_cost = cost + next_edge_weight_cost;
+
+                // add current as predecessor of next_node
+                predecessors_per_node[next_node.index()].push((
+                    next_cost,
+                    next_edge,
+                    current
+                ));
+
+
+                // push next_node at the end of queue
+                queue.push_back((
+                    next_cost,
+                    next_node
+                ));
+            }
+        }
+    }
+
+    edge_sets
+}
+
+
 
 /// working too good
 fn all_simple_paths_dfs_dorian(
