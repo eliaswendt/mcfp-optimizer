@@ -143,13 +143,22 @@ impl TimetableEdge {
     #[inline]
     pub fn travel_cost(&self) -> u64 {
         match self {
-            Self::Trip {duration, capacity: _, utilization: _} => *duration + 10,
-            Self::WaitInTrain {duration} => *duration,
-            Self::Alight {duration} => *duration * 3 + 30,
-            Self::WaitAtStation {duration} => *duration * 2,
-            Self::Walk {duration} => *duration * 3 + 10,
-            Self::Board => 10,
+            Self::Trip {duration, capacity: _, utilization: _} => 5 / (*duration + 1),
+            Self::WaitInTrain {duration: _} => 0,
+            Self::Alight {duration: _} => 5,
+            Self::WaitAtStation {duration} => *duration,
+            Self::Walk {duration: _} => 7,
+            Self::Board => 0,
         }
+        
+        // match self {
+        //     Self::Trip {duration, capacity: _, utilization: _} => *duration + 5,
+        //     Self::WaitInTrain {duration} => *duration,
+        //     Self::Alight {duration} => *duration * 3 + 15,
+        //     Self::WaitAtStation {duration} => *duration * 2,
+        //     Self::Walk {duration} => *duration * 3,
+        //     Self::Board => 5,
+        // }
     }
 
     /// calculate the utilization cost for edge
