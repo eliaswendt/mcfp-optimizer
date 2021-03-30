@@ -34,7 +34,7 @@ pub fn randomized_best<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>,
             return current;
         }
 
-        let next = current.random_group_neighbor(graph, &mut rng);
+        let next = current.random_group_neighbor(graph, &mut rng, None, None);
 
         if  next.cost < current.cost {
             current = next;
