@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, sync::{Arc, Mutex}, time::Instant};
+use std::{collections::{HashMap, HashSet}, fs::File, sync::{Arc, Mutex}, time::Instant};
 use serde::{Deserialize, Serialize};
 use std::io::{BufWriter, Write};
 use std::io::BufReader;
@@ -16,13 +16,7 @@ use graph_weight::{TimetableNode, TimetableEdge};
 
 use group::Group;
 
-use petgraph::{
-    dot::{Dot}, 
-    graph::{
-        NodeIndex,
-        DiGraph
-    }
-};
+use petgraph::{dot::{Dot}, graph::{DiGraph, EdgeIndex, NodeIndex}};
 
 use crate::csv_reader;
 
@@ -151,6 +145,43 @@ impl Model {
         BufWriter::new(
             File::create(filepath).expect(&format!("Could not create dot-file at {}", filepath))
         ).write(dot_code.as_bytes()).unwrap();
+    }
+
+    /// builds subgraph that only contains nodes connected by edges
+    pub fn create_subgraph_from_edges(
+        &self,
+        edges: HashSet<EdgeIndex>,
+        filepath: &str,
+    ) {
+        let new_graph = self.graph.filter_map(
+            |node_index, node_weight| {
+                // check if at least one incoming/outgoing edge of current node is in HashSet of edges
+                let mut walker = self.graph.neighbors_undirected(node_index).detach();
+                while let Some((current_edge, _)) = walker.next(&self.graph) {
+                    if edges.contains(&current_edge) {
+                        return Some(node_weight.clone());
+                    }
+                }
+
+                // no edge in set -> do not include node in graph
+                None
+            },
+            |edge_index, edge_weight| {
+                if edges.contains(&edge_index) {
+                    Some(edge_weight.clone())
+                } else {
+                    None
+                }
+            },
+        );
+
+        let dot_code = format!("{:?}", Dot::with_config(&new_graph, &[]));
+
+        BufWriter::new(
+            File::create(filepath).expect(&format!("Could not create dot-file at {}", filepath)),
+        )
+        .write(dot_code.as_bytes())
+        .unwrap();
     }
 
     pub fn find_paths_for_groups(&self, groups_csv_filepath: &str) -> Vec<Group> {

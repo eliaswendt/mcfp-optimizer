@@ -738,7 +738,7 @@ impl<'a> SelectionState<'a> {
 // }
 
 /// generates and saves the neighborhood of states for analysis purposes
-pub fn benchmark_neighbors(graph: &mut DiGraph<TimetableNode, TimetableEdge>, groups: &Vec<Group>, folderpath: &str, n_iterations: usize) {
+pub fn analyze_neighborhood(graph: &mut DiGraph<TimetableNode, TimetableEdge>, groups: &Vec<Group>, folderpath: &str, n_iterations: usize) {
 
     for iteration in 0..n_iterations {
 
@@ -748,7 +748,7 @@ pub fn benchmark_neighbors(graph: &mut DiGraph<TimetableNode, TimetableEdge>, gr
             File::create(&csv_filepath).expect(&format!("Could not create file {}", csv_filepath))
         );
     
-        writer.write("index,group_index,cost,strained_edges_cost,travel_cost,travel_delay,sum_path_len\n".as_bytes()).unwrap();
+        writer.write("group_index,path_index,cost,strained_edges_cost,travel_cost,travel_delay,sum_path_len\n".as_bytes()).unwrap();
 
         // write initial state
         let initial = SelectionState::generate_state_with_best_path_per_group(graph, groups);
@@ -763,22 +763,18 @@ pub fn benchmark_neighbors(graph: &mut DiGraph<TimetableNode, TimetableEdge>, gr
             initial.groups.iter().zip(initial.groups_path_index.iter()).map(|(group, path_index)| group.paths[*path_index].edges.len()).sum::<usize>()
         ).as_bytes()).unwrap();
 
-        let mut absolute_index: u64 = 1;
-
         for (group_index, group_neighbors) in initial.all_group_neighbors(graph).iter().enumerate() {
-            for (relative_index, group_neighbor) in group_neighbors.iter().enumerate() {
+            for (path_index, group_neighbor) in group_neighbors.iter().enumerate() {
                 writer.write(format!(
                     "{},{},{},{},{},{},{}\n",
-                    absolute_index,
                     group_index,
+                    path_index,
                     group_neighbor.cost,
                     group_neighbor.strained_edges_cost,
                     group_neighbor.travel_cost,
                     group_neighbor.travel_delay_cost,
                     group_neighbor.groups.iter().zip(group_neighbor.groups_path_index.iter()).map(|(group, path_index)| group.paths[*path_index].edges.len()).sum::<usize>()
                 ).as_bytes()).unwrap();
-
-                absolute_index += 1;
             }
         }
 

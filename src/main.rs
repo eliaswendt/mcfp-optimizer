@@ -68,21 +68,32 @@ fn main() {
     );
     
     // ELIAS
-    // optimization::benchmark_neighbors(&mut model.graph, &groups_with_at_least_one_path, "eval/benchmark_neighbors/", 10);
+    // create and save a graph of all groups combined possible paths
+    for group in groups_with_at_least_one_path.iter() {
+        let edges = group.paths
+            .iter()
+            .map(|path| path.edges.iter())
+            .flatten()
+            .cloned()
+            .collect();
 
-    // 1. Optimize with simulated annealing
-    let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing");
-    // save results
-    selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_edges.csv");
-    selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_groups.csv");
+        model.create_subgraph_from_edges(edges, &format!("graphs/groups/group_{}.dot", group.id));
+    }
+    //optimization::analyze_neighborhood(&mut model.graph, &groups_with_at_least_one_path, "eval/benchmark_neighbors/", 10);
+
+    // // 1. Optimize with simulated annealing
+    // let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing");
+    // // save results
+    // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_edges.csv");
+    // selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_groups.csv");
 
 
-    // 2. Optimize with simulated annealing on path
-    let mut groups_cloned = groups_with_at_least_one_path.clone();
-    let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path");
-    // save results
-    selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_on_path_edges.csv");
-    selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_on_path_groups.csv");
+    // // 2. Optimize with simulated annealing on path
+    // let mut groups_cloned = groups_with_at_least_one_path.clone();
+    // let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path");
+    // // save results
+    // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_on_path_edges.csv");
+    // selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_on_path_groups.csv");
 
 
     // 3. Optimize with randomized best
