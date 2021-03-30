@@ -12,7 +12,6 @@ use super::SelectionState;
 use crate::model::{
     graph_weight::{TimetableEdge, TimetableNode},
     group::Group,
-    path::Path,
 };
 
 /// maps time to temperature value
@@ -22,6 +21,9 @@ fn time_to_temperature(time: f64) -> f64 {
                   // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
 
+/// uses simulated annealing to improve parts of paths
+/// first selects a random overcrowded edge, second selects one of its occupying groups and 
+/// third changes the last part of the selected path of the group
 pub fn simulated_annealing<'a>(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &'a mut Vec<Group>,

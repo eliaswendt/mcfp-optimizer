@@ -2,15 +2,14 @@ use std::{fs::File, io::{BufWriter, Write}};
 
 use colored::Colorize;
 use petgraph::graph::DiGraph;
-use rand::Rng;
 
 use super::SelectionState;
-use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, path::Path};
+use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group};
 
 /// in each iteration generate a random state
 ///
 /// if new state is better than current -> replace current with new
-pub fn randomized_best<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>, filepath: &str) -> SelectionState<'a> {
+pub fn randomized_best<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>, filepath: &str) -> SelectionState<'a> {
 
     println!("randomized_best()");
 
@@ -22,7 +21,8 @@ pub fn randomized_best<'a>(graph: &'a mut DiGraph<TimetableNode, TimetableEdge>,
 
     writer.write("time,cost\n".as_bytes()).unwrap();
 
-    let mut current = SelectionState::generate_random_state(graph, groups);
+    // let mut current = SelectionState::generate_random_state(graph, groups)
+    let mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
 
     for time in 0..10000 {        
         print!("[time={}]: current_cost={},  ", time, current.cost);

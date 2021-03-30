@@ -1,7 +1,7 @@
 use indexmap::IndexSet;
-use petgraph::{EdgeDirection::Outgoing, dot::Dot, graph::{DiGraph, Edge, EdgeIndex, NodeIndex}, visit::{depth_first_search, Control, DfsEvent, EdgeRef}};
+use petgraph::{dot::Dot, graph::{DiGraph, EdgeIndex, NodeIndex}, visit::{depth_first_search, Control, DfsEvent}};
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::{HashMap, HashSet, VecDeque}, fmt, fs::File, io::{self, BufWriter, Write}, iter::from_fn, ops::{Add, Index}, rc::Rc};
+use std::{cmp::Ordering, collections::{HashMap, HashSet, VecDeque}, fs::File, io::{self, BufWriter, Write}};
 
 use super::{TimetableEdge, TimetableNode};
 

@@ -12,7 +12,6 @@ use super::SelectionState;
 use crate::model::{
     graph_weight::{TimetableEdge, TimetableNode},
     group::Group,
-    path::Path,
 };
 
 /// maps time to temperature value
