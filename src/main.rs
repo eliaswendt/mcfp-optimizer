@@ -53,6 +53,7 @@ fn main() {
         )
     };
 
+    let groups_len = groups.len();
     let mut groups_with_at_least_one_path: Vec<Group> = groups.into_iter().filter(|g| !g.paths.is_empty()).collect();
     
     let avg_paths_per_group = 
@@ -60,10 +61,18 @@ fn main() {
     groups_with_at_least_one_path.len() as u64;
     
     // at this state we can start with group's paths selection
-    println!("state-space: {} group(s) with an average of {} path(s) each", groups_with_at_least_one_path.len(), avg_paths_per_group);
+    println!(
+        "state-space: {} group(s) with an average of {} path(s) each\n{} groups ({}%) without known path", 
+        groups_with_at_least_one_path.len(), 
+        avg_paths_per_group,
+        groups_len - groups_with_at_least_one_path.len(),
+        100 * (groups_len - groups_with_at_least_one_path.len()) / groups_len
+    );
     
 
-    // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
+    // ELIAS
+    optimization::benchmark_neighbors(&mut model.graph, &groups_with_at_least_one_path, "eval/benchmark_neighbors/", 10);
+    
     // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
     // let mut groups_cloned = groups_with_at_least_one_path.clone();
     // let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing_cost.csv");
@@ -87,6 +96,6 @@ fn main() {
 
     // selection_state.groups[10].paths[selection_state.groups_path_index[10]].create_subgraph_from_edges(&model.graph, "graphs/group_10_selected_path.dot");
 
-    
+
     println!("done with main() -> terminating")
 }
