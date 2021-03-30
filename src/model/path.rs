@@ -388,19 +388,19 @@ impl Path {
         destination_station_id: u64, // condition that determines whether goal node was found
         min_edge_sets: usize,
 
-        durations: &[u64], // maximum number of transfers to follow
-        max_budget: u64,
+        max_duration: u64,
+        budgets: &[u64],
     ) -> Vec<Vec<EdgeIndex>> {
-        for duration in durations {
-            print!("duration={} ... ", duration);
+        for budget in budgets {
+            print!("budget={} ... ", budget);
             io::stdout().flush().unwrap();
 
             let edge_sets = Self::recursive_dfs_search(
                 graph,
                 start,
                 destination_station_id,
-                *duration,
-                max_budget,
+                max_duration,
+                *budget,
             );
 
             if edge_sets.len() >= min_edge_sets {
@@ -433,9 +433,9 @@ impl Path {
         let mut visited_stations: HashMap<u64, u64> = HashMap::with_capacity(graph.node_count());
 
         let mut counter_already_visited_earlier = 0;
-        let mut counter_out_of_calls = 0;
+        let mut counter_out_of_depth = 0;
         let mut counter_out_of_budget = 0;
-        let mut counter_out_of_duration = 0;
+        let mut counter_out_of_time = 0;
 
 
         Self::recursive_dfs_search_helper(
@@ -450,17 +450,17 @@ impl Path {
             max_budget,
 
             &mut counter_already_visited_earlier,
-            &mut counter_out_of_calls,
+            &mut counter_out_of_depth,
             &mut counter_out_of_budget,
-            &mut counter_out_of_duration
+            &mut counter_out_of_time
         );
 
         print!(
-            "[ave={} ooc={} oob={} ood={}] ",
+            "[ave={} ood={} oob={} oot={}] ",
             counter_already_visited_earlier,
-            counter_out_of_calls,
+            counter_out_of_depth,
             counter_out_of_budget,
-            counter_out_of_duration
+            counter_out_of_time
         );
 
         results
@@ -480,16 +480,16 @@ impl Path {
         remaining_budget: u64,
 
         counter_already_visited_earlier: &mut u64,
-        counter_out_of_calls: &mut u64,
+        counter_out_of_depth: &mut u64,
         counter_out_of_budget: &mut u64,
-        counter_out_of_duration: &mut u64,
+        counter_out_of_time: &mut u64,
 
     ) {
-        if edge_stack.len() == 45 {
-            // recursion depth reached -> break search here
-            *counter_out_of_calls += 1;
-            return
-        }
+        // if edge_stack.len() == 120 {
+        //     // recursion depth reached -> break search here
+        //     *counter_out_of_depth += 1;
+        //     return
+        // }
 
         // println!("stack: {:?}", station_arrival_stack.len());
 
@@ -530,7 +530,7 @@ impl Path {
 
                 if next_edge_weight_duration > remaining_duration {
                     // not enough duration left
-                    *counter_out_of_duration += 1;
+                    *counter_out_of_time += 1;
                     continue
                 }
 
@@ -551,9 +551,9 @@ impl Path {
                     remaining_duration - next_edge_weight_duration,
                     remaining_budget - next_edge_weight_cost,
                     counter_already_visited_earlier,
-                    counter_out_of_calls,
+                    counter_out_of_depth,
                     counter_out_of_budget,
-                    counter_out_of_duration
+                    counter_out_of_time
                 );
 
                 // remove next_edge from stack
