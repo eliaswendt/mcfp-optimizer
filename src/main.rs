@@ -68,7 +68,7 @@ fn main() {
     );
     
     // ELIAS
-    optimization::benchmark_neighbors(&mut model.graph, &groups_with_at_least_one_path, "eval/benchmark_neighbors/", 10);
+    // optimization::benchmark_neighbors(&mut model.graph, &groups_with_at_least_one_path, "eval/benchmark_neighbors/", 10);
 
     // 1. Optimize with simulated annealing
     let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing");

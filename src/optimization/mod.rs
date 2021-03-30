@@ -6,7 +6,7 @@ use std::{
 };
 
 use indexmap::IndexSet;
-use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
+use petgraph::{EdgeDirection::Outgoing, graph::{DiGraph, EdgeIndex, NodeIndex}};
 use rand::{prelude::ThreadRng, Rng};
 
 use crate::model::{
@@ -648,75 +648,78 @@ impl<'a> SelectionState<'a> {
             // get start node
             let (start, _) = graph.edge_endpoints(edge_index).unwrap();
 
-            // let edge_sets = path::Path::all_paths_iddfs(
-            //     graph,
-            //     start,
-            //     groups[random_group].destination_station_id,
-            //     100,
-    
-            //     2 * groups[random_group].arrival_time - graph[start].time() + 60,
-            //     &vec![
-            //         50
-            //     ],
-            // );
+            if graph.neighbors_directed(start, Outgoing).count() > 1 {
 
-            // transform each edge_set into a full Path object
-            let mut possible_paths: Vec<Path>;
-            // possible_paths = edge_sets
-            // .into_iter()
-            // .filter(|edge_set| edge_set.len() != 0) // filter out empty edge_sets (paths that don't have a single edge)
-            // .map(|edge_set| Path::new(graph, edge_set, groups[random_group].passengers, groups[random_group].arrival_time))
-            // .collect();
+                // let edge_sets = path::Path::all_paths_iddfs(
+                //     graph,
+                //     start,
+                //     groups[random_group].destination_station_id,
+                //     100,
+        
+                //     2 * groups[random_group].arrival_time - graph[start].time() + 60,
+                //     &vec![
+                //         50
+                //     ],
+                // );
 
-            // if possible_paths.len() == 0 {
-            // get possible paths from current start node to end node
-            possible_paths = path::Path::dfs_visitor_search(
-                graph,
-                start,
-                graph[end].station_id(),
-                groups[random_group].passengers as u64,
-                groups[random_group].arrival_time,
-                0,
-            );
-            // }
-            //println!("{}", possible_paths.len());
+                // transform each edge_set into a full Path object
+                let mut possible_paths: Vec<Path>;
+                // possible_paths = edge_sets
+                // .into_iter()
+                // .filter(|edge_set| edge_set.len() != 0) // filter out empty edge_sets (paths that don't have a single edge)
+                // .map(|edge_set| Path::new(graph, edge_set, groups[random_group].passengers, groups[random_group].arrival_time))
+                // .collect();
 
-            // if we have more paths as before
-            if possible_paths.len() > 3 {
-                let path_index;
-                // match rng {
-                //     Some(rng) => path_index = rng.gen::<usize>() % possible_paths.len(),
-                //     None => {
-                //         possible_paths.sort_unstable_by_key(|p| p.cost());
-                //         path_index = 0;
-                //     }
-                // }
-                possible_paths.sort_unstable_by_key(|p| p.cost());
-                path_index = 0;
-
-                let mut new_path = Vec::new();
-
-                // build new path completely
-                edges_before_edge.reverse();
-                for next_edge_index in edges_before_edge.iter() {
-                    if *next_edge_index == edge_index {
-                        break;
-                    }
-                    new_path.push(*next_edge_index);
-                }
-                for next_edge_index in possible_paths[path_index].edges.iter() {
-                    new_path.push(*next_edge_index);
-                }
-
-                return (
-                    random_group,
-                    Some(Path::new(
-                        graph,
-                        new_path,
-                        groups[random_group].passengers as u64,
-                        groups[random_group].arrival_time,
-                    )),
+                // if possible_paths.len() == 0 {
+                // get possible paths from current start node to end node
+                possible_paths = path::Path::dfs_visitor_search(
+                    graph,
+                    start,
+                    graph[end].station_id(),
+                    groups[random_group].passengers as u64,
+                    groups[random_group].arrival_time,
+                    0,
                 );
+                // }
+                //println!("{}", possible_paths.len());
+
+                // if we have more paths as before
+                if possible_paths.len() > 3 {
+                    let path_index;
+                    // match rng {
+                    //     Some(rng) => path_index = rng.gen::<usize>() % possible_paths.len(),
+                    //     None => {
+                    //         possible_paths.sort_unstable_by_key(|p| p.cost());
+                    //         path_index = 0;
+                    //     }
+                    // }
+                    possible_paths.sort_unstable_by_key(|p| p.cost());
+                    path_index = 0;
+
+                    let mut new_path = Vec::new();
+
+                    // build new path completely
+                    edges_before_edge.reverse();
+                    for next_edge_index in edges_before_edge.iter() {
+                        if *next_edge_index == edge_index {
+                            break;
+                        }
+                        new_path.push(*next_edge_index);
+                    }
+                    for next_edge_index in possible_paths[path_index].edges.iter() {
+                        new_path.push(*next_edge_index);
+                    }
+
+                    return (
+                        random_group,
+                        Some(Path::new(
+                            graph,
+                            new_path,
+                            groups[random_group].passengers as u64,
+                            groups[random_group].arrival_time,
+                        )),
+                    );
+                }
             }
         }
 
