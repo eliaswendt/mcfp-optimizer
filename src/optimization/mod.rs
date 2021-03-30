@@ -139,7 +139,6 @@ impl<'a> SelectionState<'a> {
         }
     }
 
-
     pub fn save_strained_trip_edges_to_csv(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -187,7 +186,6 @@ impl<'a> SelectionState<'a> {
         }
     }
 
-
     pub fn generate_random_state(
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         groups: &'a Vec<Group>,
@@ -230,7 +228,6 @@ impl<'a> SelectionState<'a> {
             groups_path_index,
         }
     }
-
 
     pub fn generate_state_with_best_path_per_group(
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -477,17 +474,15 @@ impl<'a> SelectionState<'a> {
         group_index_option: Option<usize>,
         path_index_option: Option<usize>,
     ) -> Self {
-
         let group_index = match group_index_option {
             Some(group_index) => group_index,
-            None => rng.gen::<usize>() % self.groups.len()
+            None => rng.gen::<usize>() % self.groups.len(),
         };
 
         let path_index = match path_index_option {
             Some(path_index) => path_index,
-            None => rng.gen::<usize>() % self.groups[group_index].paths.len()
+            None => rng.gen::<usize>() % self.groups[group_index].paths.len(),
         };
-
 
         let mut groups_paths_selection = self.groups_path_index.clone();
         groups_paths_selection[group_index] = path_index;
@@ -524,7 +519,6 @@ impl<'a> SelectionState<'a> {
         }
     }
 
-
     pub fn group_neighbor_from_group_and_path(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -545,8 +539,7 @@ impl<'a> SelectionState<'a> {
 
         let strained_edges_cost =
             Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
-        let travel_cost =
-            Self::calculate_total_travel_cost_paths(groups, &groups_paths_selection);
+        let travel_cost = Self::calculate_total_travel_cost_paths(groups, &groups_paths_selection);
         let travel_delay_cost =
             Self::calculate_total_travel_delay_cost_paths(groups, &groups_paths_selection);
         let cost = strained_edges_cost + travel_cost + travel_delay_cost;
@@ -618,220 +611,61 @@ impl<'a> SelectionState<'a> {
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         groups: &mut Vec<Group>,
         group_indices: Vec<usize>,
-        edge: Option<EdgeIndex>,
+        edge: EdgeIndex,
         rng: &mut ThreadRng,
     ) -> (usize, Option<Path>) {
+
         // select random group for detour
-        let random_group_index;
-        let random_group;
-        if group_indices.len() == 0 {
-            random_group_index = rng.gen::<usize>() % groups.len();
-            random_group = random_group_index;
-        } else {
-            random_group_index = rng.gen::<usize>() % group_indices.len();
-            random_group = group_indices[random_group_index];
-        }
+        let random_group_index = rng.gen::<usize>() % group_indices.len();
+        let random_group = group_indices[random_group_index];
 
         // get path of the selected random group
         let path_index = self.groups_path_index[random_group];
         let path = &groups[random_group].paths[path_index].clone();
 
-        match edge {
-            Some(edge) => {
-                // find all edges before chosen overcrowded edge in path
-                let mut edges_before_edge = IndexSet::new();
-                // find all edges after chosen overcrowded edge in path
-                let mut edges_after_edge = IndexSet::new();
+        // find all edges before chosen overcrowded edge in path
+        let mut edges_before_edge = IndexSet::new();
 
-                let mut switched = false;
-                for edge_index in &path.edges {
-                    if *edge_index == edge {
-                        switched = true;
-                        continue;
-                    }
-                    if switched {
-                        edges_after_edge.insert(*edge_index);
-                    } else {
-                        edges_before_edge.insert(*edge_index);
-                    }
-                }
-
-                // start with edge before selected overcrowded edge
-                edges_before_edge.reverse();
-
-                Self::strategie_1(
-                    graph,
-                    groups,
-                    random_group,
-                    &mut edges_before_edge,
-                    graph
-                        .edge_endpoints(*edges_after_edge.last().unwrap())
-                        .unwrap()
-                        .1,
-                    Some(rng),
-                )
-                //Self::strategie_2(graph, groups, random_group, &mut edges_before_edge, &mut edges_after_edge, Some(rng))
-            }
-            None => {
-                let edge_index = rng.gen::<usize>() % path.edges.len();
-                let edge = path.edges[edge_index];
-
-                // find all edges before chosen overcrowded edge in path
-                let mut edges_before_edge = IndexSet::new();
-                // find all edges after chosen overcrowded edge in path
-                let mut edges_after_edge = IndexSet::new();
-
-                let mut switched = false;
-                for edge_index in &path.edges {
-                    if *edge_index == edge {
-                        switched = true;
-                        continue;
-                    }
-                    if switched {
-                        edges_after_edge.insert(*edge_index);
-                    } else {
-                        edges_before_edge.insert(*edge_index);
-                    }
-                }
-
-                // start with edge before selected overcrowded edge
-                edges_before_edge.reverse();
-
-                Self::strategie_1(
-                    graph,
-                    groups,
-                    random_group,
-                    &mut edges_before_edge,
-                    graph.edge_endpoints(*path.edges.last().unwrap()).unwrap().1,
-                    None,
-                )
-                //Self::strategie_2(graph, groups, random_group, &mut edges_before_edge, &mut edges_after_edge, None)
-            }
-        }
-    }
-
-    fn strategie_2(
-        graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-        groups: &mut Vec<Group>,
-        random_group: usize,
-        edges_before_edge: &mut IndexSet<EdgeIndex>,
-        edges_after_edge: &mut IndexSet<EdgeIndex>,
-        rng: Option<&mut ThreadRng>,
-    ) -> (usize, Option<Path>) {
-        let mut current_start_edge_index = 0;
-        let mut current_end_edge_index = 0;
-
-        loop {
-            if current_start_edge_index == edges_before_edge.len()
-                && current_end_edge_index == edges_after_edge.len()
-            {
+        for edge_index in &path.edges {
+            if *edge_index == edge {
                 break;
             }
-            let current_start_edge;
-            let current_end_edge;
-            if current_start_edge_index < edges_before_edge.len() {
-                current_start_edge = edges_before_edge[current_start_edge_index];
-            } else {
-                current_start_edge = edges_before_edge[edges_before_edge.len() - 1];
-            }
-            if current_end_edge_index < edges_after_edge.len() {
-                current_end_edge = edges_after_edge[current_end_edge_index];
-            } else {
-                current_end_edge = edges_after_edge[edges_after_edge.len() - 1];
-            }
-
-            // get start node
-            let (start, _) = graph.edge_endpoints(current_start_edge).unwrap();
-            // get end node
-            let (_, end) = graph.edge_endpoints(current_end_edge).unwrap();
-
-            // get possible paths from current start node to end node
-            let mut possible_paths = path::Path::dfs_visitor_search(
-                graph,
-                start,
-                graph[end].station_id(),
-                groups[random_group].passengers as u64,
-                groups[random_group].arrival_time,
-                0,
-            );
-            // let possible_paths = path::Path::search_recursive_dfs(
-            //     graph,
-            //     start,
-            //     end,
-            //     groups[random_group].passengers as u64,
-            //     groups[random_group].arrival,
-            //     1000,
-            //     100
-            // );
-
-            //println!("{}", possible_paths.len());
-            // if we have more paths as before
-            if possible_paths.len() > 4 {
-                let path_index;
-                match rng {
-                    Some(rng) => path_index = rng.gen::<usize>() % possible_paths.len(),
-                    None => {
-                        possible_paths.sort_unstable_by_key(|p| p.travel_delay());
-                        path_index = 0;
-                    }
-                }
-
-                let mut new_path = Vec::new();
-
-                // build new path completely
-                edges_before_edge.reverse();
-                for next_edge_index in edges_before_edge.iter() {
-                    if *next_edge_index == current_start_edge {
-                        break;
-                    }
-                    new_path.push(*next_edge_index);
-                }
-                for next_edge_index in possible_paths[path_index].edges.iter() {
-                    new_path.push(*next_edge_index);
-                }
-                let mut found = false;
-                for next_edge_index in edges_after_edge.iter() {
-                    if found {
-                        new_path.push(*next_edge_index);
-                    }
-
-                    if *next_edge_index == current_end_edge {
-                        found = true;
-                    }
-                }
-
-                return (
-                    random_group,
-                    Some(Path::new(
-                        graph,
-                        new_path,
-                        groups[random_group].passengers as u64,
-                        groups[random_group].arrival_time,
-                    )),
-                );
-            }
-
-            current_start_edge_index += 1;
-            current_end_edge_index += 1;
+            edges_before_edge.insert(*edge_index);
         }
 
-        (random_group, None)
-    }
+        // start with edge before selected overcrowded edge
+        edges_before_edge.reverse();
 
-    fn strategie_1(
-        graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-        groups: &mut Vec<Group>,
-        random_group: usize,
-        edges_before_edge: &mut IndexSet<EdgeIndex>,
-        end: NodeIndex,
-        rng: Option<&mut ThreadRng>,
-    ) -> (usize, Option<Path>) {
+        let end = graph.edge_endpoints(*path.edges.last().unwrap()).unwrap().1;
+
         for edge_index in edges_before_edge.clone() {
+
             // get start node
             let (start, _) = graph.edge_endpoints(edge_index).unwrap();
 
+            // let edge_sets = path::Path::all_paths_iddfs(
+            //     graph,
+            //     start,
+            //     groups[random_group].destination_station_id,
+            //     100,
+    
+            //     2 * groups[random_group].arrival_time - graph[start].time() + 60,
+            //     &vec![
+            //         50
+            //     ],
+            // );
+
+            // transform each edge_set into a full Path object
+            let mut possible_paths: Vec<Path>;
+            // possible_paths = edge_sets
+            // .into_iter()
+            // .filter(|edge_set| edge_set.len() != 0) // filter out empty edge_sets (paths that don't have a single edge)
+            // .map(|edge_set| Path::new(graph, edge_set, groups[random_group].passengers, groups[random_group].arrival_time))
+            // .collect();
+
+            // if possible_paths.len() == 0 {
             // get possible paths from current start node to end node
-            let mut possible_paths = path::Path::dfs_visitor_search(
+            possible_paths = path::Path::dfs_visitor_search(
                 graph,
                 start,
                 graph[end].station_id(),
@@ -839,28 +673,21 @@ impl<'a> SelectionState<'a> {
                 groups[random_group].arrival_time,
                 0,
             );
+            // }
             //println!("{}", possible_paths.len());
 
-            // let possible_paths = path::Path::search_recursive_dfs(
-            //     graph,
-            //     start,
-            //     end,
-            //     groups[random_group].passengers as u64,
-            //     groups[random_group].arrival,
-            //     500,
-            //     75
-            // );
-
             // if we have more paths as before
-            if possible_paths.len() > 1 {
+            if possible_paths.len() > 3 {
                 let path_index;
-                match rng {
-                    Some(rng) => path_index = rng.gen::<usize>() % possible_paths.len(),
-                    None => {
-                        possible_paths.sort_unstable_by_key(|p| p.travel_delay());
-                        path_index = 0;
-                    }
-                }
+                // match rng {
+                //     Some(rng) => path_index = rng.gen::<usize>() % possible_paths.len(),
+                //     None => {
+                //         possible_paths.sort_unstable_by_key(|p| p.cost());
+                //         path_index = 0;
+                //     }
+                // }
+                possible_paths.sort_unstable_by_key(|p| p.cost());
+                path_index = 0;
 
                 let mut new_path = Vec::new();
 
