@@ -179,39 +179,37 @@ impl Group {
         let travel_time = self.arrival_time - self.departure_time;
 
         //let max_duration = (travel_time as f64 * duration_factor) as u64; // todo: factor to modify later if not a path could be found for all groups
-        let max_duration = 1200 + (1.5 * travel_time as f64) as u64;
-        let max_budget = 130 + (1.5 * travel_time as f64) as u64;
-
 
         let start_instant = Instant::now();
         print!(
-            "{} -> {} max_bdg={}, max_dur={} .. ",
+            "{} -> {} .. ",
             model.graph[start].station_name(),
             destination_station_name,
-            max_budget,
-            max_duration
         );
 
-        // // use iterative deepening search to find edge paths
-        // let edge_sets = path::Path::all_paths_iddfs(
-        //     &model.graph,
-        //     start,
-        //     self.destination_station_id,
-        //     1,
-
-        //     &vec![travel_time + 60, (1.5 * travel_time as f64) as u64 + 60], //&vec![5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110], //&vec![10 * travel_time, 20 * travel_time, 30 * travel_time],
-        //     travel_time + 400,
-        // );
-
-        let edge_sets = path::bfs(
+        // use iterative deepening search to find edge paths
+        let edge_sets = path::Path::all_paths_iddfs(
             &model.graph,
             start,
             self.destination_station_id,
+            100,
 
-            1,
-            max_duration,
-            max_budget
+            2 * travel_time + 120,
+            &vec![
+                25, 30, 35, 40, 45, 50, 55, 60, 65
+                // 60
+            ],
         );
+
+        // let edge_sets = path::bfs(
+        //     &model.graph,
+        //     start,
+        //     self.destination_station_id,
+
+        //     1,
+        //     u64::MAX,
+        //     40
+        // );
 
 
         // for (index, edge_set) in edge_sets.iter().enumerate() {
@@ -277,6 +275,6 @@ impl Group {
     }
 
     fn calculate_max_travel_duration(travel_time: u64) -> u64 {
-        travel_time + 60
+        (1.5 * travel_time as f64) as u64 + 200
     }
 }

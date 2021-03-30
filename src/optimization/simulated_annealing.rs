@@ -1,30 +1,43 @@
-use std::{fs::File, io::{BufWriter, Write}, time::Instant};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    time::Instant,
+};
 
 use colored::Colorize;
 use petgraph::graph::DiGraph;
 use rand::Rng;
 
 use super::SelectionState;
-use crate::model::{graph_weight::{TimetableEdge, TimetableNode}, group::Group, path::Path};
+use crate::model::{
+    graph_weight::{TimetableEdge, TimetableNode},
+    group::Group,
+    path::Path,
+};
 
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
     //(25000.0 - time).powf(1.1)
     25000.0 / time // cost=782, funktioniert schonmal ganz gut
-    // 10000.0 - time // funktioniert kaum, trend stimmt aber
+                   // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
 
-pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>, groups: &'a Vec<Group>, filepath: &str) -> SelectionState<'a> {
-
+pub fn simulated_annealing<'a>(
+    graph: &mut DiGraph<TimetableNode, TimetableEdge>,
+    groups: &'a Vec<Group>,
+    filepath: &str,
+) -> SelectionState<'a> {
     println!("simulated_annealing()");
 
     let mut rng = rand::thread_rng();
 
     let mut writer = BufWriter::new(
-        File::create(filepath).expect(&format!("Could not create file \"{}\"", filepath))
+        File::create(filepath).expect(&format!("Could not create file \"{}\"", filepath)),
     );
 
-    writer.write("time,temperature,cost,edge_cost,travel_cost,delay_cost\n".as_bytes()).unwrap();
+    writer
+        .write("time,temperature,cost,edge_cost,travel_cost,delay_cost\n".as_bytes())
+        .unwrap();
 
     //let mut current = SelectionState::generate_random_state(graph, groups);
     let mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
@@ -35,8 +48,29 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
     loop {
         let temperature = time_to_temperature(time as f64);
 
-        print!("[time={}]: cost={}, edge_cost={}, travel_cost={}, delay_cost={}, temp={:.2}, ", time, current.cost, current.strained_edges_cost, current.travel_cost, current.travel_delay_cost, temperature);
-        writer.write(format!("{},{},{},{},{},{}\n", time, temperature, current.cost, current.strained_edges_cost, current.travel_cost, current.travel_delay_cost).as_bytes()).unwrap();
+        print!(
+            "[time={}]: cost={}, edge_cost={}, travel_cost={}, delay_cost={}, temp={:.2}, ",
+            time,
+            current.cost,
+            current.strained_edges_cost,
+            current.travel_cost,
+            current.travel_delay_cost,
+            temperature
+        );
+        writer
+            .write(
+                format!(
+                    "{},{},{},{},{},{}\n",
+                    time,
+                    temperature,
+                    current.cost,
+                    current.strained_edges_cost,
+                    current.travel_cost,
+                    current.travel_delay_cost
+                )
+                .as_bytes(),
+            )
+            .unwrap();
 
         // actually exactly zero, but difficult with float
         if temperature < 1.0 {
@@ -53,8 +87,8 @@ pub fn simulated_annealing<'a>(graph: &mut DiGraph<TimetableNode, TimetableEdge>
         //     .min_by_key(|s| s.cost)
         //     .unwrap();
 
-        let next = current.random_group_neighbor(graph, &mut rng);
-  
+        let next = current.random_group_neighbor(graph, &mut rng, None, None);
+
         // print!("next_state={:?}, ", next_state.groups_paths_selection);
 
         // if next_state is better than current_state -> delta positive

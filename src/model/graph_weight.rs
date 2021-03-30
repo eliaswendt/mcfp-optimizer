@@ -145,9 +145,9 @@ impl TimetableEdge {
         match self {
             Self::Trip {duration, capacity: _, utilization: _} => 5 / (*duration + 1),
             Self::WaitInTrain {duration: _} => 0,
-            Self::Alight {duration: _} => 5,
+            Self::Alight {duration: _} => 6,
             Self::WaitAtStation {duration} => *duration,
-            Self::Walk {duration: _} => 7,
+            Self::Walk {duration: _} => 6,
             Self::Board => 0,
         }
         

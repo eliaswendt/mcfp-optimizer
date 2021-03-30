@@ -53,21 +53,20 @@ fn main() {
         )
     };
 
-    // at this state we can start with group's paths selection
-
     let mut groups_with_at_least_one_path: Vec<Group> = groups.into_iter().filter(|g| !g.paths.is_empty()).collect();
-
+    
     let avg_paths_per_group = 
-        groups_with_at_least_one_path.iter().map(|g| g.paths.len() as u64).sum::<u64>() /
-        groups_with_at_least_one_path.len() as u64;
-
+    groups_with_at_least_one_path.iter().map(|g| g.paths.len() as u64).sum::<u64>() /
+    groups_with_at_least_one_path.len() as u64;
+    
+    // at this state we can start with group's paths selection
     println!("state-space: {} group(s) with an average of {} path(s) each", groups_with_at_least_one_path.len(), avg_paths_per_group);
     
 
     // optimization::simulated_annealing::optimize_overloaded_graph(&mut model.graph, &groups);
     // optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 100,  100);
     // let mut groups_cloned = groups_with_at_least_one_path.clone();
-    // let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing_cost.csv");
+    let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &mut groups_with_at_least_one_path, "eval/simulated_annealing_cost.csv");
     //optimization::randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, "eval/randomized_best.csv");
 
     // let selection_state = SelectionState {
@@ -75,7 +74,7 @@ fn main() {
     //     cost: 0, //state.cost, //SelectionState::generate_random_state(graph, groups); //state;
     //     groups_path_index: Vec::new() //state.groups_paths_selection
     // };
-    //let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &selection_state.groups, selection_state, "eval/simulated_annealing_on_path.csv");
+    // let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &selection_state.groups, selection_state, "eval/simulated_annealing_on_path.csv");
 
     // println!("Selected State: {}", selection_state);
 

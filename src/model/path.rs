@@ -386,16 +386,19 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
         destination_station_id: u64, // condition that determines whether goal node was found
-        min_edge_sets: usize,
+        max_edge_vecs: usize,
 
         max_duration: u64,
         budgets: &[u64],
     ) -> Vec<Vec<EdgeIndex>> {
+
+        let mut edge_vecs = Vec::new();
+
         for budget in budgets {
             print!("budget={} ... ", budget);
             io::stdout().flush().unwrap();
 
-            let edge_sets = Self::recursive_dfs_search(
+            edge_vecs = Self::recursive_dfs_search(
                 graph,
                 start,
                 destination_station_id,
@@ -403,13 +406,13 @@ impl Path {
                 *budget,
             );
 
-            if edge_sets.len() >= min_edge_sets {
+            if edge_vecs.len() >= max_edge_vecs {
                 // found at least one path -> return
-                return edge_sets;
+                break
             }
         }
 
-        Vec::new()
+        edge_vecs
     }
 
     // launcher of recursive implementation of dfs
@@ -485,11 +488,11 @@ impl Path {
         counter_out_of_time: &mut u64,
 
     ) {
-        // if edge_stack.len() == 120 {
-        //     // recursion depth reached -> break search here
-        //     *counter_out_of_depth += 1;
-        //     return
-        // }
+        if edge_stack.len() == 100 {
+            // recursion depth reached -> break search here
+            *counter_out_of_depth += 1;
+            return
+        }
 
         // println!("stack: {:?}", station_arrival_stack.len());
 

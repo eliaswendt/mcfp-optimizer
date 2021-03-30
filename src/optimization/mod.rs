@@ -69,17 +69,6 @@ impl<'a> SelectionState<'a> {
             .sum()
     }
 
-    pub fn calculate_total_cost_paths(
-        groups: &Vec<Group>,
-        groups_path_index: &Vec<usize>,
-    ) -> i64 {
-        groups
-            .iter()
-            .zip(groups_path_index.iter())
-            .map(|(group, group_path_index)| group.paths[*group_path_index].cost())
-            .sum()
-    }
-
     pub fn calculate_total_travel_cost_paths(
         groups: &Vec<Group>,
         groups_path_index: &Vec<usize>,
@@ -125,7 +114,7 @@ impl<'a> SelectionState<'a> {
             let delay = real as i64 - planned as i64;
             let delay_p = 100 * delay / planned as i64;
             let waiting_time = path.get_waiting_time(graph);
-            let in_trip_time = path.get_in_trip_time(graph); 
+            let in_trip_time = path.get_in_trip_time(graph);
             let walks = path.get_walks(graph);
             let path_string = path.to_string(graph);
 
@@ -133,13 +122,23 @@ impl<'a> SelectionState<'a> {
                 .write(
                     format!(
                         "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n",
-                        group.id, planned, real, travel_cost, delay, delay_p, waiting_time, in_trip_time, walks, path_string
+                        group.id,
+                        planned,
+                        real,
+                        travel_cost,
+                        delay,
+                        delay_p,
+                        waiting_time,
+                        in_trip_time,
+                        walks,
+                        path_string
                     )
                     .as_bytes(),
                 )
                 .unwrap();
         }
     }
+
 
     pub fn save_strained_trip_edges_to_csv(
         &self,
@@ -188,6 +187,7 @@ impl<'a> SelectionState<'a> {
         }
     }
 
+
     pub fn generate_random_state(
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         groups: &'a Vec<Group>,
@@ -211,8 +211,7 @@ impl<'a> SelectionState<'a> {
 
         let strained_edges_cost =
             Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
-        let travel_cost =
-            Self::calculate_total_travel_cost_paths(groups, &groups_path_index);
+        let travel_cost = Self::calculate_total_travel_cost_paths(groups, &groups_path_index);
         let travel_delay_cost =
             Self::calculate_total_travel_delay_cost_paths(groups, &groups_path_index);
         let cost = strained_edges_cost + travel_cost + travel_delay_cost;
@@ -232,6 +231,7 @@ impl<'a> SelectionState<'a> {
         }
     }
 
+
     pub fn generate_state_with_best_path_per_group(
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         groups: &'a Vec<Group>,
@@ -242,20 +242,20 @@ impl<'a> SelectionState<'a> {
         let mut strained_edges: HashSet<EdgeIndex> = HashSet::new();
 
         // first: strain all selected paths to TimetableGraph
-        for (group_index, path_index) in groups_path_index.iter().enumerate() {
-            let path = &groups[group_index].paths[*path_index];
+        for (group_index, selected_path_index) in groups_path_index.iter().enumerate() {
+            let path = &groups[group_index].paths[*selected_path_index];
             path.strain_to_graph(graph, &mut strained_edges);
         }
 
         let strained_edges_cost =
             Self::calculate_cost_of_strained_edges(graph, &strained_edges) as i64;
-        let travel_cost =
-            Self::calculate_total_travel_cost_paths(groups, &groups_path_index);
+
+        let travel_cost = Self::calculate_total_travel_cost_paths(groups, &groups_path_index);
         let travel_delay_cost =
             Self::calculate_total_travel_delay_cost_paths(groups, &groups_path_index);
         let cost = strained_edges_cost + travel_cost + travel_delay_cost;
 
-        // third: relieve all selected paths to TimetableGraph
+        // third: relieve all selected paths from TimetableGraph
         for (group_index, path_index) in groups_path_index.iter().enumerate() {
             groups[group_index].paths[*path_index].relieve_from_graph(graph, &mut strained_edges);
         }
@@ -283,22 +283,23 @@ impl<'a> SelectionState<'a> {
 
         // for faster cost calculation now strain all actual selected paths to the graph and only switch paths for the groups we are currently working on
         for (group_index, path_index) in self.groups_path_index.iter().enumerate() {
-            self.groups[group_index].paths[*path_index].strain_to_graph(graph, &mut strained_edges);
+            let path = &self.groups[group_index].paths[*path_index];
+            path.strain_to_graph(graph, &mut strained_edges);
         }
 
         // iterate over all groups_paths_selection
         for group_index in 0..self.groups_path_index.len() {
-            let actual_selected_path_index = self.groups_path_index[group_index];
+            let self_selected_path_index = self.groups_path_index[group_index];
 
-            // relieve the actual selected path of current group
-            self.groups[group_index].paths[actual_selected_path_index]
+            // relieve the self selected path of current group
+            self.groups[group_index].paths[self_selected_path_index]
                 .relieve_from_graph(graph, &mut strained_edges);
 
             // for each group add state with all possible paths for current group
             let n_paths_of_group = self.groups[group_index].paths.len();
             for path_index in 0..n_paths_of_group {
                 if path_index == self.groups_path_index[group_index] {
-                    // skip initial path_index
+                    // skip self selected path_index
                     continue;
                 }
 
@@ -315,16 +316,14 @@ impl<'a> SelectionState<'a> {
                 let mut groups_paths_selection_clone = self.groups_path_index.clone();
                 groups_paths_selection_clone[group_index] = path_index; // set current path_index as selected
 
-                let travel_cost =
-                    Self::calculate_total_travel_cost_paths(
-                        &self.groups,
-                        &groups_paths_selection_clone
-                    );
-                let travel_delay_cost =
-                    Self::calculate_total_travel_delay_cost_paths(
-                        &self.groups,
-                        &groups_paths_selection_clone,
-                    );
+                let travel_cost = Self::calculate_total_travel_cost_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
+                let travel_delay_cost = Self::calculate_total_travel_delay_cost_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
                 let cost = strained_edges_cost + travel_cost + travel_delay_cost;
 
                 let selection_state = Self {
@@ -340,7 +339,7 @@ impl<'a> SelectionState<'a> {
             }
 
             // re-add the actually selected path for current group to graph
-            self.groups[group_index].paths[actual_selected_path_index]
+            self.groups[group_index].paths[self_selected_path_index]
                 .strain_to_graph(graph, &mut strained_edges);
         }
 
@@ -366,7 +365,7 @@ impl<'a> SelectionState<'a> {
         // stores all edges currently strained to the graph
         let mut strained_edges = HashSet::new();
 
-        // for faster cost calculation now strain all actual selected paths to the graph and only switch paths for the groups we are currently working on
+        // for faster cost calculation now strain all self selected paths to the graph and only switch paths for the groups we are currently working on
         for (group_index, path_index) in self.groups_path_index.iter().enumerate() {
             self.groups[group_index].paths[*path_index].strain_to_graph(graph, &mut strained_edges);
         }
@@ -395,16 +394,14 @@ impl<'a> SelectionState<'a> {
                 self.groups[group_index].paths[actual_selected_path_index - 1]
                     .relieve_from_graph(graph, &mut strained_edges);
 
-                let travel_cost =
-                    Self::calculate_total_travel_cost_paths(
-                        &self.groups,
-                        &groups_paths_selection_clone
-                    );
-                let travel_delay_cost =
-                    Self::calculate_total_travel_delay_cost_paths(
-                        &self.groups,
-                        &groups_paths_selection_clone,
-                    );
+                let travel_cost = Self::calculate_total_travel_cost_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
+                let travel_delay_cost = Self::calculate_total_travel_delay_cost_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
                 let cost = strained_edges_cost + travel_cost + travel_delay_cost;
 
                 let selection_state = Self {
@@ -433,16 +430,14 @@ impl<'a> SelectionState<'a> {
                 self.groups[group_index].paths[actual_selected_path_index + 1]
                     .relieve_from_graph(graph, &mut strained_edges);
 
-                let travel_cost =
-                    Self::calculate_total_travel_cost_paths(
-                        &self.groups,
-                        &groups_paths_selection_clone
-                    );
-                let travel_delay_cost =
-                    Self::calculate_total_travel_delay_cost_paths(
-                        &self.groups,
-                        &groups_paths_selection_clone,
-                    );
+                let travel_cost = Self::calculate_total_travel_cost_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
+                let travel_delay_cost = Self::calculate_total_travel_delay_cost_paths(
+                    &self.groups,
+                    &groups_paths_selection_clone,
+                );
                 let cost = strained_edges_cost + travel_cost + travel_delay_cost;
 
                 let selection_state = Self {
@@ -472,16 +467,30 @@ impl<'a> SelectionState<'a> {
         neighbors
     }
 
+    /// generate a single group neighbor
+    /// if not specified, select a random path for a random group
     pub fn random_group_neighbor(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         rng: &mut ThreadRng,
+
+        group_index_option: Option<usize>,
+        path_index_option: Option<usize>,
     ) -> Self {
-        let random_group_index = rng.gen::<usize>() % self.groups.len();
-        let random_path_index = rng.gen::<usize>() % self.groups[random_group_index].paths.len();
+
+        let group_index = match group_index_option {
+            Some(group_index) => group_index,
+            None => rng.gen::<usize>() % self.groups.len()
+        };
+
+        let path_index = match path_index_option {
+            Some(path_index) => path_index,
+            None => rng.gen::<usize>() % self.groups[group_index].paths.len()
+        };
+
 
         let mut groups_paths_selection = self.groups_path_index.clone();
-        groups_paths_selection[random_group_index] = random_path_index;
+        groups_paths_selection[group_index] = path_index;
 
         let mut strained_edges: HashSet<EdgeIndex> = HashSet::new();
 
@@ -514,6 +523,7 @@ impl<'a> SelectionState<'a> {
             groups_path_index: groups_paths_selection,
         }
     }
+
 
     pub fn group_neighbor_from_group_and_path(
         &self,
