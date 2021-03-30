@@ -272,7 +272,7 @@ impl<'a> SelectionState<'a> {
     pub fn all_group_neighbors(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-    ) -> Vec<Self> {
+    ) -> Vec<Vec<Self>> {
         let mut neighbors = Vec::with_capacity(self.groups.len() * 10);
 
         // stores all edges currently strained to the graph
@@ -286,6 +286,9 @@ impl<'a> SelectionState<'a> {
 
         // iterate over all groups_paths_selection
         for group_index in 0..self.groups_path_index.len() {
+
+            let mut intermediate_neighbors = Vec::with_capacity(self.groups_path_index.len());
+
             let self_selected_path_index = self.groups_path_index[group_index];
 
             // relieve the self selected path of current group
@@ -332,12 +335,14 @@ impl<'a> SelectionState<'a> {
                     groups_path_index: groups_paths_selection_clone,
                 };
 
-                neighbors.push(selection_state);
+                intermediate_neighbors.push(selection_state);
             }
 
             // re-add the actually selected path for current group to graph
             self.groups[group_index].paths[self_selected_path_index]
                 .strain_to_graph(graph, &mut strained_edges);
+
+            neighbors.push(intermediate_neighbors);
         }
 
         // at the beginning of the function we strained all actual selected paths to the graph
@@ -716,5 +721,64 @@ impl<'a> SelectionState<'a> {
         }
 
         (random_group, None)
+    }
+}
+
+// #[derive(Debug, Clone)]
+// pub struct SelectionState<'a> {
+//     pub groups: &'a Vec<Group>,
+//     pub cost: i64, // total cost of this path selection
+//     pub strained_edges_cost: i64,
+//     pub travel_cost: i64,
+//     pub travel_delay_cost: i64,
+//     pub groups_path_index: Vec<usize>, // array of indices (specifies selected path for each group)
+// }
+
+/// generates and saves the neighborhood of states for analysis purposes
+pub fn benchmark_neighbors(graph: &mut DiGraph<TimetableNode, TimetableEdge>, groups: &Vec<Group>, folderpath: &str, n_iterations: usize) {
+
+    for iteration in 0..n_iterations {
+
+        let csv_filepath = format!("{}iteration_{}.csv", folderpath, iteration);
+
+        let mut writer = BufWriter::new(
+            File::create(&csv_filepath).expect(&format!("Could not create file {}", csv_filepath))
+        );
+    
+        writer.write("index,group_index,cost,strained_edges_cost,travel_cost,travel_delay,sum_path_len\n".as_bytes()).unwrap();
+
+        // write initial state
+        let initial = SelectionState::generate_state_with_best_path_per_group(graph, groups);
+        writer.write(format!(
+            "{},{},{},{},{},{},{}\n",
+            0,
+            0,
+            initial.cost,
+            initial.strained_edges_cost,
+            initial.travel_cost,
+            initial.travel_delay_cost,
+            initial.groups.iter().zip(initial.groups_path_index.iter()).map(|(group, path_index)| group.paths[*path_index].edges.len()).sum::<usize>()
+        ).as_bytes()).unwrap();
+
+        let mut absolute_index: u64 = 1;
+
+        for (group_index, group_neighbors) in initial.all_group_neighbors(graph).iter().enumerate() {
+            for (relative_index, group_neighbor) in group_neighbors.iter().enumerate() {
+                writer.write(format!(
+                    "{},{},{},{},{},{},{}\n",
+                    absolute_index,
+                    group_index,
+                    group_neighbor.cost,
+                    group_neighbor.strained_edges_cost,
+                    group_neighbor.travel_cost,
+                    group_neighbor.travel_delay_cost,
+                    group_neighbor.groups.iter().zip(group_neighbor.groups_path_index.iter()).map(|(group, path_index)| group.paths[*path_index].edges.len()).sum::<usize>()
+                ).as_bytes()).unwrap();
+
+                absolute_index += 1;
+            }
+        }
+
+        // todo: write current state
     }
 }

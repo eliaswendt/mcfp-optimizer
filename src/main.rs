@@ -51,23 +51,33 @@ fn main() {
         )
     };
 
-    let groups_with_at_least_one_path: Vec<Group> = groups.into_iter().filter(|g| !g.paths.is_empty()).collect();
+    let groups_len = groups.len();
+    let mut groups_with_at_least_one_path: Vec<Group> = groups.into_iter().filter(|g| !g.paths.is_empty()).collect();
     
     let avg_paths_per_group = 
     groups_with_at_least_one_path.iter().map(|g| g.paths.len() as u64).sum::<u64>() /
     groups_with_at_least_one_path.len() as u64;
     
     // at this state we can start with group's paths selection
-    println!("state-space: {} group(s) with an average of {} path(s) each", groups_with_at_least_one_path.len(), avg_paths_per_group);
+    println!(
+        "state-space: {} group(s) with an average of {} path(s) each\n{} groups ({}%) without known path", 
+        groups_with_at_least_one_path.len(), 
+        avg_paths_per_group,
+        groups_len - groups_with_at_least_one_path.len(),
+        100 * (groups_len - groups_with_at_least_one_path.len()) / groups_len
+    );
     
+    // ELIAS
+    optimization::benchmark_neighbors(&mut model.graph, &groups_with_at_least_one_path, "eval/benchmark_neighbors/", 10);
 
-    // // 1. Optimize with simulated annealing
+    // 1. Optimize with simulated annealing
     let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing");
     // save results
     selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_edges.csv");
     selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_groups.csv");
 
-    // // 2. Optimize with simulated annealing on path
+
+    // 2. Optimize with simulated annealing on path
     let mut groups_cloned = groups_with_at_least_one_path.clone();
     let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path");
     // save results
@@ -96,6 +106,6 @@ fn main() {
     // create subgraph from path of first group
     // selection_state.groups[0].paths[selection_state.groups_path_index[0]].create_subgraph_from_edges(&model.graph, "graphs/group_0_selected_path.dot");
 
-    
+
     println!("done with main() -> terminating")
 }
