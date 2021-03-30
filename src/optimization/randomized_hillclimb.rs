@@ -1,11 +1,7 @@
-use std::{iter::Map, time::Instant};
-
 use petgraph::graph::DiGraph;
-use rand::Rng;
 
 use crate::model::{
     group::Group,
-    path::Path,
     graph_weight::{TimetableEdge, TimetableNode},
 };
 
@@ -13,7 +9,7 @@ use super::SelectionState;
 
 /// perform a single Hill Climbing Step
 pub fn randomized_hillclimb<'a>(
-    graph: &'a mut DiGraph<TimetableNode, TimetableEdge>,
+    graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &'a Vec<Group>,
     n_restarts: u64,       // number of "parallel" hill-climb searches
     max_n_iterations: u64, // number of iterations to improve result
@@ -30,7 +26,8 @@ pub fn randomized_hillclimb<'a>(
 
     for run in 0..n_restarts {
         // choose random configuration as initial state
-        let mut local_minimum = SelectionState::generate_random_state(graph, groups);
+        // let mut local_minimum = SelectionState::generate_random_state(graph, groups);
+        let mut local_minimum = SelectionState::generate_state_with_best_path_per_group(graph, groups);
 
         println!(
             "[restart={}/{}]: initial_cost={}",

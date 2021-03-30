@@ -12,13 +12,12 @@ use super::SelectionState;
 use crate::model::{
     graph_weight::{TimetableEdge, TimetableNode},
     group::Group,
-    path::Path,
 };
 
 /// maps time to temperature value
 fn time_to_temperature(time: f64) -> f64 {
     //(25000.0 - time).powf(1.1)
-    25000.0 / time // cost=782, funktioniert schonmal ganz gut
+    15000.0 / time // cost=782, funktioniert schonmal ganz gut
                    // 10000.0 - time // funktioniert kaum, trend stimmt aber
 }
 

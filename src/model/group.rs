@@ -1,9 +1,7 @@
 use petgraph::graph::NodeIndex;
 use serde::{Deserialize, Serialize};
 use std::{
-    cmp::max,
     collections::HashMap,
-    fmt,
     fs::File,
     io::{BufReader, BufWriter},
     time::Instant,
@@ -13,7 +11,6 @@ use colored::Colorize;
 
 use super::{
     path::{self, Path},
-    trip::Trip,
     Model,
 };
 
