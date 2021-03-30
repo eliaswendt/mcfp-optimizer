@@ -196,8 +196,7 @@ impl Group {
 
             2 * travel_time + 120,
             &vec![
-                25, 30, 35, 40, 45, 50, 55, 60, 65
-                // 60
+                30, 35, 40, 45, 50, 55, 60
             ],
         );
 
@@ -238,17 +237,17 @@ impl Group {
             .map(|edge_set| Path::new(&model.graph, edge_set, self.passengers, self.arrival_time))
             .collect();
 
-        // if self.paths.len() == 0 {
+        if self.paths.len() == 0 {
 
-        // self.paths = path::Path::dfs_visitor_search(
-        //     &model.graph,
-        //     start,
-        //     self.destination_station_id,
-        //     self.passengers as u64,
-        //     self.arrival,
-        //     0,
-        // );
-        // }
+            self.paths = path::Path::dfs_visitor_search(
+                &model.graph,
+                start,
+                self.destination_station_id,
+                self.passengers as u64,
+                self.arrival_time,
+                0,
+            );
+        }
 
         // filter out paths that exceed duration or do not fulfill minium capacity
 
