@@ -1,3 +1,5 @@
+use std::{fs::File, io::{BufWriter, Write}, time::Instant};
+
 use petgraph::graph::DiGraph;
 
 use crate::model::{
@@ -13,13 +15,30 @@ pub fn randomized_hillclimb<'a>(
     groups: &'a Vec<Group>,
     n_restarts: u64,       // number of "parallel" hill-climb searches
     max_n_iterations: u64, // number of iterations to improve result
+    filepath: &str,
 ) -> SelectionState<'a> {
     println!(
         "randomized_hillclimb(n_runs={}, n_iterations={})",
         n_restarts, max_n_iterations
     );
 
-    // println!("groups_paths={:?}", groups_paths);
+    let mut writer = BufWriter::new(
+        File::create(format!("{}.{}", filepath, "csv")).expect(&format!("Could not create file \"{}.csv\"", filepath))
+    );
+
+    writer
+        .write("run,iteration,cost,edge_cost,travel_cost,delay_cost\n".as_bytes())
+        .unwrap();
+
+    let mut r_writer = BufWriter::new(
+        File::create(format!("{}_{}.{}", filepath, "runtime", "csv")).expect(&format!("Could not create file \"{}\"", format!("{}_{}.{}", filepath, "runtime", "csv"))),
+    );
+
+    r_writer
+        .write("runtime,runs,iterations\n".as_bytes())
+        .unwrap();
+
+    let start_instant = Instant::now();
 
     // from each parallel state save the resulting local maximum as (cost, state)
     let mut local_minima: Vec<SelectionState> = Vec::with_capacity(n_restarts as usize);
@@ -30,11 +49,29 @@ pub fn randomized_hillclimb<'a>(
         let mut local_minimum = SelectionState::generate_state_with_best_path_per_group(graph, groups);
 
         println!(
-            "[restart={}/{}]: initial_cost={}",
+            "[restart={}/{}]: initial_cost={}, edge_cost={}, travel_cost={}, delay_cost={}",
             run + 1,
             n_restarts,
-            local_minimum.cost
+            local_minimum.cost,
+            local_minimum.strained_edges_cost,
+            local_minimum.travel_cost,
+            local_minimum.travel_delay_cost,
         );
+
+        writer
+            .write(
+                format!(
+                    "{}, {},{},{},{},{}\n",
+                    run + 1,
+                    n_restarts,
+                    local_minimum.cost,
+                    local_minimum.strained_edges_cost,
+                    local_minimum.travel_cost,
+                    local_minimum.travel_delay_cost,
+                )
+                .as_bytes(),
+            )
+            .unwrap();
 
         for j in 0..max_n_iterations {
             // search local maximum from this initial configuration
@@ -45,17 +82,55 @@ pub fn randomized_hillclimb<'a>(
                 // no neighbors found OR best neighbor has higher cost than current local maximum
 
                 println!(
-                    "\t[iteration={}/{}]: reached local minimum {}",
+                    "\t[iteration={}/{}]: reached local minimum cost={}, edge_cost={}, travel_cost={}, delay_cost={} ",
                     j + 1,
                     max_n_iterations,
                     local_minimum.cost,
+                    local_minimum.strained_edges_cost,
+                    local_minimum.travel_cost,
+                    local_minimum.travel_delay_cost,
                 );
+                writer
+                .write(
+                    format!(
+                        "{}, {},{},{},{},{}\n",
+                        run + 1,
+                        n_restarts,
+                        local_minimum.cost,
+                        local_minimum.strained_edges_cost,
+                        local_minimum.travel_cost,
+                        local_minimum.travel_delay_cost,
+                    )
+                    .as_bytes(),
+                )
+                .unwrap();
 
                 // as we won't find any better solution -> early exit loop
                 break;
             }
 
-            println!("\t[iteration={}/{}]: current={}", j+1, max_n_iterations, best_neighbor.cost);
+            println!(
+                "\t[iteration={}]: cost={}, edge_cost={}, travel_cost={}, delay_cost={}",
+                j + 1,
+                local_minimum.cost,
+                local_minimum.strained_edges_cost,
+                local_minimum.travel_cost,
+                local_minimum.travel_delay_cost,
+            );
+            writer
+                .write(
+                    format!(
+                        "{}, {},{},{},{},{}\n",
+                        run + 1,
+                        n_restarts,
+                        local_minimum.cost,
+                        local_minimum.strained_edges_cost,
+                        local_minimum.travel_cost,
+                        local_minimum.travel_delay_cost,
+                    )
+                    .as_bytes(),
+                )
+                .unwrap();
 
             // set as new local minimum
             local_minimum = best_neighbor
@@ -70,6 +145,19 @@ pub fn randomized_hillclimb<'a>(
 
     // move miminum to end of vec and pop this element
     local_minima.reverse();
+
+    r_writer
+        .write(
+            format!(
+                "{}s,{},{}\n",
+                start_instant.elapsed().as_secs(),
+                n_restarts,
+                max_n_iterations
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+
     return local_minima.pop().unwrap()
 
     // // stores the index of the currently selected path in each group

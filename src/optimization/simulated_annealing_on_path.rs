@@ -35,11 +35,19 @@ pub fn simulated_annealing<'a>(
     let mut rng = rand::thread_rng();
 
     let mut writer = BufWriter::new(
-        File::create(filepath).expect(&format!("Could not create file \"{}\"", filepath)),
+        File::create(format!("{}.{}", filepath, "csv")).expect(&format!("Could not create file \"{}.csv\"", filepath)),
     );
 
     writer
         .write("time,temperature,cost,edge_cost,travel_cost,delay_cost\n".as_bytes())
+        .unwrap();
+
+    let mut r_writer = BufWriter::new(
+        File::create(format!("{}_{}.{}", filepath, "runtime", "csv")).expect(&format!("Could not create file \"{}\"", format!("{}_{}.{}", filepath, "runtime", "csv"))),
+    );
+
+    r_writer
+        .write("runtime,time\n".as_bytes())
         .unwrap();
 
     let mut current_state = state;
@@ -56,6 +64,18 @@ pub fn simulated_annealing<'a>(
         if steps_without_changes > 200 || current_state.cost <= 0 {
             print!("-> return with costs={} ", current_state.cost);
             println!("(done in {}s)", start_instant.elapsed().as_secs());
+
+            r_writer
+            .write(
+                format!(
+                    "{}s,{}\n",
+                    start_instant.elapsed().as_secs(),
+                    time
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+
             return SelectionState {
                 groups: groups,
                 cost: current_state.cost,
@@ -97,6 +117,18 @@ pub fn simulated_annealing<'a>(
         if temperature < 1.0 {
             print!("-> return");
             println!(" (done in {}s)", start_instant.elapsed().as_secs());
+
+            r_writer
+            .write(
+                format!(
+                    "{}s,{}\n",
+                    start_instant.elapsed().as_secs(),
+                    time
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+            
             return SelectionState {
                 groups: groups,
                 cost: current_state.cost,
