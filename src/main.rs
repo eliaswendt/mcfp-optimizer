@@ -6,7 +6,7 @@ use petgraph::{EdgeDirection::Outgoing, graph::NodeIndex};
 mod csv_reader;
 mod model;
 mod optimization;
-use clap::{Arg, App, SubCommand};
+use clap::{App, Arg, SubCommand, Values};
 
 fn main() {
 
@@ -36,31 +36,36 @@ fn main() {
         .arg(Arg::with_name("search_budgets")
             .short("b")
             .long("search_budgets")
-            .help("Specifies the list of search budgets each run of the depth-first search is initially provided with (default='30, 35, 40, 45, 50, 55, 60').")
+            .help("Specifies a comma-separated list of search budgets each run of the depth-first search is initially provided with.")
+            .default_value("30, 35, 40, 45, 50, 55, 60")
             .value_name("LIST<INTEGER>"))
 
         .arg(Arg::with_name("min_paths")
             .short("p")
             .long("min_paths")
-            .help("Specifies the number of paths the iterative-deepening-depth-first search has to find to not retry the DFS with next budget value (default=50)")
+            .help("Specifies the number of paths the iterative-deepening-depth-first search has to find to not retry the DFS with next budget value")
+            .default_value("50")
             .value_name("INTEGER"))
 
         .arg(Arg::with_name("n_search_threads")
             .short("t")
             .long("n_search_threads")
-            .help("Specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network (default=1).")
+            .help("Specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network.")
+            .default_value("1")
             .value_name("INTEGER"))
 
         .arg(Arg::with_name("n_optimization_iterations_sa1")
             .short("oi")
             .long("n_optimization_iterations_sa1")
-            .help("Specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of already discovered routes (default=15000).")
+            .help("Specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of already discovered routes.")
+            .default_value("15000")
             .value_name("INTEGER"))
 
         .arg(Arg::with_name("n_optimization_iterations_sa2")
             .short("oj")
             .long("n_optimization_iterations_sa2")
-            .help("Specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of new routes with interchanged path parts (default=500).")
+            .help("Specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of new routes with interchanged path parts.")
+            .default_value("500")
             .value_name("INTEGER"))
 
         .get_matches();
@@ -73,37 +78,34 @@ fn main() {
     let output_folder_path = matches.value_of("output_folder_path").unwrap_or(".");
 
     let mut search_budgets: Vec<u64> = matches
-        .values_of("search_budgets")
+        .value_of("search_budgets")
         .unwrap()
+        .replace(" ", "")
+        .split(',')
         .map(|value| value.parse().expect("search_budgets have to be positive integers"))
         .collect();
 
-    if search_budgets.len() == 0 {
-        // no search budgets specified, using defaults:
-        search_budgets = vec![30, 35, 40, 45, 50, 55, 60];
-    }
-
     let min_paths: usize = matches
         .value_of("min_paths")
-        .unwrap_or("50")
+        .unwrap()
         .parse()
         .expect("min_paths has to be a positive integer");
 
     let n_search_threads: usize = matches
         .value_of("n_search_threads")
-        .unwrap_or("1")
+        .unwrap()
         .parse()
         .expect("n_search_threads has to be a positive integer");
 
     let n_optimization_iterations_sa1: u64 = matches
         .value_of("n_optimization_iterations_sa1")
-        .unwrap_or("500")
+        .unwrap()
         .parse()
         .expect("n_optimization_iterations has to be a positive integer");
 
     let n_optimization_iterations_sa2: u64 = matches
         .value_of("n_optimization_iterations_sa2")
-        .unwrap_or("500")
+        .unwrap()
         .parse()
         .expect("n_optimization_iterations has to be a positive integer");
 
@@ -222,7 +224,7 @@ fn main() {
 }
 
 
-// unused, but too good to delete :)
+// unused, but too good to go ;)
 
 // create and save a graph of all groups combined possible paths
 // for group in groups_with_at_least_one_path.iter() {

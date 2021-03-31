@@ -151,7 +151,7 @@ Quick example:
 # note that <csv_input_folder_path> must not end with a '/'
 # also note the `--` after `--release`: mitigates passing the args to cargo
 
-$ cargo run --release -- -i <csv_input_folder_path> -o <csv_output_filepath> [OPTION]
+$ cargo run --release -- -i <csv_input_folder_path> [OPTION]
 ```
 
 ### CLI Parameter OPTIONs
@@ -161,7 +161,7 @@ $ cargo run --release -- -i <csv_input_folder_path> -o <csv_output_filepath> [OP
 
 `-o, --output_folder` specifies the folder the result CSV will be written to (default="." aka. current working dir).
 
-`-b, --search_budgets` specifies the list of search budgets each run of the iterative-deepening-depth-first search is initially provided with (default='30 35 40 45 50 55 60'). IDDFS start with the first budget value for the first iteration and continues probing further budgets, if the search did not return enough routes. Too-high budgets can cause **very** long running times, but too-low values may decrease the number of paths the algorithm can find for each travel-group.
+`-b, --search_budgets` specifies the list of search budgets each run of the iterative-deepening-depth-first search is initially provided with (default='30, 35, 40, 45, 50, 55, 60'). IDDFS start with the first budget value for the first iteration and continues probing further budgets, if the search did not return enough routes. Too-high budgets can cause **very** long running times, but too-low values may decrease the number of paths the algorithm can find for each travel-group.
 
 `-p, --min_paths` specifies the number of paths the iterative-deepening-depth-first search has to find to not retry the DFS with next budget value (default=50). 
 
