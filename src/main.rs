@@ -134,7 +134,7 @@ fn main() {
 
     // 4. Optimize with randomized_hillclimb
     // let selection_state = optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 10,  10000, "eval/randomized_hillclimb");
-    // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/andomized_hillclimb_edges.csv");
+    // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/randomized_hillclimb_edges.csv");
     // selection_state.save_groups_to_csv(&mut model.graph, "eval/randomized_hillclimb_groups.csv");
 
     

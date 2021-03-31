@@ -27,10 +27,10 @@ pub struct Model {
 
     // we need to store all transfer and arrival nodes for all stations at all times
     // required as entry-/endpoints for path search
-    stations_transfers: HashMap<u64, Vec<NodeIndex>>,
+    pub stations_transfers: HashMap<u64, Vec<NodeIndex>>,
 
     // required for "in_trip" column of groups (groups could start in a train instead of a station)
-    stations_arrivals: HashMap<u64, Vec<NodeIndex>>
+    pub stations_arrivals: HashMap<u64, Vec<NodeIndex>>
 }
 
 impl Model {
