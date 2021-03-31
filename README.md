@@ -13,7 +13,7 @@ The algorithm mainly consists out of three steps:
 
 2. For each travel group defined in the input data, partially-informed depth-first search is used to find several route options for their journey.
 
-3. Last, the algorithm tries to compose an optimal combination of routes (one for each group) using simulated annealing. One goal is to keep the selected route for each group as short and pleasant (few train changes, non-overcrowded trains) as possible, but also not to overload the network in general.
+3. Last, the algorithm tries to compose an optimal combination of routes (one for each group) using simulated annealing. One goal is to keep the selected route for each group as short and pleasant (few train changes, non-overcrowded trains) as possible, but also not to overload the network in general. In the first part, simulated annealing is used to interchange already found paths. In the second part, it tries to detour groups from overcrowded edges by finding subpaths avoiding this edge.
 
 
 ## Input
@@ -36,7 +36,8 @@ csv_input_data/
 | to_station   | station id of the footpath's destination station |
 | duration     | number of minutes taking this footpath takes     |
 
----
+<br>
+
 ### groups.csv
 
 | field name  | description                                                                                    |
@@ -49,7 +50,8 @@ csv_input_data/
 | passengers  | number of passengers in this group                                                             |
 | in_trip     | optional field to specify whether this group wants to start at a station or directly in a trip |
 
----
+<br>
+
 ### stations.csv
 
 | field name | description                                                                  |
@@ -58,7 +60,8 @@ csv_input_data/
 | transfer   | time (in minutes) a passenger requires to alight from a train to the station |
 | name       | human-readable name of the station                                           |
 
----
+<br>
+
 ### trips.csv
 
 Each line the file only describes a fraction / a ride between **two** stations. The whole trip is described by multiple lines.
@@ -73,7 +76,67 @@ Each line the file only describes a fraction / a ride between **two** stations. 
 
 ## Output
 
+Example configuration:
+``` 
+results/
+├── simulated_annealing.csv
+├── simulated_annealing_edges.csv
+├── simulated_annealing_groups.csv
+├── simulated_annealing_runtime.csv
+├── simulated_annealing_on_path.csv
+├── simulated_annealing_on_path_edges.csv
+├── simulated_annealing_on_path_groups.csv
+└── simulated_annealing_on_path_runtime.csv
+```
 
+### simulated_annealing\<_on_path\>.csv
+
+| field_name  | description                                                    |
+|-------------|----------------------------------------------------------------|
+| time        | current iteration                                              |
+| temperature | temperature of current iteration                               |
+| cost        | total cost of current selected state                           |
+| edge_cost   | cost of strained edges of current selected state               |
+| travel_cost | summed travel cost of selected paths of current selected state |
+| delay_cost  | summed delay of selected paths of current selected state       |
+
+<br>
+
+### simulated_annealing\<_on_path\>_edges.csv
+
+Only strained edges, i.e. only trip edges or wait in train edges
+| field_name  | description                                                   |
+|-------------|---------------------------------------------------------------|
+| edge_index  | index of the edge in graph (identifier)                       |
+| duration    | duration of the edge, i.e. travel time, or wait in train time |
+| capacity    | capacity of the edge, i.e. capacity in the train              |
+| utilization | utilization of the edge, i.e. utilization in the train        |
+
+<br>
+
+### simulated_annealing\<_on_path\>_groups.csv
+
+| field_name   | description                                                                                                                                                                               |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| group_id     | unique identifier of the group                                                                                                                                                            |
+| planned_time | planned duration (in minutes) from start to destination                                                                                                                                   |
+| real_time    | real duration (in minutes) from start to destination with selected path                                                                                                                   |
+| travel_cost  | travel cost of path, i.e. summed cost of edges                                                                                                                                            |
+| delay        | delay of travel (in minutes)                                                                                                                                                              |
+| delay_in_%   | delay of travel in percentage with regard to planned duration                                                                                                                             |
+| waiting_time | time waiting at stations for selected path                                                                                                                                                |
+| in_trip_time | time sitting in a train for selected path                                                                                                                                                 |
+| walks        | number of walks in selected path                                                                                                                                                          |
+| path         | the shortened selected path with arrival/destination nodes and walk/trip edges seperated by '->' <br>the nodes are encoded as 'station_name.time.kind' <br>the edges are encoded as 'trip_id.time.kind |
+
+<br>
+
+### simulated_annealing\<_on_path\>_runtime.csv
+
+| field_name   | description                            |
+|--------------|----------------------------------------|
+| runtime      | runtime of the alogorithm (in seconds) |
+| time         | number of iterations                   |
 
 ## How to build it
 This project can be built with Rust's build tool and package manager `Cargo`. 
@@ -102,7 +165,9 @@ specifies the folder path of the CSV input data
 
 `-t, --n_search_threads` specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network (default=1).
 
-`-i, --n_optimization_iterations` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of routes (default=15000).
+`-oi, --n_optimization_iterations_sa1` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of already found routes (default=15000).
+
+`-oj, --n_optimization_iterations_sa2` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of new routes with interchanged path parts (default=500).
 
 ### Snapshots
 For quickly testing different parameters for the optimization algorithm, the program automatically generates a snapshot of its current state right after the depth-first search of group routes. This snapshot is saved in two files `snapshot_model.bincode` and `snapshot_groups.bincode`. Although these are two separated files, they strongly depend on each other and **can not be interchanged with snapshot files of other runs**.
