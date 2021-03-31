@@ -98,7 +98,7 @@ impl Group {
     }
 
     /// returns the number of found paths
-    pub fn search_paths(&mut self, model: &Model) {
+    pub fn search_paths(&mut self, model: &Model, search_budget: &[u64]) {
         // TODO: Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
 
@@ -192,9 +192,7 @@ impl Group {
             100,
 
             2 * travel_time + 120,
-            &vec![
-                30, 35, 40, 45, 50, 55, 60
-            ],
+            search_budget,
         );
 
         // let edge_sets = path::bfs(

@@ -184,7 +184,7 @@ impl Model {
         .unwrap();
     }
 
-    pub fn find_paths_for_groups(&self, groups_csv_filepath: &str) -> Vec<Group> {
+    pub fn find_paths_for_groups(&self, groups_csv_filepath: &str, search_budget: &[u64], n_threads: usize) -> Vec<Group> {
 
         // TODO: Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
         // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
@@ -200,10 +200,9 @@ impl Model {
   
         let start = Instant::now();
 
-        // use multiple threads to find paths
-        let n_threads: usize = 4;
         thread::scope(|s| {
-            for thread_id in 0..n_threads {
+            // use multiple threads to find paths
+            for _ in 0..n_threads {
 
                 let unprocessed_groups = Arc::clone(&unprocessed_groups);
                 let processed_groups = Arc::clone(&processed_groups);
@@ -215,7 +214,7 @@ impl Model {
                         match group_option {
                             Some(mut group) => {
                                 print!("[group={}]: ", group.id);
-                                group.search_paths(&self);
+                                group.search_paths(&self, search_budget);
 
                                 // add processed group to processed vec
                                 processed_groups.lock().unwrap().push(group)
