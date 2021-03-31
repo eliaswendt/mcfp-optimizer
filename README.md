@@ -127,7 +127,7 @@ Only strained edges, i.e. only trip edges or wait in train edges
 | waiting_time | time waiting at stations for selected path                                                                                                                                                |
 | in_trip_time | time sitting in a train for selected path                                                                                                                                                 |
 | walks        | number of walks in selected path                                                                                                                                                          |
-| path         | the shortened selected path with arrival/destination nodes and walk/trip edges seperated by '->' <br>the nodes are encoded as 'station_name.time.kind' <br>the edges are encoded as 'trip_id.time.kind |
+| path         | the shortened selected path with arrival/destination nodes and walk/trip edges seperated by '->' <br>the nodes are encoded as 'station_name\$time\$kind' <br>the edges are encoded as 'trip_id\$time\$kind |
 
 <br>
 
