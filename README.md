@@ -18,10 +18,8 @@ The algorithm mainly consists out of three steps:
 
 ## Input
 The Algorithm expects the input separated in four different CSV files stored in the same folder.
-
-Example configuration:
 ``` 
-csv_input_data/
+<csv_input_folder_path>/
 ├── footpaths.csv
 ├── groups.csv
 ├── stations.csv
@@ -75,10 +73,8 @@ Each line the file only describes a fraction / a ride between **two** stations. 
 | capacity     | number of passengers this trip is able to handle                  |
 
 ## Output
-
-Example configuration:
 ``` 
-results/
+<csv_output_filepath>/
 ├── simulated_annealing.csv
 ├── simulated_annealing_edges.csv
 ├── simulated_annealing_groups.csv
@@ -153,7 +149,9 @@ The binary can then be found at `target/release/praktikum-algorithmik`.
 Quick example:
 ```
 # note that <csv_input_folder_path> must not end with a '/'
-$ cargo run --release -i <csv_input_folder_path> -o <csv_output_filepath> [OPTION]
+# also note the `--` after `--release`: mitigates passing the args to cargo
+
+$ cargo run --release -- -i <csv_input_folder_path> [OPTION]
 ```
 
 ### CLI Parameter OPTIONs
@@ -163,7 +161,11 @@ $ cargo run --release -i <csv_input_folder_path> -o <csv_output_filepath> [OPTIO
 
 `-o, --output_folder` specifies the folder the result CSV will be written to (default="." aka. current working dir).
 
-`-b, --search_budget` specifies the search budget each run of the depth-first search is initially provided with (default=60). Too-high budgets can cause **very** long runing times, but too-low values may decrease the number of paths the algorithm can find for each travel-group.
+`-b, --search_budgets` specifies the list of search budgets each run of the iterative-deepening-depth-first search is initially provided with (default='30, 35, 40, 45, 50, 55, 60'). IDDFS start with the first budget value for the first iteration and continues probing further budgets, if the search did not return enough routes. Too-high budgets can cause **very** long running times, but too-low values may decrease the number of paths the algorithm can find for each travel-group.
+
+`-p, --min_paths` specifies the number of paths the iterative-deepening-depth-first search has to find to not retry the DFS with next budget value (default=50). 
+
+Example: For ` --search_budgets 30 35 40 [...]` and `--min_paths 50` the program will first try the DFS path search with a budget of `30`. If this search did return at least `50` paths, the search would start again with a budget of `35`, etc.
 
 `-t, --n_search_threads` specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network (default=1).
 
@@ -172,17 +174,17 @@ $ cargo run --release -i <csv_input_folder_path> -o <csv_output_filepath> [OPTIO
 `-oj, --n_optimization_iterations_sa2` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of new routes with interchanged path parts (default=500).
 
 ### Snapshots
-For quickly testing different parameters for the optimization algorithm, the program automatically generates a snapshot of its current state right after the depth-first search of group routes. This snapshot is saved in two files `snapshot_model.bincode` and `snapshot_groups.bincode`. Although these are two separated files, they strongly depend on each other and **can not be interchanged with snapshot files of other runs**.
+For quickly testing different optimization parameters, the program automatically generates a snapshot of its current state right after the depth-first search of group routes. This snapshot is saved in two files `snapshot_model.bincode` and `snapshot_groups.bincode`. Although these are two separated files, they strongly depend on each other and **can not be interchanged with snapshot files of other runs**.
 
 To restart path combination optimization with paths of an earlier run, simply call the program without specifying `-i, --input` parameter.
 
 
-## Code Documentation
-Browsable code documentation can be generated directly from the source code:
+## Code Overview
+Browsable code overview can be generated directly from the source code:
 ```
-# just generate the documentation
+# just generate the html doc directory
 $ cargo doc
 
-# generate the documentation and open it in browser
+# generate the html doc directory and open it in browser
 $ cargo doc --open
 ```

@@ -93,17 +93,16 @@ impl Group {
 
         let reader = BufReader::new(
             File::open(filepath)
-                .expect(&format!("Could not open file {}", filepath)),
+                .expect(&format!("Could not load from snapshot file {}\nPlease create a new state using the -i/--input parameter", filepath)),
         );
         let groups: Vec<Group> = bincode::deserialize_from(reader).expect("Could not load groups from file!");
         println!("done ({}ms)", start.elapsed().as_millis());
 
         groups
     }
-
-    /// searches for paths in given model with its graph limited by search budgets
-    pub fn search_paths(&mut self, model: &Model, search_budget: &[u64]) {
         
+    /// searches for paths in given model with its graph limited by search budgets
+    pub fn search_paths(&mut self, model: &Model, search_budget: &[u64], min_edge_vecs: usize) {
         // find next start node at station with specified id from this start_time
         // returns the first timely reachable transfer at the station_id
         // returns None if no transfer reachable
@@ -191,7 +190,7 @@ impl Group {
             &model.graph,
             start,
             self.destination_station_id,
-            100,
+            min_edge_vecs,
 
             2 * travel_time + 120,
             search_budget,

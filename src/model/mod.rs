@@ -116,7 +116,7 @@ impl Model {
             File::create(filepath).expect(&format!("Could not open file {}", filepath))
         );
 
-        bincode::serialize_into(writer, self).expect("Could not dump model");
+        bincode::serialize_into(writer, self).expect("Could not save model to file");
         println!("done ({}ms)", start.elapsed().as_millis());
     }
 
@@ -128,7 +128,7 @@ impl Model {
         let start = Instant::now();
 
         let reader = BufReader::new(
-            File::open(filepath).expect(&format!("Could not open file {}", filepath))
+            File::open(filepath).expect(&format!("Could load snapshot from {}\nPlease create a new state using the -i/--input parameter", filepath))
         );
         let model: Self = bincode::deserialize_from(reader).expect("Could not load model from file!");
 
@@ -185,7 +185,7 @@ impl Model {
 
     /// creates groups, finds paths for groups, 
     /// returns groups
-    pub fn find_paths_for_groups(&self, groups_csv_filepath: &str, search_budget: &[u64], n_threads: usize) -> Vec<Group> {
+    pub fn find_paths_for_groups(&self, groups_csv_filepath: &str, search_budget: &[u64], n_threads: usize, min_edge_vecs: usize) -> Vec<Group> {
 
         let unprocessed_groups = Arc::new(
             Mutex::new(
@@ -211,7 +211,7 @@ impl Model {
                         match group_option {
                             Some(mut group) => {
                                 print!("[group={}]: ", group.id);
-                                group.search_paths(&self, search_budget);
+                                group.search_paths(&self, search_budget, min_edge_vecs);
 
                                 // add processed group to processed vec
                                 processed_groups.lock().unwrap().push(group)
