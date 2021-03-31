@@ -20,8 +20,12 @@ pub mod randomized_hillclimb;
 pub mod simulated_annealing;
 pub(crate) mod simulated_annealing_on_path;
 
+/// This module contains the implementation of the SelectionState and its neighborhood generation
+/// and different optimization algorithms, trying to find an optimal SelectionState
+
+
 /// formalizing a system state
-/// by storing the indices of the currently selected path for each group
+/// by storing the indices of the currently selected path for each group along with this state's cost
 #[derive(Debug, Clone)]
 pub struct SelectionState<'a> {
     pub groups: &'a Vec<Group>,
@@ -59,6 +63,7 @@ impl fmt::Display for SelectionState<'_> {
 }
 
 impl<'a> SelectionState<'a> {
+    /// calculate sum of utilization_cost of all strained edges
     pub fn calculate_cost_of_strained_edges(
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         strained_edges: &HashSet<EdgeIndex>,
@@ -69,6 +74,7 @@ impl<'a> SelectionState<'a> {
             .sum()
     }
 
+    /// calculate sum of travel_cost of all group's selected paths
     pub fn calculate_total_travel_cost_paths(
         groups: &Vec<Group>,
         groups_path_index: &Vec<usize>,
@@ -80,6 +86,7 @@ impl<'a> SelectionState<'a> {
             .sum::<u64>() as i64
     }
 
+    /// calculate sum of travel_delay of all group's selected paths
     pub fn calculate_total_travel_delay_cost_paths(
         groups: &Vec<Group>,
         groups_path_index: &Vec<usize>,
@@ -91,6 +98,12 @@ impl<'a> SelectionState<'a> {
             .sum()
     }
 
+    /// saves this SelectionState to csv file
+    ///
+    /// creates a pipe-separated CSV with one group per line
+    ///
+    /// saves all cost metrics of this state
+    /// along with the path (as "->" separted string)
     pub fn save_groups_to_csv(
         &self,
         graph: &DiGraph<TimetableNode, TimetableEdge>,
@@ -139,6 +152,7 @@ impl<'a> SelectionState<'a> {
         }
     }
 
+
     pub fn save_strained_trip_edges_to_csv(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -186,6 +200,7 @@ impl<'a> SelectionState<'a> {
         }
     }
 
+    /// selects a random path for each group, calculates the state's cost and returns it
     pub fn generate_random_state(
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         groups: &'a Vec<Group>,
@@ -229,6 +244,7 @@ impl<'a> SelectionState<'a> {
         }
     }
 
+    /// selects the first path (index=0) for each group, calculates the state's cost and returns it
     pub fn generate_state_with_best_path_per_group(
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         groups: &'a Vec<Group>,
@@ -268,7 +284,10 @@ impl<'a> SelectionState<'a> {
     }
 
     /// generates a vec of neighbor states
+    ///
     /// generate new states, so that each neighbor only differs in selected path of one group
+    ///
+    /// WARNING: neighborhood quickly becomes VERY large
     pub fn all_group_neighbors(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -355,7 +374,9 @@ impl<'a> SelectionState<'a> {
     }
 
     /// generates a vec of neighbor states
+    ///
     /// create two new states per selected_path_index -> one with the one-lower index (if > 0) + one with the one-higher index (if in bounds)
+    ///
     /// this function also efficiently calculates the cost during creation of path configurations
     pub fn all_direct_group_neighbors(
         &self,
@@ -472,9 +493,10 @@ impl<'a> SelectionState<'a> {
         neighbors
     }
 
-    /// generate a single group neighbor
+    /// generate a single SelectionState neighbor
+    ///
     /// if not specified, select a random path for a random group
-    pub fn random_group_neighbor(
+    pub fn group_neighbor(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
         rng: &mut ThreadRng,
@@ -526,6 +548,7 @@ impl<'a> SelectionState<'a> {
             groups_path_index: groups_paths_selection,
         }
     }
+
 
     pub fn group_neighbor_from_group_and_path(
         &self,
@@ -730,15 +753,7 @@ impl<'a> SelectionState<'a> {
     }
 }
 
-// #[derive(Debug, Clone)]
-// pub struct SelectionState<'a> {
-//     pub groups: &'a Vec<Group>,
-//     pub cost: i64, // total cost of this path selection
-//     pub strained_edges_cost: i64,
-//     pub travel_cost: i64,
-//     pub travel_delay_cost: i64,
-//     pub groups_path_index: Vec<usize>, // array of indices (specifies selected path for each group)
-// }
+
 
 /// generates and saves the neighborhood of states for analysis purposes
 pub fn analyze_neighborhood(graph: &mut DiGraph<TimetableNode, TimetableEdge>, groups: &Vec<Group>, folderpath: &str, n_iterations: usize) {

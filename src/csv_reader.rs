@@ -2,6 +2,9 @@ use std::{collections::HashMap, fs::File, io::BufReader};
 
 type Record = HashMap<String, String>;
 
+/// read CSV file into a vector of HashMaps
+///
+/// each entry in the vec corresponds to one line, where entry is <fieldname> -> <value>
 pub fn read_to_maps(filepath: &str) -> Vec<HashMap<String, String>> {
     let reader =
         BufReader::new(File::open(filepath).expect(&format!("Could not open file {}", filepath)));

@@ -14,6 +14,9 @@ use crate::model::{
     group::Group,
 };
 
+/// Implementation of Simulated Annealing Search
+///
+/// Algorithm starts on SelectionState with all first paths selected, generates a random neighbor and uses cost-delta to decide whether to apply this state as next state
 pub fn simulated_annealing<'a>(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &'a Vec<Group>,
@@ -87,7 +90,7 @@ pub fn simulated_annealing<'a>(
             return current;
         }
 
-        let next = current.random_group_neighbor(graph, &mut rng, None, None);
+        let next = current.group_neighbor(graph, &mut rng, None, None);
 
         // if next_state is better than current_state -> delta positive
         // if next_state is worse than current_state -> delta negative

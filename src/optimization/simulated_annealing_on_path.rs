@@ -15,6 +15,7 @@ use crate::model::{
 };
 
 /// uses simulated annealing to improve parts of paths
+///
 /// first selects a random overcrowded edge, second selects one of its occupying groups and 
 /// third changes the last part of the selected path of the group
 pub fn simulated_annealing<'a>(

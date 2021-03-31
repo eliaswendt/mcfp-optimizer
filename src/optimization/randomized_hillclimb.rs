@@ -9,7 +9,10 @@ use crate::model::{
 
 use super::SelectionState;
 
-/// perform a single Hill Climbing Step
+/// random-restart hillclimb implementation
+///
+/// algorithm starts with `n_restarts` random SelectionStates
+/// and chooses the best neighbor in each iteration
 pub fn randomized_hillclimb<'a>(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &'a Vec<Group>,
