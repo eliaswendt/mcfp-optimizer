@@ -157,7 +157,7 @@ $ cargo run --release <csv_input_folder_path> -o <csv_output_filepath> [OPTION]
 ```
 
 ### CLI Parameter OPTIONs
-specifies the folder path of the CSV input data
+`-i, --input` specifies the folder path of the CSV input data
 
 `-o, --output_folder` specifies the folder the result CSV will be written to (default="." aka. current working dir)
 
