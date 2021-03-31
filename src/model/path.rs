@@ -5,6 +5,7 @@ use std::{cmp::Ordering, collections::{HashMap, HashSet, VecDeque}, fs::File, io
 
 use super::{TimetableEdge, TimetableNode};
 
+/// travel path
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Path {
     travel_cost: u64,     // cost for this path
@@ -12,9 +13,10 @@ pub struct Path {
     travel_delay: i64,    // time between planned and real arrival
     utilization: u64,     // number of passengers
 
-    pub edges: IndexSet<EdgeIndex>,
+    pub edges: IndexSet<EdgeIndex>, // edges determining the path in graph
 }
 
+/// paths are ordered by cost()
 impl Ord for Path {
     fn cmp(&self, other: &Self) -> Ordering {
         self.cost().cmp(&other.cost())
@@ -34,7 +36,8 @@ impl PartialEq for Path {
 }
 
 impl Path {
-    /// edges must not be empty
+
+    /// creates new path using non-empty vector of edges
     pub fn new(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         edges: Vec<EdgeIndex>,
@@ -51,7 +54,7 @@ impl Path {
         }
 
         // get time of arrival node
-        let last_node = graph.edge_endpoints(edges[edges.len() - 1]).unwrap().1; // todo .1 or .0 depends on final implementation
+        let last_node = graph.edge_endpoints(*edges.last().unwrap()).unwrap().1;
         let real_arrival_time = graph[last_node].time();
 
         // calculate delay between planned and real_arrival
@@ -66,31 +69,36 @@ impl Path {
         }
     }
 
-    /// returns cost of this path
+    /// returns cost (travel cost + travel delay) of this path
     pub fn cost(&self) -> i64 {
         self.travel_cost as i64 + self.travel_delay
     }
 
+    /// returns travel cost of this path
     pub fn travel_cost(&self) -> u64 {
         self.travel_cost
     }
-
+    /// returns duration of this path
     pub fn duration(&self) -> u64 {
         self.travel_duration
     }
 
+    /// returns utilization of this path
     pub fn utilization(&self) -> u64 {
         self.utilization
     }
 
+    /// returns travel delay of this path
     pub fn travel_delay(&self) -> i64 {
         self.travel_delay
     }
 
+    /// returns the intersecting edges with another path
     pub fn intersecting_edges(&self, other: &Self) -> Vec<EdgeIndex> {
         self.edges.intersection(&other.edges).cloned().collect()
     }
 
+    /// returns the number of walks 
     pub fn get_walks(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
         self.edges
             .iter()
@@ -98,6 +106,7 @@ impl Path {
             .sum()
     }
 
+    /// returns the summed time of durations of WaitAtStation edges in the path
     pub fn get_waiting_time(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
         self.edges
             .iter()
@@ -112,6 +121,7 @@ impl Path {
             .sum()
     }
 
+    /// returns the summed time of durations of WaitAtStation edges in the path
     pub fn get_in_trip_time(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> u64 {
         self.edges
             .iter()
@@ -126,7 +136,7 @@ impl Path {
             .sum()
     }
 
-    /// print this path as human readable traval plan
+    /// prints this path as human readable traval plan
     pub fn to_human_readable_string(
         &self,
         graph: &DiGraph<TimetableNode, TimetableEdge>,
@@ -157,7 +167,7 @@ impl Path {
         result
     }
 
-    /// format path to a reduced readable consecutive sequence of Arrival/Departure nodes and Trip/Walk edges  
+    /// formats path to a reduced readable consecutive sequence of Arrival/Departure nodes and Trip/Walk edges with location (station or trip id), time, and kind 
     pub fn to_location_time_and_type(
         &self,
         graph: &DiGraph<TimetableNode, TimetableEdge>,
@@ -247,6 +257,7 @@ impl Path {
         travel
     }
 
+    /// prints a readable reduced version of the path
     pub fn display(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) {
         for (location, time, kind) in self.to_location_time_and_type(graph) {
             if kind == "Arrival" || kind == "Departure" {
@@ -262,10 +273,11 @@ impl Path {
         }
     }
 
+    /// returns the reduced version of the path as encoded string
     pub fn to_string(&self, graph: &DiGraph<TimetableNode, TimetableEdge>) -> String {
         let mut path_string = String::new();
         for (location, time, kind) in self.to_location_time_and_type(graph) {
-            path_string += &format!("{}.{}.{}->", location, time, kind);
+            path_string += &format!("{}${}${}->", location, time, kind);
         }
         path_string.pop();
         path_string.pop();
@@ -381,7 +393,7 @@ impl Path {
     //     index
     // }
 
-    /// iterative deeping depth-first-search (IDDFS)
+    /// iterative deeping depth-first-search (IDDFS) to find paths for a given group
     pub fn all_paths_iddfs(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
@@ -469,6 +481,7 @@ impl Path {
         results
     }
 
+    /// recursive helper function for dfs search
     fn recursive_dfs_search_helper(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         results: &mut Vec<Vec<EdgeIndex>>, // paths found until now
@@ -569,8 +582,8 @@ impl Path {
         }
     }
 
-    /// petgraph native depth first search (using visitors)
-    /// currently fastest implementation (full traversation, no duration/budget/capacity limitation)
+    /// petgraph native depth first search (using visitors) to find paths for a given group
+    /// returns vector of discovered paths
     pub fn dfs_visitor_search(
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
@@ -718,6 +731,8 @@ pub fn collect_paths_recursive(graph: &DiGraph<TimetableNode, TimetableEdge>, pr
 //     }    
 // }
 
+
+/// breadth first search to find paths for a given group
 pub fn bfs(
     graph: &DiGraph<TimetableNode, TimetableEdge>,
     start: NodeIndex,

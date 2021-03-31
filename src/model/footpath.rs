@@ -4,6 +4,7 @@ use petgraph::graph::{DiGraph, NodeIndex};
 
 use super::{TimetableEdge, TimetableNode};
 
+/// footpath from a station to another station
 pub struct Footpath {
     pub from_station: u64,
     pub to_station: u64,
@@ -11,6 +12,8 @@ pub struct Footpath {
 }
 
 impl Footpath {
+
+    /// returns footpaths from maps
     pub fn from_maps_to_vec(footpath_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
         println!("parsing {} footpath(s)", footpath_maps.len());
 
@@ -27,7 +30,7 @@ impl Footpath {
         footpaths_vec
     }
 
-    /// connect all arrivals of a station with the earliest-reachable transfers at the footpath's destination station
+    /// connects all arrivals of a station with the earliest-reachable transfers at the footpath's destination station
     pub fn connect(
         self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,

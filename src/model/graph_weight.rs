@@ -27,6 +27,7 @@ pub enum TimetableNode {
 
 impl TimetableNode {
 
+    /// returns time for node
     #[inline]
     pub fn time(&self) -> u64 {
         match self {
@@ -36,6 +37,7 @@ impl TimetableNode {
         }
     }
 
+    /// returns station id for node
     #[inline]
     pub fn station_id(&self) -> u64 {
         match self {
@@ -45,6 +47,7 @@ impl TimetableNode {
         }
     }
 
+    /// returns station name for node
     #[inline]
     pub fn station_name(&self) -> String {
         match self {
@@ -54,47 +57,7 @@ impl TimetableNode {
         }
     }
 
-    #[inline]
-    pub fn is_arrival_at_station(&self, target_station_id: u64) -> bool {
-        match self {
-            Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => *station_id == target_station_id,
-            _ => false
-        }
-    }
-
-    #[inline]
-    pub fn is_departure(&self) -> bool {
-        match self {
-            Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => true,
-            _ => false
-        }
-    }
-
-    #[inline]
-    pub fn is_arrival(&self) -> bool {
-        match self {
-            Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => true,
-            _ => false
-        }
-    }
-
-    #[inline]
-    pub fn is_transfer(&self) -> bool {
-        match self {
-            Self::Transfer {time: _, station_id: _, station_name: _}  => true,
-            _ => false
-        }
-    }
-
-    #[inline]
-    pub fn kind_as_str(&self) -> &str {
-        match self {
-            Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
-            Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => "Arrival",
-            Self::Transfer {time: _, station_id: _, station_name: _}  => "Transfer",
-        }
-    }
-
+    /// returns trip id for node
     #[inline]
     pub fn trip_id(&self) -> Option<u64> {
         match self {
@@ -104,6 +67,51 @@ impl TimetableNode {
         }
     }
 
+    /// returns true if node is Arrival and its station id equals target_station_id
+    #[inline]
+    pub fn is_arrival_at_station(&self, target_station_id: u64) -> bool {
+        match self {
+            Self::Arrival {trip_id: _, time: _, station_id, station_name: _} => *station_id == target_station_id,
+            _ => false
+        }
+    }
+
+    /// returns true if node is Departure
+    #[inline]
+    pub fn is_departure(&self) -> bool {
+        match self {
+            Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => true,
+            _ => false
+        }
+    }
+
+    /// returns true if node is Arrival
+    #[inline]
+    pub fn is_arrival(&self) -> bool {
+        match self {
+            Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => true,
+            _ => false
+        }
+    }
+
+    /// returns true if node is Transfer
+    #[inline]
+    pub fn is_transfer(&self) -> bool {
+        match self {
+            Self::Transfer {time: _, station_id: _, station_name: _}  => true,
+            _ => false
+        }
+    }
+
+    /// returns type as string for node
+    #[inline]
+    pub fn kind_as_str(&self) -> &str {
+        match self {
+            Self::Departure {trip_id: _, time: _, station_id: _, station_name: _} => "Departure",
+            Self::Arrival {trip_id: _, time: _, station_id: _, station_name: _} => "Arrival",
+            Self::Transfer {time: _, station_id: _, station_name: _}  => "Transfer",
+        }
+    }
 
 }
 
@@ -150,18 +158,9 @@ impl TimetableEdge {
             Self::Walk {duration: _} => 6,
             Self::Board => 0,
         }
-        
-        // match self {
-        //     Self::Trip {duration, capacity: _, utilization: _} => *duration + 5,
-        //     Self::WaitInTrain {duration} => *duration,
-        //     Self::Alight {duration} => *duration * 3 + 15,
-        //     Self::WaitAtStation {duration} => *duration * 2,
-        //     Self::Walk {duration} => *duration * 3,
-        //     Self::Board => 5,
-        // }
     }
 
-    /// calculate the utilization cost for edge
+    /// calculates the utilization cost for edge
     #[inline]
     pub fn utilization_cost(&self) -> u64 {
         match self {
@@ -185,7 +184,7 @@ impl TimetableEdge {
     }
 
 
-    /// is RideToStation Edge
+    /// returns true if edge is Trip
     #[inline]
     pub fn is_trip(&self) -> bool {
         match self {
@@ -198,7 +197,7 @@ impl TimetableEdge {
         }
     }
 
-    /// is WaitInTrain Edge
+    /// returns true if edge is WaitInTrain
     #[inline]
     pub fn is_wait_in_train(&self) -> bool {
         match self {
@@ -209,7 +208,7 @@ impl TimetableEdge {
         }
     }
 
-    /// is Footpath Edge
+    /// returns true if edge is Walk
     #[inline]
     pub fn is_walk(&self) -> bool {
         match self {
@@ -220,6 +219,7 @@ impl TimetableEdge {
         }
     }
 
+    /// returns true if edge is Alight
     #[inline]
     pub fn is_alight(&self) -> bool {
         match self {
@@ -230,6 +230,7 @@ impl TimetableEdge {
         }
     }
 
+    /// returns true if edge is WaitAtStation
     #[inline]
     pub fn is_wait_at_station(&self) -> bool {
         match self {
@@ -240,6 +241,7 @@ impl TimetableEdge {
         }
     }
 
+    /// returns true if edge is Board
     #[inline]
     pub fn is_board(&self) -> bool {
         match self {
@@ -248,7 +250,7 @@ impl TimetableEdge {
         }
     }
 
-    /// get duration of self, defaults to 0
+    /// returns duration of self, defaults to 0
     #[inline]
     pub fn duration(&self) -> u64 {
         match self {
@@ -261,7 +263,7 @@ impl TimetableEdge {
         }
     }
 
-    /// get capacity_soft_limit of self, defaults to MAX
+    /// returns capacity_soft_limit of self, defaults to MAX
     #[inline]
     pub fn capacity(&self) -> u64 {
         match self {
@@ -270,6 +272,7 @@ impl TimetableEdge {
         }
     }
 
+    /// increases utilization of self if self is Trip
     #[inline]
     pub fn increase_utilization(&mut self, addend: u64) {
         match self {
@@ -278,6 +281,7 @@ impl TimetableEdge {
         }
     }
 
+    /// decreases utilization of self if self is Trip
     #[inline]
     pub fn decrease_utilization(&mut self, subtrahend: u64) {
         match self {
@@ -286,7 +290,7 @@ impl TimetableEdge {
         }
     }
 
-    /// get utilization of self, defaults to 0
+    /// returns utilization of self if self is Trip, defaults to 0
     #[inline]
     pub fn utilization(&self) -> u64 {
         match self {
@@ -295,14 +299,7 @@ impl TimetableEdge {
         }
     }
 
-    // #[inline]
-    // pub fn get_remaining_capacity(&self) -> u64 {
-    //     match self {
-    //         Self::Ride{duration: _, capacity_soft_limit: capacity, capacity_hard_limit: _, utilization} => *capacity - *utilization,
-    //         _ => u64::MAX // other edges always return u64::MAX as they have unlimited capacity
-    //     }
-    // }
-
+    /// returns type as string for edge
     #[inline]
     pub fn kind_as_str(&self) -> &str {
         match self {

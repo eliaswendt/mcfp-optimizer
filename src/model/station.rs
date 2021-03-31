@@ -2,10 +2,12 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::HashMap;
 
 use super::{TimetableEdge, TimetableNode};
+
+/// stop station 
 pub struct Station {
-    pub id: u64,
+    pub id: u64, // unique identifer
     pub transfer_time: u64, // transfer time (minutes) at this station
-    pub name: String,
+    pub name: String, // station's name
 
     // key is the trip_id, value is Vec<>, because one trip may have multiple arrivals/departures at the same station
     pub arrivals: HashMap<u64, Vec<NodeIndex>>,
@@ -15,6 +17,8 @@ pub struct Station {
 }
 
 impl Station {
+
+    /// returns stations from maps
     pub fn from_maps_to_map(station_maps: &Vec<HashMap<String, String>>) -> HashMap<u64, Self> {
         println!("parsing {} station(s)", station_maps.len());
 
@@ -41,7 +45,7 @@ impl Station {
         stations_map
     }
 
-    /// add departure node to graph
+    /// adds departure node to graph
     pub fn add_departure(
         &mut self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -78,7 +82,7 @@ impl Station {
         departure
     }
 
-    /// add arrival node to graph
+    /// adds arrival node to graph
     pub fn add_arrival(
         &mut self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,

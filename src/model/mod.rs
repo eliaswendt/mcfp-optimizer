@@ -23,7 +23,7 @@ use crate::csv_reader;
 /// entire combined data model
 #[derive(Serialize, Deserialize)]
 pub struct Model {
-    pub graph: DiGraph<TimetableNode, TimetableEdge>,
+    pub graph: DiGraph<TimetableNode, TimetableEdge>, // directed time expanded graph
 
     // we need to store all transfer and arrival nodes for all stations at all times
     // required as entry-/endpoints for path search
@@ -35,7 +35,7 @@ pub struct Model {
 
 impl Model {
 
-    /// Build a timetable model (graph) from a folder that contains the following files:
+    /// builds a timetable model (graph) from a folder that contains the following files:
     ///
     /// `stations.csv`, `footpaths.csv`, `trips.csv`
     pub fn with_stations_trips_and_footpaths(csv_folder_path: &str) -> Self {
@@ -63,7 +63,6 @@ impl Model {
 
         for (station_id, station) in stations.into_iter() {
 
-            let station_name = station.name.clone();
             let (transfers, arrivals) = station.connect(&mut graph);
 
             // save references to all transfers and to arrival_main
@@ -106,7 +105,7 @@ impl Model {
         }
     }
 
-    /// save model to file (for later runs)
+    /// saves model into a snapshot
     pub fn save_to_file(&self) {
         let filepath = "snapshot_model.bincode";
 
@@ -121,7 +120,7 @@ impl Model {
         println!("done ({}ms)", start.elapsed().as_millis());
     }
 
-    /// load model from file (from previous run)
+    /// returns modeal loaded from a snapshot
     pub fn load_from_file() -> Self {
         let filepath = "snapshot_model.bincode";
 
@@ -184,11 +183,9 @@ impl Model {
         .unwrap();
     }
 
+    /// creates groups, finds paths for groups, 
+    /// returns groups
     pub fn find_paths_for_groups(&self, groups_csv_filepath: &str, search_budget: &[u64], n_threads: usize) -> Vec<Group> {
-
-        // TODO: Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
-        // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
-        // Habe auch die Formatbeschreibung im handcrafted-scenarios Repo entsprechend angepasst.
 
         let unprocessed_groups = Arc::new(
             Mutex::new(
@@ -246,17 +243,18 @@ impl Model {
     }
 }
 
+/// Model and Group tests
 #[cfg(test)]
 mod tests {
     use petgraph::EdgeDirection::Outgoing;
 
     use super::*;
 
-    /// Panics if invalid
+    /// tests the integrity of the graph
     #[test]
     fn validate_graph_integrity() {
 
-        let model = Model::with_stations_trips_and_footpaths("real_data");
+        let model = Model::with_stations_trips_and_footpaths("data");
         let graph = model.graph;
 
         let start = Instant::now();
@@ -403,10 +401,10 @@ mod tests {
         println!("[validate_graph_integrity()]: passed ({}ms)", start.elapsed().as_millis());
     }
 
+    /// tests the integrity of the paths of the groups
     #[test]
     fn validate_groups_paths_integrity() {
 
-        let snapshot_folder_path = "snapshot/";
         let model = Model::load_from_file();
         let graph = &model.graph;
         let groups = Group::load_from_file();
