@@ -76,7 +76,7 @@ Each line the file only describes a fraction / a ride between **two** stations. 
 
 
 ## How to build it
-This project can be built with Rusts' build tool and package manager Cargo. 
+This project can be built with Rust's build tool and package manager `Cargo`. 
 Follow https://www.rust-lang.org/learn/get-started to install it.
 
 Then use the following command to build and run the program:
@@ -90,20 +90,25 @@ The binary can then be found at `target/release/praktikum-algorithmik`.
 Quick example:
 ```
 # note that <csv_input_folder_path> must not end with a '/'
-$ cargo run --release <csv_input_folder_path> <csv_output_filepath> [OPTION]
+$ cargo run --release <csv_input_folder_path> -o <csv_output_filepath> [OPTION]
 ```
 
 ### CLI Parameter OPTIONs
 specifies the folder path of the CSV input data
 
-`-b, --search-budget` specifies the search budget each run of the depth-first search is initially provided with (default=60). Too-high budgets can cause **very** long runing times, but too-low values may decrease the number of paths the algorithm can find for each travel-group.
+`-o, --output_folder` specifies the folder the result CSV will be written to (default="." aka. current working dir)
 
-`-t, --threads` specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network (default=1).
+`-b, --search_budget` specifies the search budget each run of the depth-first search is initially provided with (default=60). Too-high budgets can cause **very** long runing times, but too-low values may decrease the number of paths the algorithm can find for each travel-group.
 
-`-i, --iterations` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of routes (default=15000).
+`-t, --n_search_threads` specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network (default=1).
 
+`-i, --n_optimization_iterations` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of routes (default=15000).
 
-`-
+### Snapshots
+For quickly testing different parameters for the optimization algorithm, the program automatically generates a snapshot of its current state right after the depth-first search of group routes. This snapshot is saved in two files `snapshot_model.bincode` and `snapshot_groups.bincode`. Although these are two separated files, they strongly depend on each other and **can not be interchanged with snapshot files of other runs**.
+
+To restart path combination optimization with paths of an earlier run, simply call the program without specifying `-i, --input` parameter.
+
 
 ## Code Documentation
 Browsable code documentation can be generated directly from the source code:
@@ -111,6 +116,6 @@ Browsable code documentation can be generated directly from the source code:
 # just generate the documentation
 $ cargo doc
 
-# generate the documentation and open in (in browser)
+# generate the documentation and open it in browser
 $ cargo doc --open
 ```
