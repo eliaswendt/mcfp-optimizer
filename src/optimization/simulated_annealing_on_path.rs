@@ -17,7 +17,7 @@ use crate::model::{
 /// uses simulated annealing to improve parts of paths
 ///
 /// first selects a random overcrowded edge, second selects one of its occupying groups and 
-/// third changes the last part of the selected path of the group
+/// third changes the last part of the selected path of the group to detour the overcrowded edge
 pub fn simulated_annealing<'a>(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &'a mut Vec<Group>,
@@ -25,7 +25,7 @@ pub fn simulated_annealing<'a>(
     filepath: &str,
     n_iterations: u64
 ) -> SelectionState<'a> {
-    println!("simulated_annealing()");
+    println!("simulated_annealing_on_path()");
 
     let mut rng = rand::thread_rng();
 
@@ -46,41 +46,11 @@ pub fn simulated_annealing<'a>(
         .unwrap();
 
     let mut current_state = state;
-    //let mut current_state = SelectionState::generate_random_state(graph, groups);
-    //let mut current_state = SelectionState::generate_state_with_best_path_per_group(graph, groups);
     let mut time: u64 = 1;
 
     let start_instant = Instant::now();
 
-    // For termination condition
-    let mut steps_without_changes = 0;
-
     loop {
-        if steps_without_changes > 200 || current_state.cost <= 0 {
-            print!("-> return with costs={} ", current_state.cost);
-            println!("(done in {}s)", start_instant.elapsed().as_secs());
-
-            r_writer
-            .write(
-                format!(
-                    "{}s,{}\n",
-                    start_instant.elapsed().as_secs(),
-                    time
-                )
-                .as_bytes(),
-            )
-            .unwrap();
-
-            return SelectionState {
-                groups: groups,
-                cost: current_state.cost,
-                strained_edges_cost: current_state.strained_edges_cost,
-                travel_cost: current_state.travel_cost,
-                travel_delay_cost: current_state.travel_delay_cost,
-                groups_path_index: current_state.groups_path_index,
-            };
-        }
-
         // get new temperature
         let temperature = n_iterations as f64 / time as f64;
 
@@ -141,16 +111,16 @@ pub fn simulated_annealing<'a>(
         // find a detour for a random group in previously found groups
         let (group_index, path) =
             current_state.find_detour_for_random_group(graph, groups, group_indices, edge, &mut rng);
+    
         
         match path {
-            // Another path was found
+            // another path was found
             Some(path) => {
                 let old_path_index = current_state.groups_path_index[group_index];
 
                 // add path to paths of group
                 groups[group_index].paths.insert(0, path.clone());
 
-                //new_group_list = groups.clone();
 
                 // create new state
                 let next =
@@ -164,7 +134,6 @@ pub fn simulated_annealing<'a>(
 
                 if delta_cost > 0 {
                     current_state = next.clone();
-                    steps_without_changes = 0;
                     println!("{}", format!("-> replacing current state").green());
                 } else {
                     let probability = (delta_cost as f64 / 50.0 / temperature as f64).exp();
@@ -175,21 +144,14 @@ pub fn simulated_annealing<'a>(
                     if random < probability {
                         println!("{}", format!("-> choosing worse neighbor").red());
                         current_state = next.clone();
-                        if delta_cost == 0 {
-                            steps_without_changes += 1;
-                        } else {
-                            steps_without_changes = 0;
-                        }
                     } else {
                         println!("-> skipping");
                         current_state.groups_path_index[group_index] = old_path_index + 1;
-                        steps_without_changes += 1;
                     }
                 }
             },
             // No other path was found
             None => {
-                steps_without_changes += 1;
                 println!("-> skipping")
             }
         }

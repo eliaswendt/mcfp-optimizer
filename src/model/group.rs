@@ -17,25 +17,27 @@ use super::{
 /// travel group
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Group {
-    pub id: u64,
+    pub id: u64, // unique identifier
 
-    pub start_station_id: u64, // Start-Halt für die Alternativensuche (Station ID)
-    pub destination_station_id: u64, // Ziel der Gruppe (Station ID)
+    pub start_station_id: u64, // start station of group
+    pub destination_station_id: u64, // destionation station of group 
 
-    pub departure_time: u64, // Frühstmögliche Abfahrtszeit am Start-Halt (Integer)
-    pub arrival_time: u64,   // Ursprünglich geplante Ankunftszeit am Ziel (Integer)
+    pub departure_time: u64, // earliest possible departure time at start's station
+    pub arrival_time: u64,   // originally planned arrival time at destination
 
-    pub passengers: u64, // Größe der Gruppe (Integer)
+    pub passengers: u64, // size of the group
 
-    // Hier gibt es zwei Möglichkeiten (siehe auch unten):
-    // Wenn der Wert leer ist, befindet sich die Gruppe am Start-Halt.
-    // Wenn der Wert nicht leer ist, gibt er die Trip ID (Integer) der Fahrt an, in der sich die Gruppe befindet.
+    // Two possibilities:
+    // if value is empty, the group is at start station
+    // if value is not empty, the trip id determines the trip in which the group is located
     pub in_trip: Option<u64>,
 
     pub paths: Vec<Path>, // possible paths for this group
 }
 
 impl Group {
+
+    /// returns groups from maps
     pub fn from_maps_to_vec(group_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
         println!("parsing {} group(s)", group_maps.len());
 
@@ -66,6 +68,7 @@ impl Group {
         groups
     }
 
+    /// saves the groups into a snapshot
     pub fn save_to_file(groups: &Vec<Group>) {
         let filepath = "snapshot_groups.bincode";
 
@@ -81,6 +84,7 @@ impl Group {
         println!("done ({}ms)", start.elapsed().as_millis());
     }
 
+    /// returns groups loaded from a snapshot
     pub fn load_from_file() -> Vec<Self> {
         let filepath = "snapshot_groups.bincode";
 
@@ -96,12 +100,9 @@ impl Group {
 
         groups
     }
-
-    /// returns the number of found paths
+        
+    /// searches for paths in given model with its graph limited by search budgets
     pub fn search_paths(&mut self, model: &Model, search_budget: &[u64], min_edge_vecs: usize) {
-        // TODO: Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
-        // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
-
         // find next start node at station with specified id from this start_time
         // returns the first timely reachable transfer at the station_id
         // returns None if no transfer reachable
@@ -244,8 +245,6 @@ impl Group {
             );
         }
 
-        // filter out paths that exceed duration or do not fulfill minium capacity
-
         print!("done in {}ms, ", start_instant.elapsed().as_millis());
 
         // sort lowest travel_cost first
@@ -266,9 +265,5 @@ impl Group {
                 .green()
             );
         }
-    }
-
-    fn calculate_max_travel_duration(travel_time: u64) -> u64 {
-        (1.5 * travel_time as f64) as u64 + 200
     }
 }

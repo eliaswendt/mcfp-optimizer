@@ -5,17 +5,20 @@ use petgraph::graph::DiGraph;
 
 use super::{station::Station, TimetableEdge, TimetableNode};
 
+/// a trip from a station to another station
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trip {
-    pub id: u64,
-    pub from_station: u64,
-    pub departure: u64,
-    pub to_station: u64,
-    pub arrival: u64,
-    pub capacity: u64,
+    pub id: u64, // trip id
+    pub from_station: u64, // station to departure
+    pub departure: u64, // departure time
+    pub to_station: u64, // station to a arrive
+    pub arrival: u64, // arrival time
+    pub capacity: u64, // capacity on this trip 
 }
 
 impl Trip {
+
+    /// returns trips from maps
     pub fn from_maps_to_vec(trip_maps: &Vec<HashMap<String, String>>) -> Vec<Self> {
         println!("parsing {} trip(s)", trip_maps.len());
 
@@ -41,6 +44,7 @@ impl Trip {
         trips
     }
 
+    /// connects a departure node with an arrival node with a trip edge
     pub fn connect(
         self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
