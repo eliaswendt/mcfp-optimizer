@@ -153,13 +153,15 @@ The binary can then be found at `target/release/praktikum-algorithmik`.
 Quick example:
 ```
 # note that <csv_input_folder_path> must not end with a '/'
-$ cargo run --release <csv_input_folder_path> -o <csv_output_filepath> [OPTION]
+$ cargo run --release -i <csv_input_folder_path> -o <csv_output_filepath> [OPTION]
 ```
 
 ### CLI Parameter OPTIONs
-`-i, --input` specifies the folder path of the CSV input data
+`-i, --input` specifies the folder path of the CSV input data. **Required** if not working on a snapshot from previous run.
 
-`-o, --output_folder` specifies the folder the result CSV will be written to (default="." aka. current working dir)
+`-e, --export_as_dot` If specified, exports the time-expanded timetable graph as GraphViz DOT-Code to filepath.
+
+`-o, --output_folder` specifies the folder the result CSV will be written to (default="." aka. current working dir).
 
 `-b, --search_budget` specifies the search budget each run of the depth-first search is initially provided with (default=60). Too-high budgets can cause **very** long runing times, but too-low values may decrease the number of paths the algorithm can find for each travel-group.
 

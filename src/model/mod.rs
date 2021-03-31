@@ -107,31 +107,31 @@ impl Model {
     }
 
     /// save model to file (for later runs)
-    pub fn save_to_file(&self, model_folder_path: &str) {
-        print!("saving model to {} ... ", model_folder_path);
+    pub fn save_to_file(&self) {
+        let filepath = "snapshot_model.bincode";
+
+        print!("saving model to {} ... ", filepath);
         let start = Instant::now();
 
         let writer = BufWriter::new(
-            File::create(&format!("{}model.bincode", model_folder_path)).expect(&format!("Could not open file {}model.bincode", model_folder_path))
+            File::create(filepath).expect(&format!("Could not open file {}", filepath))
         );
 
         bincode::serialize_into(writer, self).expect("Could not dump model");
-        //serde_json::to_writer(writer, model).expect("Could not dump model");
-
         println!("done ({}ms)", start.elapsed().as_millis());
     }
 
     /// load model from file (from previous run)
-    pub fn load_from_file(model_folder_path: &str) -> Self {
-        print!("loading model from {} ... ", model_folder_path);
+    pub fn load_from_file() -> Self {
+        let filepath = "snapshot_model.bincode";
+
+        print!("loading model from {} ... ", filepath);
         let start = Instant::now();
 
         let reader = BufReader::new(
-            File::open(&format!("{}model.bincode", model_folder_path)).expect(&format!("Could not open file {}model.bincode", model_folder_path))
+            File::open(filepath).expect(&format!("Could not open file {}", filepath))
         );
         let model: Self = bincode::deserialize_from(reader).expect("Could not load model from file!");
-        // let model: Self = serde_json::from_reader(reader).expect("Could not load model from file!");
-
 
         println!("done ({}ms)", start.elapsed().as_millis());
 
@@ -407,9 +407,9 @@ mod tests {
     fn validate_groups_paths_integrity() {
 
         let snapshot_folder_path = "snapshot/";
-        let model = Model::load_from_file(snapshot_folder_path);
+        let model = Model::load_from_file();
         let graph = &model.graph;
-        let groups = Group::load_from_file(snapshot_folder_path);
+        let groups = Group::load_from_file();
 
         // test all groups
         for group in groups {
