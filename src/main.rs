@@ -1,8 +1,7 @@
-use std::{
-    env,
-};
+use std::{env, fs::OpenOptions, io::prelude::*};
 
 use model::{group::Group, Model};
+use petgraph::{EdgeDirection::Outgoing, graph::NodeIndex};
 
 mod csv_reader;
 mod model;
@@ -69,31 +68,62 @@ fn main() {
     
     // ELIAS
     // create and save a graph of all groups combined possible paths
-    for group in groups_with_at_least_one_path.iter() {
-        let edges = group.paths
-            .iter()
-            .map(|path| path.edges.iter())
-            .flatten()
-            .cloned()
-            .collect();
+    // for group in groups_with_at_least_one_path.iter() {
+    //     let edges = group.paths
+    //         .iter()
+    //         .map(|path| path.edges.iter())
+    //         .flatten()
+    //         .cloned()
+    //         .collect();
 
-        model.create_subgraph_from_edges(edges, &format!("graphs/groups/group_{}.dot", group.id));
-    }
+    //     model.create_subgraph_from_edges(edges, &format!("graphs/groups/group_{}.dot", group.id));
+    // }
     //optimization::analyze_neighborhood(&mut model.graph, &groups_with_at_least_one_path, "eval/benchmark_neighbors/", 10);
 
     // // 1. Optimize with simulated annealing
-    // let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing");
-    // // save results
+    let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing");
+    // save results
     // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_edges.csv");
     // selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_groups.csv");
 
+    // let mut file = OpenOptions::new()
+    //     .write(true)
+    //     .append(true)
+    //     .open("eval/simulated_annealing_100_runs.csv")
+    //     .unwrap();
+
+    // if let Err(e) = 
+    //     writeln!(file, "{},{},{},{}", 
+    //         selection_state.cost, 
+    //         selection_state.strained_edges_cost, 
+    //         selection_state.travel_cost, 
+    //         selection_state.travel_delay_cost
+    //     ) {
+    //         eprintln!("Couldn't write to file: {}", e);
+    //     }
 
     // // 2. Optimize with simulated annealing on path
-    // let mut groups_cloned = groups_with_at_least_one_path.clone();
-    // let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path");
-    // // save results
+    let mut groups_cloned = groups_with_at_least_one_path.clone();
+    let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path");
+    // save results
     // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_on_path_edges.csv");
     // selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_on_path_groups.csv");
+
+    // let mut file = OpenOptions::new()
+    //     .write(true)
+    //     .append(true)
+    //     .open("eval/simulated_annealing_on_path_100_runs.csv")
+    //     .unwrap();
+
+    // if let Err(e) = 
+    //     writeln!(file, "{},{},{},{}", 
+    //         selection_state.cost, 
+    //         selection_state.strained_edges_cost, 
+    //         selection_state.travel_cost, 
+    //         selection_state.travel_delay_cost
+    //     ) {
+    //         eprintln!("Couldn't write to file: {}", e);
+    //     }
 
 
     // 3. Optimize with randomized best
@@ -104,7 +134,7 @@ fn main() {
 
     // 4. Optimize with randomized_hillclimb
     // let selection_state = optimization::randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 10,  10000, "eval/randomized_hillclimb");
-    // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/andomized_hillclimb_edges.csv");
+    // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/randomized_hillclimb_edges.csv");
     // selection_state.save_groups_to_csv(&mut model.graph, "eval/randomized_hillclimb_groups.csv");
 
     

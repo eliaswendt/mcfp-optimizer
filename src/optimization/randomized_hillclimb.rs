@@ -45,8 +45,7 @@ pub fn randomized_hillclimb<'a>(
 
     for run in 0..n_restarts {
         // choose random configuration as initial state
-        // let mut local_minimum = SelectionState::generate_random_state(graph, groups);
-        let mut local_minimum = SelectionState::generate_state_with_best_path_per_group(graph, groups);
+        let mut local_minimum = SelectionState::generate_random_state(graph, groups);
 
         println!(
             "[restart={}/{}]: initial_cost={}, edge_cost={}, travel_cost={}, delay_cost={}",
