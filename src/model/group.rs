@@ -66,32 +66,32 @@ impl Group {
         groups
     }
 
-    pub fn save_to_file(groups: &Vec<Group>, filepath: &str) {
+    pub fn save_to_file(groups: &Vec<Group>) {
+        let filepath = "snapshot_groups.bincode";
+
         print!("saving groups to {} ... ", filepath);
         let start = Instant::now();
 
         let writer = BufWriter::new(
-            File::create(&format!("{}groups.bincode", filepath))
-                .expect(&format!("Could not open file {}groups.bincode", filepath)),
+            File::create(filepath)
+                .expect(&format!("Could not open file {}", filepath)),
         );
         bincode::serialize_into(writer, groups).expect("Could not save groups to file");
-        // serde_json::to_writer(writer, groups).expect("Could not save groups to file");
 
         println!("done ({}ms)", start.elapsed().as_millis());
     }
 
-    pub fn load_from_file(filepath: &str) -> Vec<Self> {
+    pub fn load_from_file() -> Vec<Self> {
+        let filepath = "snapshot_groups.bincode";
+
         print!("loading groups from {} ... ", filepath);
         let start = Instant::now();
 
         let reader = BufReader::new(
-            File::open(&format!("{}groups.bincode", filepath))
-                .expect(&format!("Could not open file {}model.bincode", filepath)),
+            File::open(filepath)
+                .expect(&format!("Could not open file {}", filepath)),
         );
-        let groups: Vec<Group> =
-            bincode::deserialize_from(reader).expect("Could not load groups from file!");
-        // let groups: Vec<Group> = serde_json::from_reader(reader).expect("Could not load groups from file!");
-
+        let groups: Vec<Group> = bincode::deserialize_from(reader).expect("Could not load groups from file!");
         println!("done ({}ms)", start.elapsed().as_millis());
 
         groups

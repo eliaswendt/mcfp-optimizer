@@ -21,6 +21,12 @@ fn main() {
             .help("folder path of the input CSV files")
             .value_name("FOLDER"))
 
+        .arg(Arg::with_name("export_as_dot_filepath")
+            .short("e")
+            .long("export_as_dot_filepath")
+            .help("If specified, exports the time-expanded timetable graph as GraphViz DOT-Code to filepath")
+            .value_name("FILE"))
+
         .arg(Arg::with_name("output_folder_path")
             .short("o")
             .long("output")
@@ -39,16 +45,23 @@ fn main() {
             .help("Specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network (default=1).")
             .value_name("INTEGER"))
 
-        .arg(Arg::with_name("n_optimization_iterations")
-            .short("i")
-            .long("n_optimization_iterations")
-            .help("Specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of routes (default=15000).")
+        .arg(Arg::with_name("n_optimization_iterations_sa1")
+            .short("oi")
+            .long("n_optimization_iterations_sa1")
+            .help("Specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of already discovered routes (default=15000).")
+            .value_name("INTEGER"))
+
+        .arg(Arg::with_name("n_optimization_iterations_sa2")
+            .short("oj")
+            .long("n_optimization_iterations_sa2")
+            .help("Specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of new routes with interchanged path parts (default=500).")
             .value_name("INTEGER"))
 
         .get_matches();
 
     // parse config values from cli args
-    let input_folder_path = matches.value_of("input_folder_path").unwrap();
+    let input_folder_path_option = matches.value_of("input_folder_path");
+    let export_as_dot_option = matches.value_of("export_as_dot_filepath");
     let output_folder_path = matches.value_of("output_folder_path").unwrap_or(".");
     let search_budget: usize = matches
         .value_of("search_budget")
@@ -69,52 +82,46 @@ fn main() {
 
 
 
-    // EXPLANATION OF CLI ARGUMENT USAGE:
-    // if <csv_folderpath> specified, the program will try to read all CSVs from there + create a new model + search paths for all groups + create a snapshot of current model and continue with best path selection
-    // if <csv_folderpath> is NOT specified, the proram will try to load a snapshot from a previous run and directly continue with best path selection
+    // EXPLANATION OF input_folder_path:
+    // if <input_folder_path> specified, the program will try to read all CSVs from there + create a new model + search paths for all groups + create a snapshot of current model and continue with best path selection
+    // if <input_folder_path> is NOT specified, the proram will try to load a snapshot from a previous run and directly continue with best path selection
 
-    let args: Vec<String> = env::args().collect();
-    let csv_folderpath_option = if args.len() != 2 {
-        println!("<csv_folderpath> not specified -> trying to load snapshot from last run");
-        None
-    } else {
-        println!("using CSV folderpath \"{}\" to create new graph", args[1]);
-        Some(&args[1])
-    };
+    let (mut model, groups) = if let Some(input_folder_path) = input_folder_path_option {
+        // load model and groups from CSV files
 
-    let snapshot_folder_path = "snapshot/";
-
-    let (mut model, groups) = if let Some(csv_folderpath) = csv_folderpath_option {
         println!(
             "creating new model with_stations_trips_and_footpaths({}) and groups",
-            csv_folderpath
+            input_folder_path
         );
 
-        let model = Model::with_stations_trips_and_footpaths(csv_folderpath);
+        let model = Model::with_stations_trips_and_footpaths(input_folder_path);
         let groups = model
             .find_paths_for_groups(
-                &format!("{}/groups.csv", csv_folderpath),
+                &format!("{}/groups.csv", input_folder_path),
                 &vec![30, 35, 40, 45, 50, 55, 60],
                 n_search_threads
         );
 
         println!("create snapshot of model and groups for next run");
-        model.save_to_file(snapshot_folder_path);
-        Group::save_to_file(&groups, snapshot_folder_path);
-
-        if csv_folderpath.contains("sample_data") {
-            println!("building a graphviz graph of model");
-            // create dot code only for sample data
-            Model::save_dot_code_to(&model, &format!("{}/graph.dot", csv_folderpath));
-        }
+        model.save_to_file();
+        Group::save_to_file(&groups);
 
         (model, groups)
     } else {
+        // load model and groups from snpashot
+
         (
-            Model::load_from_file(snapshot_folder_path),
-            Group::load_from_file(snapshot_folder_path),
+            Model::load_from_file(),
+            Group::load_from_file(),
         )
     };
+
+    if let Some(export_as_dot_filepath) = export_as_dot_option {
+        // if set, export dot-code of graph to file
+        
+        println!("exporting dot-code of timetable graph to '{}'", export_as_dot_filepath);
+        Model::save_dot_code_to(&model, export_as_dot_filepath);
+    }
 
     let groups_len = groups.len();
     let mut groups_with_at_least_one_path: Vec<Group> = groups.into_iter().filter(|g| !g.paths.is_empty()).collect();

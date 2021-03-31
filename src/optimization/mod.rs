@@ -842,8 +842,8 @@ mod tests {
     #[test]
     fn validate_groups_paths_integrity() {
         let snapshot_folder_path = "snapshot/";
-        let mut model = Model::load_from_file(snapshot_folder_path);
-        let groups = Group::load_from_file(snapshot_folder_path);
+        let mut model = Model::load_from_file();
+        let groups = Group::load_from_file();
 
         let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
 
@@ -971,8 +971,8 @@ mod tests {
     #[test]
     fn validate_cost_metrics() {
         let snapshot_folder_path = "snapshot/";
-        let mut model = Model::load_from_file(snapshot_folder_path);
-        let groups = Group::load_from_file(snapshot_folder_path);
+        let mut model = Model::load_from_file();
+        let groups = Group::load_from_file();
 
         let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
 

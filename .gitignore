@@ -7,3 +7,5 @@
 /snapshot
 /eval/venv
 /eval/.ipynb_checkpoints
+snapshot_groups.bincode
+snapshot_model.bincode
