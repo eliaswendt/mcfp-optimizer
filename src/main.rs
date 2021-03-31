@@ -61,21 +61,32 @@ fn main() {
 
     // parse config values from cli args
     let input_folder_path_option = matches.value_of("input_folder_path");
+
     let export_as_dot_option = matches.value_of("export_as_dot_filepath");
+
     let output_folder_path = matches.value_of("output_folder_path").unwrap_or(".");
+
     let search_budget: usize = matches
         .value_of("search_budget")
         .unwrap_or("60")
         .parse()
         .expect("search_budget has to be a positive number");
+
     let n_search_threads: usize = matches
         .value_of("n_search_threads")
         .unwrap_or("1")
         .parse()
         .expect("n_search_threads has to be a positive number");
-    let n_optimization_iterations: u64 = matches
-        .value_of("n_optimization_iterations")
-        .unwrap_or("15000")
+
+    let n_optimization_iterations_sa1: u64 = matches
+        .value_of("n_optimization_iterations_sa1")
+        .unwrap_or("500")
+        .parse()
+        .expect("n_optimization_iterations has to be a positive number");
+
+    let n_optimization_iterations_sa2: u64 = matches
+        .value_of("n_optimization_iterations_sa2")
+        .unwrap_or("500")
         .parse()
         .expect("n_optimization_iterations has to be a positive number");
 
@@ -158,7 +169,7 @@ fn main() {
         &mut model.graph, 
         &groups_with_at_least_one_path, 
         "eval/simulated_annealing",
-        n_optimization_iterations
+        n_optimization_iterations_sa1
     );
     // save results
     // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_edges.csv");
@@ -182,7 +193,7 @@ fn main() {
 
     // // 2. Optimize with simulated annealing on path
     let mut groups_cloned = groups_with_at_least_one_path.clone();
-    let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path");
+    let selection_state = optimization::simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path", n_optimization_iterations_sa2);
     // save results
     // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_on_path_edges.csv");
     // selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_on_path_groups.csv");

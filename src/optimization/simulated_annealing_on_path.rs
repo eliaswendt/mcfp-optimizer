@@ -14,13 +14,6 @@ use crate::model::{
     group::Group,
 };
 
-/// maps time to temperature value
-fn time_to_temperature(time: f64) -> f64 {
-    //(5000.0 / time).powf(1.2)
-    500.0 / time // cost=782, funktioniert schonmal ganz gut
-                  // 10000.0 - time // funktioniert kaum, trend stimmt aber
-}
-
 /// uses simulated annealing to improve parts of paths
 /// first selects a random overcrowded edge, second selects one of its occupying groups and 
 /// third changes the last part of the selected path of the group
@@ -29,6 +22,7 @@ pub fn simulated_annealing<'a>(
     groups: &'a mut Vec<Group>,
     state: SelectionState<'a>,
     filepath: &str,
+    n_iterations: u64
 ) -> SelectionState<'a> {
     println!("simulated_annealing()");
 
@@ -53,7 +47,7 @@ pub fn simulated_annealing<'a>(
     let mut current_state = state;
     //let mut current_state = SelectionState::generate_random_state(graph, groups);
     //let mut current_state = SelectionState::generate_state_with_best_path_per_group(graph, groups);
-    let mut time = 1;
+    let mut time: u64 = 1;
 
     let start_instant = Instant::now();
 
@@ -87,7 +81,7 @@ pub fn simulated_annealing<'a>(
         }
 
         // get new temperature
-        let temperature = time_to_temperature(time as f64);
+        let temperature = n_iterations as f64 / time as f64;
 
         print!(
             "[time={}]: cost={}, edge_cost={}, travel_cost={}, delay_cost={}, temp={:.2}, ",
