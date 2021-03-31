@@ -14,24 +14,19 @@ use crate::model::{
     group::Group,
 };
 
-/// maps time to temperature value
-fn time_to_temperature(time: f64) -> f64 {
-    //(25000.0 - time).powf(1.1)
-    15000.0 / time // cost=782, funktioniert schonmal ganz gut
-                   // 10000.0 - time // funktioniert kaum, trend stimmt aber
-}
-
 pub fn simulated_annealing<'a>(
     graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     groups: &'a Vec<Group>,
     filepath: &str,
+    n_iterations: u64,
 ) -> SelectionState<'a> {
     println!("simulated_annealing()");
 
     let mut rng = rand::thread_rng();
 
     let mut writer = BufWriter::new(
-        File::create(format!("{}.{}", filepath, "csv")).expect(&format!("Could not create file \"{}.csv\"", filepath)),
+        File::create(format!("{}.{}", filepath, "csv"))
+            .expect(&format!("Could not create file \"{}.csv\"", filepath)),
     );
 
     writer
@@ -39,12 +34,13 @@ pub fn simulated_annealing<'a>(
         .unwrap();
 
     let mut r_writer = BufWriter::new(
-        File::create(format!("{}_{}.{}", filepath, "runtime", "csv")).expect(&format!("Could not create file \"{}\"", format!("{}_{}.{}", filepath, "runtime", "csv"))),
+        File::create(format!("{}_{}.{}", filepath, "runtime", "csv")).expect(&format!(
+            "Could not create file \"{}\"",
+            format!("{}_{}.{}", filepath, "runtime", "csv")
+        )),
     );
 
-    r_writer
-        .write("runtime,time\n".as_bytes())
-        .unwrap();
+    r_writer.write("runtime,time\n".as_bytes()).unwrap();
 
     //let mut current = SelectionState::generate_random_state(graph, groups);
     let mut current = SelectionState::generate_state_with_best_path_per_group(graph, groups);
@@ -53,7 +49,7 @@ pub fn simulated_annealing<'a>(
     let start_instant = Instant::now();
 
     loop {
-        let temperature = time_to_temperature(time as f64);
+        let temperature = n_iterations as f64 / time as f64; // time-to-temperature mapping
 
         print!(
             "[time={}]: cost={}, edge_cost={}, travel_cost={}, delay_cost={}, temp={:.2}, ",
@@ -85,29 +81,13 @@ pub fn simulated_annealing<'a>(
             println!(" (done in {}s)", start_instant.elapsed().as_secs());
 
             r_writer
-            .write(
-                format!(
-                    "{}s,{}\n",
-                    start_instant.elapsed().as_secs(),
-                    time
-                )
-                .as_bytes(),
-            )
-            .unwrap();
+                .write(format!("{}s,{}\n", start_instant.elapsed().as_secs(), time).as_bytes())
+                .unwrap();
+
             return current;
         }
 
-        // select random next state
-        // let next_state = &neighbor_states[rng.gen::<usize>() % neighbor_states.len()];
-        // let next = current
-        //     .all_direct_neighbors(graph)
-        //     .into_iter()
-        //     .min_by_key(|s| s.cost)
-        //     .unwrap();
-
         let next = current.random_group_neighbor(graph, &mut rng, None, None);
-
-        // print!("next_state={:?}, ", next_state.groups_paths_selection);
 
         // if next_state is better than current_state -> delta positive
         // if next_state is worse than current_state -> delta negative

@@ -847,7 +847,7 @@ mod tests {
 
         let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
 
-        let selection_state = simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing_test");
+        let selection_state = simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing_test", 15000);
         validate_groups_paths_integrity_state(&mut model, &selection_state);
 
         let mut groups_cloned = groups_with_at_least_one_path.clone();
@@ -976,7 +976,7 @@ mod tests {
 
         let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
 
-        let selection_state = simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing_test");
+        let selection_state = simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing_test", 15000);
         validate_cost_metrics_state(&mut model.graph, &selection_state);
 
         let mut groups_cloned = groups_with_at_least_one_path.clone();

@@ -6,8 +6,69 @@ use petgraph::{EdgeDirection::Outgoing, graph::NodeIndex};
 mod csv_reader;
 mod model;
 mod optimization;
+use clap::{Arg, App, SubCommand};
 
 fn main() {
+
+    let matches = App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
+
+        .arg(Arg::with_name("input_folder_path")
+            .short("i")
+            .long("input")
+            .help("folder path of the input CSV files")
+            .value_name("FOLDER"))
+
+        .arg(Arg::with_name("output_folder_path")
+            .short("o")
+            .long("output")
+            .help("folder path for the output CSV file (default='.' aka. current directory)")
+            .value_name("FOLDER"))
+
+        .arg(Arg::with_name("search_budget")
+            .short("b")
+            .long("search_budget")
+            .help("Specifies the search budget each run of the depth-first search is initially provided with (default=60).")
+            .value_name("INTEGER"))
+
+        .arg(Arg::with_name("n_search_threads")
+            .short("t")
+            .long("n_search_threads")
+            .help("Specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network (default=1).")
+            .value_name("INTEGER"))
+
+        .arg(Arg::with_name("n_optimization_iterations")
+            .short("i")
+            .long("n_optimization_iterations")
+            .help("Specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of routes (default=15000).")
+            .value_name("INTEGER"))
+
+        .get_matches();
+
+    // parse config values from cli args
+    let input_folder_path = matches.value_of("input_folder_path").unwrap();
+    let output_folder_path = matches.value_of("output_folder_path").unwrap_or(".");
+    let search_budget: usize = matches
+        .value_of("search_budget")
+        .unwrap_or("60")
+        .parse()
+        .expect("search_budget has to be a positive number");
+    let n_search_threads: usize = matches
+        .value_of("n_search_threads")
+        .unwrap_or("1")
+        .parse()
+        .expect("n_search_threads has to be a positive number");
+    let n_optimization_iterations: u64 = matches
+        .value_of("n_optimization_iterations")
+        .unwrap_or("15000")
+        .parse()
+        .expect("n_optimization_iterations has to be a positive number");
+
+
+
+
     // EXPLANATION OF CLI ARGUMENT USAGE:
     // if <csv_folderpath> specified, the program will try to read all CSVs from there + create a new model + search paths for all groups + create a snapshot of current model and continue with best path selection
     // if <csv_folderpath> is NOT specified, the proram will try to load a snapshot from a previous run and directly continue with best path selection
@@ -30,7 +91,12 @@ fn main() {
         );
 
         let model = Model::with_stations_trips_and_footpaths(csv_folderpath);
-        let groups = model.find_paths_for_groups(&format!("{}/groups.csv", csv_folderpath));
+        let groups = model
+            .find_paths_for_groups(
+                &format!("{}/groups.csv", csv_folderpath),
+                &vec![30, 35, 40, 45, 50, 55, 60],
+                n_search_threads
+        );
 
         println!("create snapshot of model and groups for next run");
         model.save_to_file(snapshot_folder_path);
@@ -81,7 +147,12 @@ fn main() {
     //optimization::analyze_neighborhood(&mut model.graph, &groups_with_at_least_one_path, "eval/benchmark_neighbors/", 10);
 
     // // 1. Optimize with simulated annealing
-    let selection_state = optimization::simulated_annealing::simulated_annealing(&mut model.graph, &groups_with_at_least_one_path, "eval/simulated_annealing");
+    let selection_state = optimization::simulated_annealing::simulated_annealing(
+        &mut model.graph, 
+        &groups_with_at_least_one_path, 
+        "eval/simulated_annealing",
+        n_optimization_iterations
+    );
     // save results
     // selection_state.save_strained_trip_edges_to_csv(&mut model.graph, "eval/simulated_annealing_edges.csv");
     // selection_state.save_groups_to_csv(&mut model.graph, "eval/simulated_annealing_groups.csv");
