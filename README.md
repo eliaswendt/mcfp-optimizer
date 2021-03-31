@@ -84,7 +84,7 @@ Then use the following command to build and run the program:
 ```
 $ cargo build --release
 ```
-The binary can then be found at `target/release/praktikum-algorithmik`
+The binary can then be found at `target/release/praktikum-algorithmik`.
 
 ## How to use it
 Quick example:

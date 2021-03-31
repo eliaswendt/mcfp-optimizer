@@ -273,7 +273,7 @@ impl<'a> SelectionState<'a> {
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
     ) -> Vec<Vec<Self>> {
-        let mut neighbors = Vec::with_capacity(self.groups.len() * 10);
+        let mut neighbors = Vec::with_capacity(self.groups.len());
 
         // stores all edges currently strained to the graph
         let mut strained_edges = HashSet::new();
@@ -286,7 +286,6 @@ impl<'a> SelectionState<'a> {
 
         // iterate over all groups_paths_selection
         for group_index in 0..self.groups_path_index.len() {
-
             let mut intermediate_neighbors = Vec::with_capacity(self.groups_path_index.len());
 
             let self_selected_path_index = self.groups_path_index[group_index];
@@ -358,11 +357,11 @@ impl<'a> SelectionState<'a> {
     /// generates a vec of neighbor states
     /// create two new states per selected_path_index -> one with the one-lower index (if > 0) + one with the one-higher index (if in bounds)
     /// this function also efficiently calculates the cost during creation of path configurations
-    pub fn all_direct_neighbors(
+    pub fn all_direct_group_neighbors(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
-    ) -> Vec<Self> {
-        let mut neighbors = Vec::with_capacity(self.groups.len() * 2);
+    ) -> Vec<Vec<Self>> {
+        let mut neighbors = Vec::with_capacity(self.groups.len());
 
         // stores all edges currently strained to the graph
         let mut strained_edges = HashSet::new();
@@ -374,6 +373,8 @@ impl<'a> SelectionState<'a> {
 
         // iterate over all groups_paths_selection
         for group_index in 0..self.groups_path_index.len() {
+            let mut intermediate_neighbors = Vec::with_capacity(self.groups_path_index.len());
+
             // fetch selected path index of current group
             let actual_selected_path_index = self.groups_path_index[group_index];
 
@@ -415,7 +416,7 @@ impl<'a> SelectionState<'a> {
                     groups_path_index: groups_paths_selection_clone,
                 };
 
-                neighbors.push(selection_state);
+                intermediate_neighbors.push(selection_state);
             }
 
             if actual_selected_path_index != self.groups[group_index].paths.len() - 1 {
@@ -451,12 +452,14 @@ impl<'a> SelectionState<'a> {
                     groups_path_index: groups_paths_selection_clone,
                 };
 
-                neighbors.push(selection_state);
+                intermediate_neighbors.push(selection_state);
             }
 
             // re-add the actually selected path for current group to graph
             self.groups[group_index].paths[actual_selected_path_index]
                 .strain_to_graph(graph, &mut strained_edges);
+
+            neighbors.push(intermediate_neighbors);
         }
 
         // at the beginning of the function we strained all actual selected paths to the graph
@@ -740,18 +743,18 @@ impl<'a> SelectionState<'a> {
 /// generates and saves the neighborhood of states for analysis purposes
 pub fn analyze_neighborhood(graph: &mut DiGraph<TimetableNode, TimetableEdge>, groups: &Vec<Group>, folderpath: &str, n_iterations: usize) {
 
+    // use all_group_neighbors
     for iteration in 0..n_iterations {
-
-        let csv_filepath = format!("{}iteration_{}.csv", folderpath, iteration);
+        let csv_filepath = format!("{}all_group_neighbors_iteration_{}.csv", folderpath, iteration);
 
         let mut writer = BufWriter::new(
             File::create(&csv_filepath).expect(&format!("Could not create file {}", csv_filepath))
         );
     
-        writer.write("group_index,path_index,cost,strained_edges_cost,travel_cost,travel_delay,sum_path_len\n".as_bytes()).unwrap();
+        writer.write("group_index,path_index,combined_cost,strained_edges_cost,travel_cost,travel_delay,sum_path_len\n".as_bytes()).unwrap();
 
         // write initial state
-        let initial = SelectionState::generate_state_with_best_path_per_group(graph, groups);
+        let initial = SelectionState::generate_random_state(graph, groups);
         writer.write(format!(
             "{},{},{},{},{},{},{}\n",
             0,
@@ -764,6 +767,49 @@ pub fn analyze_neighborhood(graph: &mut DiGraph<TimetableNode, TimetableEdge>, g
         ).as_bytes()).unwrap();
 
         for (group_index, group_neighbors) in initial.all_group_neighbors(graph).iter().enumerate() {
+            for (path_index, group_neighbor) in group_neighbors.iter().enumerate() {
+                writer.write(format!(
+                    "{},{},{},{},{},{},{}\n",
+                    group_index,
+                    path_index,
+                    group_neighbor.cost,
+                    group_neighbor.strained_edges_cost,
+                    group_neighbor.travel_cost,
+                    group_neighbor.travel_delay_cost,
+                    group_neighbor.groups.iter().zip(group_neighbor.groups_path_index.iter()).map(|(group, path_index)| group.paths[*path_index].edges.len()).sum::<usize>()
+                ).as_bytes()).unwrap();
+            }
+        }
+
+        // todo: write current state
+    }
+
+    // use all_direct_group_members
+    for iteration in 0..n_iterations {
+        println!("writing neighborhood {}", iteration);
+
+        let csv_filepath = format!("{}all_direct_group_neighbors_iteration_{}.csv", folderpath, iteration);
+
+        let mut writer = BufWriter::new(
+            File::create(&csv_filepath).expect(&format!("Could not create file {}", csv_filepath))
+        );
+    
+        writer.write("group_index,path_index,combined_cost,strained_edges_cost,travel_cost,travel_delay,sum_path_len\n".as_bytes()).unwrap();
+
+        // write initial state
+        let initial = SelectionState::generate_random_state(graph, groups);
+        writer.write(format!(
+            "{},{},{},{},{},{},{}\n",
+            0,
+            0,
+            initial.cost,
+            initial.strained_edges_cost,
+            initial.travel_cost,
+            initial.travel_delay_cost,
+            initial.groups.iter().zip(initial.groups_path_index.iter()).map(|(group, path_index)| group.paths[*path_index].edges.len()).sum::<usize>()
+        ).as_bytes()).unwrap();
+
+        for (group_index, group_neighbors) in initial.all_direct_group_neighbors(graph).iter().enumerate() {
             for (path_index, group_neighbor) in group_neighbors.iter().enumerate() {
                 writer.write(format!(
                     "{},{},{},{},{},{},{}\n",

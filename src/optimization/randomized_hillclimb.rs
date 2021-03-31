@@ -76,7 +76,7 @@ pub fn randomized_hillclimb<'a>(
         for j in 0..max_n_iterations {
             // search local maximum from this initial configuration
             // let mut neighbors = local_minimum.generate_group_neighbors(graph); // uses too much memory to properly test it :/
-            let best_neighbor = local_minimum.all_direct_neighbors(graph).into_iter().min_by_key(|s| s.cost).unwrap();
+            let best_neighbor = local_minimum.all_direct_group_neighbors(graph).into_iter().flatten().min_by_key(|s| s.cost).unwrap();
 
             if best_neighbor.cost >= local_minimum.cost {
                 // no neighbors found OR best neighbor has higher cost than current local maximum
