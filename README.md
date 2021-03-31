@@ -165,9 +165,9 @@ specifies the folder path of the CSV input data
 
 `-t, --n_search_threads` specifies the number of threads the program is allowed to spawn for depth-first search of routes through the network (default=1).
 
-`-oi, --n_optimization_iterations` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of already found routes (default=15000).
+`-oi, --n_optimization_iterations_sa1` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of already found routes (default=15000).
 
-`-oj, --m_optimization_iterations` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of new routes with interchanged path parts (default=500).
+`-oj, --n_optimization_iterations_sa2` specifies the number of iterations simulated annealing is allowed to spend finding an optimal combination of new routes with interchanged path parts (default=500).
 
 ### Snapshots
 For quickly testing different parameters for the optimization algorithm, the program automatically generates a snapshot of its current state right after the depth-first search of group routes. This snapshot is saved in two files `snapshot_model.bincode` and `snapshot_groups.bincode`. Although these are two separated files, they strongly depend on each other and **can not be interchanged with snapshot files of other runs**.
