@@ -386,7 +386,7 @@ impl Path {
         graph: &DiGraph<TimetableNode, TimetableEdge>,
         start: NodeIndex,
         destination_station_id: u64, // condition that determines whether goal node was found
-        max_edge_vecs: usize,
+        min_edge_vecs: usize,
 
         max_duration: u64,
         budgets: &[u64],
@@ -406,8 +406,8 @@ impl Path {
                 *budget,
             );
 
-            if edge_vecs.len() >= max_edge_vecs {
-                // found at least one path -> return
+            if edge_vecs.len() >= min_edge_vecs {
+                // found enough paths -> do not continue with next budget
                 break
             }
         }

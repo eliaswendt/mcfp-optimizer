@@ -89,7 +89,7 @@ impl Group {
 
         let reader = BufReader::new(
             File::open(filepath)
-                .expect(&format!("Could not open file {}", filepath)),
+                .expect(&format!("Could not load from snapshot file {}\nPlease create a new state using the -i/--input parameter", filepath)),
         );
         let groups: Vec<Group> = bincode::deserialize_from(reader).expect("Could not load groups from file!");
         println!("done ({}ms)", start.elapsed().as_millis());
@@ -98,7 +98,7 @@ impl Group {
     }
 
     /// returns the number of found paths
-    pub fn search_paths(&mut self, model: &Model, search_budget: &[u64]) {
+    pub fn search_paths(&mut self, model: &Model, search_budget: &[u64], min_edge_vecs: usize) {
         // TODO: Bei den Reisendengruppen gibt es noch eine Änderung: Eine zusätzliche Spalte "in_trip" gibt jetzt an, in welchem Trip sich die Gruppe aktuell befindet. Die Spalte kann entweder leer sein (dann befindet sich die Gruppe aktuell in keinem Trip, sondern an der angegebenen Station) oder eine Trip ID angeben (dann befindet sich die Gruppe aktuell in diesem Trip und kann frühestens an der angegebenen Station aussteigen).
         // Das beeinflusst den Quellknoten der Gruppe beim MCFP: Befindet sich die Gruppe in einem Trip sollte der Quellknoten der entsprechende Ankunftsknoten (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein. Befindet sich die Gruppe an einer Station, sollte der Quellknoten ein Warteknoten an der Station (oder ein zusätzlich eingefügter Hilfsknoten, der mit diesem verbunden ist) sein.
 
@@ -189,7 +189,7 @@ impl Group {
             &model.graph,
             start,
             self.destination_station_id,
-            100,
+            min_edge_vecs,
 
             2 * travel_time + 120,
             search_budget,

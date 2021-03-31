@@ -63,7 +63,6 @@ impl Model {
 
         for (station_id, station) in stations.into_iter() {
 
-            let station_name = station.name.clone();
             let (transfers, arrivals) = station.connect(&mut graph);
 
             // save references to all transfers and to arrival_main
@@ -117,7 +116,7 @@ impl Model {
             File::create(filepath).expect(&format!("Could not open file {}", filepath))
         );
 
-        bincode::serialize_into(writer, self).expect("Could not dump model");
+        bincode::serialize_into(writer, self).expect("Could not save model to file");
         println!("done ({}ms)", start.elapsed().as_millis());
     }
 
@@ -129,7 +128,7 @@ impl Model {
         let start = Instant::now();
 
         let reader = BufReader::new(
-            File::open(filepath).expect(&format!("Could not open file {}", filepath))
+            File::open(filepath).expect(&format!("Could load snapshot from {}\nPlease create a new state using the -i/--input parameter", filepath))
         );
         let model: Self = bincode::deserialize_from(reader).expect("Could not load model from file!");
 
@@ -184,7 +183,7 @@ impl Model {
         .unwrap();
     }
 
-    pub fn find_paths_for_groups(&self, groups_csv_filepath: &str, search_budget: &[u64], n_threads: usize) -> Vec<Group> {
+    pub fn find_paths_for_groups(&self, groups_csv_filepath: &str, search_budget: &[u64], n_threads: usize, min_edge_vecs: usize) -> Vec<Group> {
 
         // TODO: Falls die Gruppe an einer Station startet, muss in diesem Fall am Anfang die Stationsumstiegszeit berücksichtigt werden (kann man sich so vorstellen: die Gruppe steht irgendwo an der Station und muss erst zu dem richtigen Gleis laufen).
         // Befindet sich die Gruppe hingegen in einem Trip, hat sie zusätzlich die Möglichkeit, mit diesem weiterzufahren und erst später umzusteigen. (Würde man sie an der Station starten lassen, wäre die Stationsumstiegszeit nötig, um wieder in den Trip einzusteigen, in dem sie eigentlich schon ist - und meistens ist die Standzeit des Trips geringer als die Stationsumstiegszeit)
@@ -214,7 +213,7 @@ impl Model {
                         match group_option {
                             Some(mut group) => {
                                 print!("[group={}]: ", group.id);
-                                group.search_paths(&self, search_budget);
+                                group.search_paths(&self, search_budget, min_edge_vecs);
 
                                 // add processed group to processed vec
                                 processed_groups.lock().unwrap().push(group)
