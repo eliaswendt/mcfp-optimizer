@@ -8,6 +8,11 @@ mod model;
 mod optimization;
 use clap::{App, Arg, SubCommand, Values};
 
+/// main entry point of the program, configurable by CLI parameters
+///
+/// start with `cargo run --release`
+///
+/// use `--help` to see a list of params
 fn main() {
 
     let matches = App::new(env!("CARGO_PKG_NAME"))
