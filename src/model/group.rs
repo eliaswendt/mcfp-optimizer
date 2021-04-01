@@ -1,11 +1,6 @@
 use petgraph::graph::NodeIndex;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{BufReader, BufWriter},
-    time::Instant,
-};
+use std::{collections::HashMap, fs::File, io::{BufReader, BufWriter}, process::exit, time::Instant};
 
 use colored::Colorize;
 
@@ -92,10 +87,15 @@ impl Group {
         let start = Instant::now();
 
         let reader = BufReader::new(
-            File::open(filepath)
-                .expect(&format!("Could not load from snapshot file {}\nPlease create a new state using the -i/--input parameter", filepath)),
+            match File::open(filepath) {
+                Ok(file) => file,
+                Err(_) => {
+                    println!("no group snapshot found.\nPlease create a new state using the -i/--input parameter");
+                    exit(1)
+                }
+            }
         );
-        let groups: Vec<Group> = bincode::deserialize_from(reader).expect("Could not load groups from file!");
+        let groups: Vec<Group> = bincode::deserialize_from(reader).expect("failed to parse snapshot");
         println!("done ({}ms)", start.elapsed().as_millis());
 
         groups

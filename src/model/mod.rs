@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fs::File, sync::{Arc, Mutex}, time::Instant};
+use std::{collections::{HashMap, HashSet}, fs::File, process::exit, sync::{Arc, Mutex}, time::Instant};
 use serde::{Deserialize, Serialize};
 use std::io::{BufWriter, Write};
 use std::io::BufReader;
@@ -124,13 +124,19 @@ impl Model {
     pub fn load_from_file() -> Self {
         let filepath = "snapshot_model.bincode";
 
-        print!("loading model from {} ... ", filepath);
+        print!("loading model from '{}' ... ", filepath);
         let start = Instant::now();
 
         let reader = BufReader::new(
-            File::open(filepath).expect(&format!("Could load snapshot from {}\nPlease create a new state using the -i/--input parameter", filepath))
+            match File::open(filepath) {
+                Ok(file) => file,
+                Err(_) => {
+                    println!("no model snapshot found. \nPlease use the -i/--input parameter");
+                    exit(1);
+                }
+            }
         );
-        let model: Self = bincode::deserialize_from(reader).expect("Could not load model from file!");
+        let model: Self = bincode::deserialize_from(reader).expect("failed to parse snapshot");
 
         println!("done ({}ms)", start.elapsed().as_millis());
 
