@@ -17,7 +17,11 @@ The algorithm mainly consists out of three steps:
 
 <br>
 
-![sample_data graph](graph.png "Title")
+### Time expanded timetable graph
+![sample_data graph](graph.png "Sample data graph")
+
+### Graph scheme
+![timetable graph](timetable.png "Graph scheme")
 
 ## Input
 The Algorithm expects the input separated in four different CSV files stored in the same folder.
