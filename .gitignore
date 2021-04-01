@@ -4,7 +4,6 @@
 /real_data_02
 /dump
 .DS_Store
-/snapshot
 /eval/venv
 /eval/.ipynb_checkpoints
 snapshot_groups.bincode

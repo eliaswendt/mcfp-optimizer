@@ -15,6 +15,9 @@ The algorithm mainly consists out of three steps:
 
 3. Last, the algorithm tries to compose an optimal combination of routes (one for each group) using simulated annealing. One goal is to keep the selected route for each group as short and pleasant (few train changes, non-overcrowded trains) as possible, but also not to overload the network in general. In the first part, simulated annealing is used to interchange already found paths. In the second part, it tries to detour groups from overcrowded edges by finding subpaths avoiding this edge.
 
+<br>
+
+![sample_data graph](graph.png "Title")
 
 ## Input
 The Algorithm expects the input separated in four different CSV files stored in the same folder.

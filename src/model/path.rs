@@ -372,26 +372,7 @@ impl Path {
         }
     }
 
-    // /// get index of path with minimal cost from a list of paths
-    // pub fn get_best_path(paths: &Vec<Self>) -> Option<usize> {
-    //     let mut score = 0;
-    //     let mut index = None;
-    //     for (i, path) in paths.iter().enumerate() {
-    //         match index {
-    //             Some(j) => {
-    //                 if path.score() < score {
-    //                     score = path.score();
-    //                     index = Some(i)
-    //                 }
-    //             }
-    //             None => {
-    //                 score = path.score();
-    //                 index = Some(i)
-    //             }
-    //         }
-    //     }
-    //     index
-    // }
+
 
     /// iterative deeping depth-first-search (IDDFS) to find paths for a given group
     pub fn all_paths_iddfs(
@@ -694,42 +675,7 @@ pub fn collect_paths_recursive(graph: &DiGraph<TimetableNode, TimetableEdge>, pr
     }
 }
 
-// pub fn collect_path(graph: &DiGraph<TimetableNode, TimetableEdge>, predecessors: &mut Vec<Predecessors>, mut current: NodeIndex, mut current_cost: u64) -> Vec<EdgeIndex> {
 
-//     let mut path = Vec::new();
-
-//     loop {
-//         // println!("collect_path(): current={:?}, path={:?}", graph[current], path);
-
-//         let mut direct_predecessor_index = None;
-
-//         for (index, (cost, _)) in predecessors[current.index()].iter().enumerate() {
-//             if *cost == current_cost {
-//                 direct_predecessor_index = Some(index);
-//                 break;
-//             }
-//         }
-
-//         match direct_predecessor_index {
-//             Some(index) => {
-//                 let (_, previous_edge) = &predecessors[current.index()][index];
-
-//                 path.push(*previous_edge);
-
-//                 // set new current to start point of previous_edge
-//                 current = graph.edge_endpoints(*previous_edge).unwrap().0;
-                                
-//                 // reduce cost by cost of this edge
-//                 current_cost -= &graph[*previous_edge].travel_cost();
-//             },
-//             None => {
-//                 // direct predecessor could not be found -> return path
-//                 path.reverse();
-//                 return path
-//             }
-//         }
-//     }    
-// }
 
 
 /// breadth first search to find paths for a given group
@@ -835,6 +781,65 @@ pub fn bfs(
 
     edge_vecs
 }
+
+// pub fn collect_path(graph: &DiGraph<TimetableNode, TimetableEdge>, predecessors: &mut Vec<Predecessors>, mut current: NodeIndex, mut current_cost: u64) -> Vec<EdgeIndex> {
+
+//     let mut path = Vec::new();
+
+//     loop {
+//         // println!("collect_path(): current={:?}, path={:?}", graph[current], path);
+
+//         let mut direct_predecessor_index = None;
+
+//         for (index, (cost, _)) in predecessors[current.index()].iter().enumerate() {
+//             if *cost == current_cost {
+//                 direct_predecessor_index = Some(index);
+//                 break;
+//             }
+//         }
+
+//         match direct_predecessor_index {
+//             Some(index) => {
+//                 let (_, previous_edge) = &predecessors[current.index()][index];
+
+//                 path.push(*previous_edge);
+
+//                 // set new current to start point of previous_edge
+//                 current = graph.edge_endpoints(*previous_edge).unwrap().0;
+                                
+//                 // reduce cost by cost of this edge
+//                 current_cost -= &graph[*previous_edge].travel_cost();
+//             },
+//             None => {
+//                 // direct predecessor could not be found -> return path
+//                 path.reverse();
+//                 return path
+//             }
+//         }
+//     }    
+// }
+
+
+    // /// get index of path with minimal cost from a list of paths
+    // pub fn get_best_path(paths: &Vec<Self>) -> Option<usize> {
+    //     let mut score = 0;
+    //     let mut index = None;
+    //     for (i, path) in paths.iter().enumerate() {
+    //         match index {
+    //             Some(j) => {
+    //                 if path.score() < score {
+    //                     score = path.score();
+    //                     index = Some(i)
+    //                 }
+    //             }
+    //             None => {
+    //                 score = path.score();
+    //                 index = Some(i)
+    //             }
+    //         }
+    //     }
+    //     index
+    // }
 
 // // creates a subgraph of self with only the part of the graph of specified paths
 // pub fn create_subgraph_with_nodes_old(graph: &mut DiGraph<NodeWeight, EdgeWeight>, paths: Vec<Path>, node_index_graph_subgraph_mapping: &mut HashMap<NodeIndex, NodeIndex>) -> Vec<Vec<ObjectIndex>> {
