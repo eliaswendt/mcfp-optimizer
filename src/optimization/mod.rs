@@ -98,7 +98,7 @@ impl<'a> SelectionState<'a> {
             .sum()
     }
 
-    /// saves this SelectionState to csv file
+    /// saves groups of this SelectionState to csv file
     ///
     /// creates a pipe-separated CSV with one group per line
     ///
@@ -152,7 +152,11 @@ impl<'a> SelectionState<'a> {
         }
     }
 
-
+    /// saves strained Trip edges of this SelectionState to csv file
+    ///
+    /// creates a pipe-separated CSV with one edge per line
+    ///
+    /// saves EdgeIndex, duration, capacity, and utilization
     pub fn save_strained_trip_edges_to_csv(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -493,7 +497,7 @@ impl<'a> SelectionState<'a> {
         neighbors
     }
 
-    /// generate a single SelectionState neighbor
+    /// generates a single SelectionState neighbor
     ///
     /// if not specified, select a random path for a random group
     pub fn group_neighbor(
@@ -549,7 +553,10 @@ impl<'a> SelectionState<'a> {
         }
     }
 
-
+    /// generates a single SelectionState neighbor 
+    /// by changing the the selected path of the group with group_index to path with path_index
+    ///
+    /// returns a new SelectionState
     pub fn group_neighbor_from_group_and_path(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -590,6 +597,8 @@ impl<'a> SelectionState<'a> {
         }
     }
 
+    /// selects a randomly selected overcrowded edge and its straining groups
+    /// returns tuple of edge's index and a vector of the straining groups indices
     pub fn get_random_overcrowded_edge_with_groups(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -637,6 +646,7 @@ impl<'a> SelectionState<'a> {
         (random_edge, group_indices)
     }
 
+    /// tries to find a detour for a random group straining the given edge
     pub fn find_detour_for_random_group(
         &self,
         graph: &mut DiGraph<TimetableNode, TimetableEdge>,
@@ -712,13 +722,6 @@ impl<'a> SelectionState<'a> {
                 // if we have more paths as before
                 if possible_paths.len() > 3 {
                     let path_index;
-                    // match rng {
-                    //     Some(rng) => path_index = rng.gen::<usize>() % possible_paths.len(),
-                    //     None => {
-                    //         possible_paths.sort_unstable_by_key(|p| p.cost());
-                    //         path_index = 0;
-                    //     }
-                    // }
                     possible_paths.sort_unstable_by_key(|p| p.cost());
                     path_index = 0;
 
@@ -844,6 +847,7 @@ pub fn analyze_neighborhood(graph: &mut DiGraph<TimetableNode, TimetableEdge>, g
 }
 
 
+/// tests the integrity of selection states after running optimization algorithms
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -854,6 +858,7 @@ mod tests {
 
     use super::{SelectionState, randomized_best, randomized_hillclimb, simulated_annealing, simulated_annealing_on_path};
 
+    /// tests the integrity of the paths of all groups
     #[test]
     fn validate_groups_paths_integrity() {
         let snapshot_folder_path = "snapshot/";
@@ -869,14 +874,14 @@ mod tests {
         let selection_state = simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path_test", 500);
         validate_groups_paths_integrity_state(&mut model, &selection_state);
 
-        let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
+        // let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
 
-        let selection_state = randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, 1000, "eval/randomized_best_test");
-        validate_groups_paths_integrity_state(&mut model, &selection_state);
+        // let selection_state = randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, 1000, "eval/randomized_best_test");
+        // validate_groups_paths_integrity_state(&mut model, &selection_state);
 
-        let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
-        let selection_state = randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 2,  1000, "eval/randomized_hillclimb_test");
-        validate_groups_paths_integrity_state(&mut model, &selection_state);
+        // let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
+        // let selection_state = randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 2,  1000, "eval/randomized_hillclimb_test");
+        // validate_groups_paths_integrity_state(&mut model, &selection_state);
     }
 
     fn validate_groups_paths_integrity_state(model: &Model, selection_state: &SelectionState) {
@@ -983,6 +988,7 @@ mod tests {
         }
     }
 
+    /// tests the integrity of the cost metrics
     #[test]
     fn validate_cost_metrics() {
         let snapshot_folder_path = "snapshot/";
@@ -998,14 +1004,14 @@ mod tests {
         let selection_state = simulated_annealing_on_path::simulated_annealing(&mut model.graph, &mut groups_cloned, selection_state, "eval/simulated_annealing_on_path_test", 500);
         validate_cost_metrics_state(&mut model.graph, &selection_state);
 
-        let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
+        // let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
 
-        let selection_state = randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, 1000, "eval/randomized_best_test");
-        validate_cost_metrics_state(&mut model.graph, &selection_state);
+        // let selection_state = randomized_best::randomized_best(&mut model.graph, &groups_with_at_least_one_path, 1000, "eval/randomized_best_test");
+        // validate_cost_metrics_state(&mut model.graph, &selection_state);
 
-        let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
-        let selection_state = randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 2,  1000, "eval/randomized_hillclimb_test");
-        validate_cost_metrics_state(&mut model.graph, &selection_state);
+        // let mut groups_with_at_least_one_path: Vec<Group> = groups.clone().into_iter().filter(|g| !g.paths.is_empty()).collect();
+        // let selection_state = randomized_hillclimb::randomized_hillclimb(&mut model.graph, &groups_with_at_least_one_path, 2,  1000, "eval/randomized_hillclimb_test");
+        // validate_cost_metrics_state(&mut model.graph, &selection_state);
     }
 
     fn validate_cost_metrics_state(graph: &mut DiGraph<TimetableNode, TimetableEdge>, selection_state: &SelectionState) {
