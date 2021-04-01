@@ -66,6 +66,7 @@ The Algorithm expects the input separated in four different CSV files stored in 
 ### trips.csv
 
 Each line the file only describes a fraction / a ride between **two** stations. The whole trip is described by multiple lines.
+
 | field name   | description                                                       |
 |--------------|-------------------------------------------------------------------|
 | id           | unique identifier of the trip                                     |
@@ -103,7 +104,8 @@ Each line the file only describes a fraction / a ride between **two** stations. 
 
 ### simulated_annealing\<_on_path\>_edges.csv
 
-Only strained edges, i.e. only trip edges or wait in train edges
+Only strained edges, i.e. only trip edges or wait in train edges.
+
 | field_name  | description                                                   |
 |-------------|---------------------------------------------------------------|
 | edge_index  | index of the edge in graph (identifier)                       |
