@@ -1,8 +1,9 @@
-Praktikum Algorithmik
-=====================
-Dorian Arnouts, Elias Wendt  
-Wintersemester 2020/21
+Multi-Commodity Flow Problem Solver
+===================================
+Dorian Arnouts, Elias Wendt
+Winter term 2020/21
 
+@ FG Algorithmik, TU-Darmstadt
 
 ## About
 This program aims to solve the Multi-Commodity Flow Problem of passenger flow distribution in the railroad network.
