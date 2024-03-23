@@ -1,5 +1,5 @@
-Multi-Commodity Flow Problem Solver
-===================================
+Multi-Commodity Flow Optimizer
+==============================
 Dorian Arnouts, Elias Wendt
 
 Winter term 2020/21
